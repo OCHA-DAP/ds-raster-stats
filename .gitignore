@@ -1,0 +1,16 @@
+venv/*
+.env
+__pycache__
+.vscode/*
+.DS_Store
+.ipynb_checkpoints
+.idea
+.python-version
+*.ipynb
+
+# Scratch files
+scratch/*
+
+# Outputs from running in 'test' mode
+test_outputs/*
+*/tmp/*

@@ -101,7 +101,6 @@ def upsample_raster(da, resampled_resolution=0.05):
     # Assuming square resolution
     input_resolution = da.rio.resolution()[0]
     upscale_factor = int(input_resolution / resampled_resolution)
-    print(f"Upscaling by a factor of {upscale_factor}")
 
     new_width = da.rio.width * upscale_factor
     new_height = da.rio.height * upscale_factor

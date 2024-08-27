@@ -1,7 +1,9 @@
+import logging
 import os
 import tempfile
 from pathlib import Path
 
+import coloredlogs
 import geopandas as gpd
 import pandas as pd
 from dotenv import load_dotenv
@@ -16,12 +18,17 @@ START = "2020-01-01"
 END = "2022-12-01"
 MAX_ADM = 2
 MODE = "dev"
+LOG_LEVEL = "DEBUG"
 
 load_dotenv()
+logger = logging.getLogger(__name__)
+coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
 
 if __name__ == "__main__":
     output_dir = Path("test_outputs") / "tabular"
+
+    logger.info(f"Updating data for {DATASET} from {START} to {END}")
 
     df = get_metadata()
     # Hard code this to "dev" for now since we don't have the right
@@ -34,7 +41,7 @@ if __name__ == "__main__":
     else:
         df_update = df
 
-    print(
+    logger.info(
         f"Data last updated {LAST_RUN}. Recalculating raster stats for {len(df_update)} ISO3s."
     )
 
@@ -44,7 +51,7 @@ if __name__ == "__main__":
         shp_url = df_update.loc[idx, "o_shp"]
         src_max_adm = df_update.loc[idx, "src_lvl"]
 
-        print(f"Processing data for {iso3}")
+        logger.info(f"Processing data for {iso3}...")
         if MODE == "local":
             country_dir = output_dir / iso3
             country_dir.mkdir(exist_ok=True, parents=True)
@@ -65,7 +72,7 @@ if __name__ == "__main__":
                 else:
                     adm_dir = f"{country_dir}/adm{adm_level}"
 
-                print(f"Computing for Admin {adm_level}...")
+                logger.debug(f"Computing for admin{adm_level}")
 
                 gdf = gpd.read_file(f"{td}/{iso3}_adm{adm_level}.shp")
 
@@ -85,4 +92,4 @@ if __name__ == "__main__":
                 output_file = os.path.join(adm_dir, f"{DATASET}_raster_stats.parquet")
                 write_output_stats(df_all_stats, output_file, MODE)
 
-    print("Done calculations.")
+    logger.info("... Done calculations.")

@@ -1,3 +1,4 @@
+import os
 import tempfile
 from pathlib import Path
 
@@ -5,15 +6,16 @@ import geopandas as gpd
 import pandas as pd
 from dotenv import load_dotenv
 
-from src.cloud_utils import stack_cogs
+from src.cloud_utils import stack_cogs, write_output_stats
 from src.cod_utils import get_metadata, load_shp
 from src.raster_utils import compute_zonal_statistics, upsample_raster
 
-LAST_RUN = "2024-05-05"  # Or can be a date
+LAST_RUN = "2024-07-05"  # Or can be a date
 DATASET = "era5"
 START = "2020-01-01"
 END = "2022-12-01"
 MAX_ADM = 2
+MODE = "dev"
 
 load_dotenv()
 
@@ -22,7 +24,9 @@ if __name__ == "__main__":
     output_dir = Path("test_outputs") / "tabular"
 
     df = get_metadata()
-    ds = stack_cogs(START, END, DATASET)
+    # Hard code this to "dev" for now since we don't have the right
+    # data locally or in prod
+    ds = stack_cogs(START, END, DATASET, "dev")
     ds_upsampled = upsample_raster(ds)
 
     if LAST_RUN:
@@ -41,8 +45,11 @@ if __name__ == "__main__":
         src_max_adm = df_update.loc[idx, "src_lvl"]
 
         print(f"Processing data for {iso3}")
-        country_dir = output_dir / iso3
-        country_dir.mkdir(exist_ok=True, parents=True)
+        if MODE == "local":
+            country_dir = output_dir / iso3
+            country_dir.mkdir(exist_ok=True, parents=True)
+        else:
+            country_dir = iso3
 
         # Go up to MAX_ADM, unless the source data doesn't have it
         max_adm = min(MAX_ADM, src_max_adm)
@@ -51,8 +58,12 @@ if __name__ == "__main__":
             load_shp(shp_url, td, iso3)
             # --- Now for each admin level in each country
             for adm_level in list(range(0, max_adm + 1)):
-                adm_dir = country_dir / f"adm{adm_level}"
-                adm_dir.mkdir(exist_ok=True, parents=True)
+                # Don't need it to really be a path if writing to cloud
+                if MODE == "local":
+                    adm_dir = country_dir / f"adm{adm_level}"
+                    adm_dir.mkdir(exist_ok=True, parents=True)
+                else:
+                    adm_dir = f"{country_dir}/adm{adm_level}"
 
                 print(f"Computing for Admin {adm_level}...")
 
@@ -69,7 +80,9 @@ if __name__ == "__main__":
                         date=str(da_upsampled.date.values),
                     )
                     stats.append(df_stats)
-                all_stats = pd.concat(stats, ignore_index=True)
-                all_stats.to_csv(adm_dir / f"{DATASET}_raster_stats.csv")
+                df_all_stats = pd.concat(stats, ignore_index=True)
+
+                output_file = os.path.join(adm_dir, f"{DATASET}_raster_stats.parquet")
+                write_output_stats(df_all_stats, output_file, MODE)
 
     print("Done calculations.")

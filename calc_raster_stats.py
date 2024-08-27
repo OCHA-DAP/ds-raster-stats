@@ -1,0 +1,75 @@
+import tempfile
+from pathlib import Path
+
+import geopandas as gpd
+import pandas as pd
+from dotenv import load_dotenv
+
+from src.cloud_utils import stack_cogs
+from src.cod_utils import get_metadata, load_shp
+from src.raster_utils import compute_zonal_statistics, upsample_raster
+
+LAST_RUN = "2024-05-05"  # Or can be a date
+DATASET = "era5"
+START = "2020-01-01"
+END = "2022-12-01"
+MAX_ADM = 2
+
+load_dotenv()
+
+
+if __name__ == "__main__":
+    output_dir = Path("test_outputs") / "tabular"
+
+    df = get_metadata()
+    ds = stack_cogs(START, END, DATASET)
+    ds_upsampled = upsample_raster(ds)
+
+    if LAST_RUN:
+        df_update = df[df.src_update >= LAST_RUN]
+    else:
+        df_update = df
+
+    print(
+        f"Data last updated {LAST_RUN}. Recalculating raster stats for {len(df_update)} ISO3s."
+    )
+
+    # --- Start by looping through each country
+    for idx, row in df_update.iterrows():
+        iso3 = df_update.loc[idx, "iso_3"]
+        shp_url = df_update.loc[idx, "o_shp"]
+        src_max_adm = df_update.loc[idx, "src_lvl"]
+
+        print(f"Processing data for {iso3}")
+        country_dir = output_dir / iso3
+        country_dir.mkdir(exist_ok=True, parents=True)
+
+        # Go up to MAX_ADM, unless the source data doesn't have it
+        max_adm = min(MAX_ADM, src_max_adm)
+
+        with tempfile.TemporaryDirectory() as td:
+            load_shp(shp_url, td, iso3)
+            # --- Now for each admin level in each country
+            for adm_level in list(range(0, max_adm + 1)):
+                adm_dir = country_dir / f"adm{adm_level}"
+                adm_dir.mkdir(exist_ok=True, parents=True)
+
+                print(f"Computing for Admin {adm_level}...")
+
+                gdf = gpd.read_file(f"{td}/{iso3}_adm{adm_level}.shp")
+
+                stats = []
+                # --- Each date in the source data
+                for date in ds_upsampled.date.values:
+                    da_upsampled = ds_upsampled.sel(date=date)
+                    df_stats = compute_zonal_statistics(
+                        da_upsampled,
+                        gdf,
+                        f"ADM{adm_level}_PCODE",
+                        date=str(da_upsampled.date.values),
+                    )
+                    stats.append(df_stats)
+                all_stats = pd.concat(stats, ignore_index=True)
+                all_stats.to_csv(adm_dir / f"{DATASET}_raster_stats.csv")
+
+    print("Done calculations.")

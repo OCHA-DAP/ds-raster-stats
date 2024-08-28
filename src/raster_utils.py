@@ -1,7 +1,13 @@
+import logging
+
+import coloredlogs
 import numpy as np
 import pandas as pd
 from rasterio.enums import Resampling
 from rasterstats import zonal_stats
+
+logger = logging.getLogger(__name__)
+coloredlogs.install(level="DEBUG", logger=logger)
 
 
 def compute_zonal_statistics(
@@ -104,6 +110,12 @@ def upsample_raster(da, resampled_resolution=0.05):
 
     new_width = da.rio.width * upscale_factor
     new_height = da.rio.height * upscale_factor
+
+    if da.rio.crs is None:
+        logger.warning(
+            "Input raster data did not have CRS defined. Setting to EPSG:4326."
+        )
+        da = da.rio.write_crs("EPSG:4326")
 
     return da.rio.reproject(
         da.rio.crs,

@@ -3,6 +3,7 @@ import logging
 import coloredlogs
 import numpy as np
 import pandas as pd
+import xarray as xr
 from rasterio.enums import Resampling
 from rasterstats import zonal_stats
 
@@ -83,7 +84,7 @@ def compute_zonal_statistics(
     return df_stats
 
 
-def upsample_raster(da, resampled_resolution=0.05):
+def upsample_raster(ds, resampled_resolution=0.05):
     """
     Upsample a raster to a higher resolution using nearest neighbor resampling.
     The function uses nearest neighbor resampling via the `Resampling.nearest`
@@ -91,43 +92,61 @@ def upsample_raster(da, resampled_resolution=0.05):
 
     Parameters
     ----------
-    da : xarray.DataArray
-        The raster data array to upsample.
+    da : xarray.Dataset
+        The raster data set to upsample.
     resampled_resolution : float, optional
         The desired resolution for the upsampled raster. Default is 0.05.
 
     Returns
     -------
-    xarray.DataArray
-        The upsampled raster as a DataArray with the new resolution.
+    xarray.Dataset
+        The upsampled raster as a Dataset with the new resolution.
 
 
 
     """
     # Assuming square resolution
-    input_resolution = da.rio.resolution()[0]
+    input_resolution = ds.rio.resolution()[0]
     upscale_factor = input_resolution / resampled_resolution
 
     logger.debug(
         f"Input resolution is {input_resolution}. Upscaling by a factor of {upscale_factor}."
     )
 
-    new_width = int(da.rio.width * upscale_factor)
-    new_height = int(da.rio.height * upscale_factor)
+    new_width = int(ds.rio.width * upscale_factor)
+    new_height = int(ds.rio.height * upscale_factor)
 
     logger.debug(
         f"New raster will have a width of {new_width} pixels and height of {new_height} pixels."
     )
 
-    if da.rio.crs is None:
+    if ds.rio.crs is None:
         logger.warning(
             "Input raster data did not have CRS defined. Setting to EPSG:4326."
         )
-        da = da.rio.write_crs("EPSG:4326")
+        ds = ds.rio.write_crs("EPSG:4326")
 
-    return da.rio.reproject(
-        da.rio.crs,
-        shape=(new_height, new_width),
-        resampling=Resampling.nearest,
-        nodata=np.nan,
-    )
+    # Forecast data will have 4 dims, since we have a leadtime
+    if len(list(ds.dims)) == 4:
+        resampled_arrays = []
+        for lt in ds.leadtime.values:
+            ds_ = ds.sel(leadtime=lt)
+            ds_ = ds_.rio.reproject(
+                ds_.rio.crs,
+                shape=(ds_.rio.height * 2, ds_.rio.width * 2),
+                resampling=Resampling.nearest,
+                nodata=np.nan,
+            )
+            ds_ = ds_.expand_dims(["leadtime"])
+            resampled_arrays.append(ds_)
+
+        ds_resampled = xr.combine_by_coords(resampled_arrays, combine_attrs="drop")
+    else:
+        ds_resampled = ds.rio.reproject(
+            ds.rio.crs,
+            shape=(new_height, new_width),
+            resampling=Resampling.nearest,
+            nodata=np.nan,
+        )
+
+    return ds_resampled

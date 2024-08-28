@@ -106,10 +106,18 @@ def upsample_raster(da, resampled_resolution=0.05):
     """
     # Assuming square resolution
     input_resolution = da.rio.resolution()[0]
-    upscale_factor = int(input_resolution / resampled_resolution)
+    upscale_factor = input_resolution / resampled_resolution
 
-    new_width = da.rio.width * upscale_factor
-    new_height = da.rio.height * upscale_factor
+    logger.debug(
+        f"Input resolution is {input_resolution}. Upscaling by a factor of {upscale_factor}."
+    )
+
+    new_width = int(da.rio.width * upscale_factor)
+    new_height = int(da.rio.height * upscale_factor)
+
+    logger.debug(
+        f"New raster will have a width of {new_width} pixels and height of {new_height} pixels."
+    )
 
     if da.rio.crs is None:
         logger.warning(

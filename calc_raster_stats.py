@@ -8,14 +8,15 @@ import geopandas as gpd
 import pandas as pd
 from dotenv import load_dotenv
 
-from src.cloud_utils import stack_cogs, write_output_stats
+from src.cloud_utils import write_output_stats
 from src.cod_utils import get_metadata, load_shp
+from src.cog_utils import stack_cogs
 from src.raster_utils import compute_zonal_statistics, upsample_raster
 
 LAST_RUN = "2024-07-05"  # Or can be a date
-DATASET = "era5"
-START = "2020-01-01"
-END = "2022-12-01"
+DATASET = "seas5"
+START = "1990-01-01"
+END = "1990-10-01"
 MAX_ADM = 2
 MODE = "dev"
 LOG_LEVEL = "DEBUG"

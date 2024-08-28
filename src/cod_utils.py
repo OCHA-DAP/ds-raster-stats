@@ -8,7 +8,7 @@ import requests
 
 def get_metadata():
     """
-    Retrieve and metadata on COD boundaries downloadable from fieldmaps.io.
+    Retrieve metadata on COD boundaries downloadable from fieldmaps.io.
 
     Returns
     -------

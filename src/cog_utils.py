@@ -15,7 +15,7 @@ coloredlogs.install(level="DEBUG", logger=logger)
 
 def parse_date(filename, dataset):
     """
-    Parses the date from the filename from an ERA5 COG.
+    Parses the date based on a COG filename.
     """
     if (dataset == "era5") or (dataset == "imerg"):
         date = pd.to_datetime(filename[-14:-4])

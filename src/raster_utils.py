@@ -12,15 +12,15 @@ coloredlogs.install(level="DEBUG", logger=logger)
 
 
 def compute_zonal_statistics(
-    da,
+    ds,
     gdf,
     id_col,
+    admin_level,
     geom_col="geometry",
     lat_coord="y",
     lon_coord="x",
     stats=None,
     all_touched=False,
-    date=None,
 ):
     """
     Compute zonal statistics for a raster dataset using a GeoDataFrame of polygons.
@@ -31,12 +31,14 @@ def compute_zonal_statistics(
 
     Parameters
     ----------
-    da : xarray.DataArray
-        The raster data array to perform zonal statistics on.
+    ds : xarray.Dataset
+        The raster data set to perform zonal statistics on.
     gdf : geopandas.GeoDataFrame
         GeoDataFrame containing the polygon geometries for the zones.
     id_col : str
         The column in `gdf` that contains unique identifiers for the polygons.
+    admin_level : int
+        Admin level of the input boundaries. Used to label the output data.
     geom_col : str, optional
         The column in `gdf` that contains the geometry of the polygons. Default is "geometry".
     lat_coord : str, optional
@@ -49,9 +51,6 @@ def compute_zonal_statistics(
     all_touched : bool, optional
         Whether to include all pixels touched by geometries, or only those whose center
         is within the polygon. Default is False.
-    date : str or datetime-like, optional
-        Date to associate with the computed statistics.
-        Added as a "date" column in the result. Default is None.
 
     Returns
     -------
@@ -65,35 +64,69 @@ def compute_zonal_statistics(
         percentiles = [f"percentile_{x}" for x in list(range(10, 100, 10))]
         stats.extend(percentiles)
 
-    coords_transform = da.rio.set_spatial_dims(
+    coords_transform = ds.rio.set_spatial_dims(
         x_dim=lon_coord, y_dim=lat_coord
     ).rio.transform()
 
-    stats = zonal_stats(
-        vectors=gdf[[geom_col]],
-        raster=da.values,
-        affine=coords_transform,
-        nodata=np.nan,
-        all_touched=all_touched,
-        stats=stats,
-    )
-    df_stats = pd.DataFrame(stats).round(2)
-    df_stats = gdf[[id_col]].merge(df_stats, left_index=True, right_index=True)
-    if date:
-        df_stats["date"] = pd.to_datetime(date)
+    outputs = []
+    for date in ds.date.values:
+        da_ = ds.sel(date=date)
+        # Forecast data will have 3 dims, since we have a leadtime
+        nd = len(list(da_.dims))
+        if nd == 3:
+            for lt in da_.leadtime.values:
+                da__ = da_.sel(leadtime=lt)
+                # Some leadtime/date combos are invalid and so don't have any data
+                if bool(np.all(np.isnan(da__.values))):
+                    continue
+                result = zonal_stats(
+                    vectors=gdf[[geom_col]],
+                    raster=da__.values,
+                    affine=coords_transform,
+                    nodata=np.nan,
+                    all_touched=all_touched,
+                    stats=stats,
+                )
+                # TODO: How slow is this? Is this still better than going to a df?
+                for i, stat in enumerate(result):
+                    stat["valid_date"] = date
+                    stat["leadtime"] = lt
+                    stat["pcode"] = gdf[id_col][i]
+                    stat["adm_level"] = admin_level
+                outputs.extend(result)
+        # Non forecast data
+        elif nd == 2:
+            result = zonal_stats(
+                vectors=gdf[[geom_col]],
+                raster=da_.values,
+                affine=coords_transform,
+                nodata=np.nan,
+                all_touched=all_touched,
+                stats=stats,
+            )
+            for i, stat in enumerate(result):
+                stat["valid_date"] = date
+                stat["leadtime"] = None  # NA for non-forecast data
+                stat["pcode"] = gdf[id_col][i]
+                stat["adm_level"] = admin_level
+            outputs.extend(result)
+        else:
+            raise Exception("Input Dataset must have 2 or 3 dimensions.")
+
+    df_stats = pd.DataFrame(outputs).round(2)
+
     return df_stats
 
 
 def upsample_raster(ds, resampled_resolution=0.05):
     """
-    Upsample a raster to a higher resolution using nearest neighbor resampling.
-    The function uses nearest neighbor resampling via the `Resampling.nearest`
-    method from `rasterio`.
+    Upsample a raster to a higher resolution using nearest neighbor resampling,
+    via the `Resampling.nearest` method from `rasterio`.
 
     Parameters
     ----------
-    da : xarray.Dataset
-        The raster data set to upsample.
+    ds : xarray.Dataset
+        The raster data set to upsample. Must not have >4 dimensions.
     resampled_resolution : float, optional
         The desired resolution for the upsampled raster. Default is 0.05.
 
@@ -101,9 +134,6 @@ def upsample_raster(ds, resampled_resolution=0.05):
     -------
     xarray.Dataset
         The upsampled raster as a Dataset with the new resolution.
-
-
-
     """
     # Assuming square resolution
     input_resolution = ds.rio.resolution()[0]
@@ -127,7 +157,8 @@ def upsample_raster(ds, resampled_resolution=0.05):
         ds = ds.rio.write_crs("EPSG:4326")
 
     # Forecast data will have 4 dims, since we have a leadtime
-    if len(list(ds.dims)) == 4:
+    nd = len(list(ds.dims))
+    if nd == 4:
         resampled_arrays = []
         for lt in ds.leadtime.values:
             ds_ = ds.sel(leadtime=lt)
@@ -141,12 +172,14 @@ def upsample_raster(ds, resampled_resolution=0.05):
             resampled_arrays.append(ds_)
 
         ds_resampled = xr.combine_by_coords(resampled_arrays, combine_attrs="drop")
-    else:
+    elif (nd == 2) or (nd == 3):
         ds_resampled = ds.rio.reproject(
             ds.rio.crs,
             shape=(new_height, new_width),
             resampling=Resampling.nearest,
             nodata=np.nan,
         )
+    else:
+        raise Exception("Input Dataset must have 2, 3, or 4 dimensions.")
 
     return ds_resampled

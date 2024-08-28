@@ -5,7 +5,6 @@ from pathlib import Path
 
 import coloredlogs
 import geopandas as gpd
-import pandas as pd
 from dotenv import load_dotenv
 
 from src.cloud_utils import write_output_stats
@@ -14,11 +13,11 @@ from src.cog_utils import stack_cogs
 from src.raster_utils import compute_zonal_statistics, upsample_raster
 
 LAST_RUN = "2024-07-05"  # Or can be a date
-DATASET = "seas5"
-START = "1990-01-01"
-END = "1990-10-01"
+DATASET = "imerg"
+START = "2020-01-01"
+END = "2020-02-01"
 MAX_ADM = 2
-MODE = "dev"
+MODE = "local"
 LOG_LEVEL = "DEBUG"
 
 load_dotenv()
@@ -32,9 +31,9 @@ if __name__ == "__main__":
     logger.info(f"Updating data for {DATASET} from {START} to {END}")
 
     df = get_metadata()
-    # Hard code this to "dev" for now since we don't have the right
+    # TODO: Hard code this to "dev" for now since we don't have the right
     # data locally or in prod
-    ds = stack_cogs(START, END, DATASET, "dev")
+    ds = stack_cogs(START, END, DATASET, "prod")
     ds_upsampled = upsample_raster(ds)
 
     if LAST_RUN:
@@ -77,18 +76,9 @@ if __name__ == "__main__":
 
                 gdf = gpd.read_file(f"{td}/{iso3}_adm{adm_level}.shp")
 
-                stats = []
-                # --- Each date in the source data
-                for date in ds_upsampled.date.values:
-                    da_upsampled = ds_upsampled.sel(date=date)
-                    df_stats = compute_zonal_statistics(
-                        da_upsampled,
-                        gdf,
-                        f"ADM{adm_level}_PCODE",
-                        date=str(da_upsampled.date.values),
-                    )
-                    stats.append(df_stats)
-                df_all_stats = pd.concat(stats, ignore_index=True)
+                df_all_stats = compute_zonal_statistics(
+                    ds_upsampled, gdf, f"ADM{adm_level}_PCODE", adm_level
+                )
 
                 output_file = os.path.join(adm_dir, f"{DATASET}_raster_stats.parquet")
                 write_output_stats(df_all_stats, output_file, MODE)

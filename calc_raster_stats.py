@@ -1,5 +1,4 @@
 import logging
-import os
 import tempfile
 import time
 from pathlib import Path
@@ -9,9 +8,9 @@ import geopandas as gpd
 from dotenv import load_dotenv
 
 from config import DATASETS, LOG_LEVEL, MAX_ADM
-from src.cloud_utils import write_output_stats
 from src.cod_utils import get_metadata, load_shp
 from src.cog_utils import stack_cogs
+from src.database_utils import db_connection, init_db
 from src.inputs import cli_args
 from src.raster_utils import compute_zonal_statistics, upsample_raster
 
@@ -22,6 +21,7 @@ coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
 if __name__ == "__main__":
     args = cli_args()
+    init_db(args.mode)
     df_iso3s = get_metadata()
     output_dir = Path("test_outputs") / "tabular"
     datasets = [args.dataset] if args.dataset else list(DATASETS.keys())
@@ -83,15 +83,14 @@ if __name__ == "__main__":
                     df_all_stats = compute_zonal_statistics(
                         ds_upsampled, gdf, f"ADM{adm_level}_PCODE", adm_level
                     )
+                    df_all_stats["iso3"] = iso3
 
                     elapsed_time = time.time() - start_time
                     logger.debug(
                         f"Raster stats calculated for admin{adm_level} in {elapsed_time:.4f} seconds"
                     )
-
-                    output_file = os.path.join(
-                        adm_dir, f"{dataset}_raster_stats.parquet"
-                    )
-                    write_output_stats(df_all_stats, output_file, args.mode)
+                    conn = db_connection(args.mode)
+                    df_all_stats.to_sql(dataset, conn, if_exists="append", index=False)
+                    conn.close()
 
         logger.info("... Done calculations.")

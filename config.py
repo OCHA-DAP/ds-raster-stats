@@ -1,3 +1,5 @@
+import os
+
 DATASETS = {
     "era5": {
         "blob_prefix": "era5/monthly/processed/daily_precip_reanalysis_v",
@@ -39,3 +41,16 @@ DATASETS = {
 
 MAX_ADM = 2
 LOG_LEVEL = "INFO"
+
+DATABASES = {
+    "local": {"engine": "sqlite3", "name": "chd-rasterstats-local.db"},
+    # TODO
+    "dev": {
+        "ENGINE": "mssql",
+        "NAME": os.getenv("AZURE_SQL_DB_NAME"),
+        "USER": os.getenv("AZURE_SQL_DB_USER"),
+        "PASSWORD": os.getenv("AZURE_SQL_DB_PASSWORD"),
+        "HOST": os.getenv("AZURE_SQL_DB_HOST"),
+        "PORT": os.getenv("AZURE_SQL_DB_PORT", 1433),
+    },
+}

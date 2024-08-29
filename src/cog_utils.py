@@ -6,7 +6,7 @@ import rioxarray as rxr
 import tqdm
 import xarray as xr
 
-from config import DATASET_NAMES
+from config import DATASETS
 from src.cloud_utils import get_cog_url, get_container_client
 
 logger = logging.getLogger(__name__)
@@ -147,13 +147,19 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
     xarray.Dataset
         A Dataset containing the stacked COG data, with time as the stacking dimension.
     """
+    # We don't have data stored locally, so will read from dev
+    if mode == "local":
+        logger.info(
+            "Retrieving data from `dev` Azure blob when running in `local` mode."
+        )
+        mode = "dev"
 
     start_date = pd.to_datetime(start_date)
     end_date = pd.to_datetime(end_date)
     container_client = get_container_client(mode, "raster")
 
     try:
-        prefix = DATASET_NAMES[dataset]
+        prefix = DATASETS[dataset]["blob_prefix"]
     except Exception:
         logger.error("Input `dataset` must be one of `era5`, `seas5`, or `imerg`.")
 

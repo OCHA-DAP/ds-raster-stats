@@ -24,7 +24,7 @@ if __name__ == "__main__":
     args = cli_args()
     df_iso3s = get_metadata()
     output_dir = Path("test_outputs") / "tabular"
-    datasets = [args.dataset if args.dataset else list(DATASETS.keys())]
+    datasets = [args.dataset] if args.dataset else list(DATASETS.keys())
 
     for dataset in datasets:
         logger.info(f"Updating data for {dataset}...")

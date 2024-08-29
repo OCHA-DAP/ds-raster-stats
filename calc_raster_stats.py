@@ -8,15 +8,12 @@ import coloredlogs
 import geopandas as gpd
 from dotenv import load_dotenv
 
-from config import DATASETS
+from config import DATASETS, LOG_LEVEL, MAX_ADM
 from src.cloud_utils import write_output_stats
 from src.cod_utils import get_metadata, load_shp
 from src.cog_utils import stack_cogs
 from src.inputs import cli_args
 from src.raster_utils import compute_zonal_statistics, upsample_raster
-
-MAX_ADM = 2
-LOG_LEVEL = "DEBUG"
 
 load_dotenv()
 logger = logging.getLogger(__name__)

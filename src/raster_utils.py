@@ -7,8 +7,10 @@ import xarray as xr
 from rasterio.enums import Resampling
 from rasterstats import zonal_stats
 
+from config import LOG_LEVEL
+
 logger = logging.getLogger(__name__)
-coloredlogs.install(level="DEBUG", logger=logger)
+coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
 
 def compute_zonal_statistics(

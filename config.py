@@ -36,3 +36,6 @@ DATASETS = {
         },
     },
 }
+
+MAX_ADM = 2
+LOG_LEVEL = "INFO"

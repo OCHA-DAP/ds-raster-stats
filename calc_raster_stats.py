@@ -78,7 +78,7 @@ if __name__ == "__main__":
 
                     start_time = time.time()
 
-                    gdf = gpd.read_file(f"{td}/{iso3}_adm{adm_level}.shp")
+                    gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{adm_level}.shp")
 
                     df_all_stats = compute_zonal_statistics(
                         ds_upsampled, gdf, f"ADM{adm_level}_PCODE", adm_level

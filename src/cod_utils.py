@@ -20,7 +20,7 @@ def get_metadata():
     url = "https://data.fieldmaps.io/cod.csv"
     response = requests.get(url)
     csv_data = StringIO(response.text)
-    df = pd.read_csv(csv_data).sort_values(by="src_update", ascending=False)
+    df = pd.read_csv(csv_data).sort_values(by="iso_3", ascending=True)
     return df
 
 

@@ -16,11 +16,16 @@ def get_metadata():
         A DataFrame containing the metadata sorted by the "src_update" column
         in descending order.
     """
-    # TODO: Look into duplicated entries (by iso_3)
     url = "https://data.fieldmaps.io/cod.csv"
     response = requests.get(url)
     csv_data = StringIO(response.text)
-    df = pd.read_csv(csv_data).sort_values(by="src_update", ascending=False)
+    df = pd.read_csv(csv_data).sort_values(by="iso_3", ascending=True)
+
+    # Some ISO3s are duplicated, with separate entries used to identify
+    # certain offshore territories or distinct geographic regions that might be labelled
+    # separately on a global map. However the source data in the shp originals is the
+    # same so we can just drop the duplicates.
+    df = df.drop_duplicates(subset="iso_3", keep="first")
     return df
 
 

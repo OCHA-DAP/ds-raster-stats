@@ -115,7 +115,11 @@ def compute_zonal_statistics(
         else:
             raise Exception("Input Dataset must have 2 or 3 dimensions.")
 
-    df_stats = pd.DataFrame(outputs).round(2)
+    df_stats = pd.DataFrame(outputs)
+    # Not sure why, but need to all match this datatype to round properly
+    # when exported to sql database
+    df_stats[percentiles] = df_stats[percentiles].astype("float64")
+    df_stats = df_stats.round(2)
 
     return df_stats
 

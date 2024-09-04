@@ -52,7 +52,6 @@ DATABASES = {
         "engine_url": "sqlite:///chd-rasterstats-local.db",
     },
     "dev": {
-        "engine_url": f"postgresql+psycopg2://chdadmin:{AZURE_DB_PW}\
-            @chd-rasterstats-dev.postgres.database.azure.com/postgres",
+        "engine_url": f"postgresql+psycopg2://chdadmin:{AZURE_DB_PW}@chd-rasterstats-dev.postgres.database.azure.com/postgres",  # noqa
     },
 }

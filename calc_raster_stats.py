@@ -24,6 +24,7 @@ if __name__ == "__main__":
     datasets = [args.dataset] if args.dataset else list(DATASETS.keys())
 
     for dataset in datasets:
+        start_time = time.time()
         logger.info(f"Updating data for {dataset}...")
         engine = db_engine(args.mode)
         create_dataset_table(dataset, engine)
@@ -40,7 +41,7 @@ if __name__ == "__main__":
             end = DATASETS[dataset]["end_date"]
 
         logger.debug(f"Creating stack of COGs from {start} to {end}...")
-        start_time = time.time()
+        full_start_time = time.time()
         ds = stack_cogs(start, end, dataset, args.mode)
         ds_upsampled = upsample_raster(ds)
         elapsed_time = time.time() - start_time
@@ -96,4 +97,5 @@ if __name__ == "__main__":
                         method=postgres_upsert,
                     )
 
-        logger.info("... Done calculations.")
+        elapsed_time = time.time() - full_start_time
+        logger.info(f"... Done calculations in {elapsed_time:.2f} seconds.")

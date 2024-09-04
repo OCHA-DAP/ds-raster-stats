@@ -189,3 +189,10 @@ def upsample_raster(ds, resampled_resolution=0.05):
         raise Exception("Input Dataset must have 2, 3, or 4 dimensions.")
 
     return ds_resampled
+
+
+def prep_raster(ds, gdf_adm):
+    minx, miny, maxx, maxy = gdf_adm.total_bounds
+    ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny))
+    ds_resampled = upsample_raster(ds_clip)
+    return ds_resampled

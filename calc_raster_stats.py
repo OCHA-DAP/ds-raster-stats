@@ -11,7 +11,7 @@ from src.cod_utils import get_metadata, load_shp
 from src.cog_utils import stack_cogs
 from src.database_utils import create_dataset_table, db_engine, postgres_upsert
 from src.inputs import cli_args
-from src.raster_utils import compute_zonal_statistics, upsample_raster
+from src.raster_utils import compute_zonal_statistics, prep_raster
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
@@ -43,7 +43,7 @@ if __name__ == "__main__":
         logger.debug(f"Creating stack of COGs from {start} to {end}...")
         full_start_time = time.time()
         ds = stack_cogs(start, end, dataset, args.mode)
-        ds_upsampled = upsample_raster(ds)
+
         elapsed_time = time.time() - start_time
         logger.debug(f"Finished processing COGs in {elapsed_time:.4f} seconds.")
 
@@ -67,6 +67,10 @@ if __name__ == "__main__":
 
             with tempfile.TemporaryDirectory() as td:
                 load_shp(shp_url, td, iso3)
+                # Prep the raster
+                gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm0.shp")
+                ds_clipped = prep_raster(ds, gdf)
+
                 # --- Now for each admin level in each country
                 for adm_level in list(range(0, max_adm + 1)):
                     # Don't need it to really be a path if writing to cloud
@@ -81,7 +85,7 @@ if __name__ == "__main__":
                     gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{adm_level}.shp")
 
                     df_all_stats = compute_zonal_statistics(
-                        ds_upsampled, gdf, f"ADM{adm_level}_PCODE", adm_level
+                        ds_clipped, gdf, f"ADM{adm_level}_PCODE", adm_level
                     )
                     df_all_stats["iso3"] = iso3
 

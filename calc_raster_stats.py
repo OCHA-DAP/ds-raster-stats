@@ -88,7 +88,6 @@ if __name__ == "__main__":
                     logger.debug(
                         f"Raster stats calculated for admin{adm_level} in {elapsed_time:.4f} seconds"
                     )
-                    df_all_stats["iso3"] = "TTT"
                     df_all_stats.to_sql(
                         dataset,
                         con=engine,

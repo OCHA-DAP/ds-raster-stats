@@ -5,29 +5,28 @@ from pathlib import Path
 
 import coloredlogs
 import geopandas as gpd
-from dotenv import load_dotenv
 
 from config import DATASETS, LOG_LEVEL, MAX_ADM
 from src.cod_utils import get_metadata, load_shp
 from src.cog_utils import stack_cogs
-from src.database_utils import db_connection, init_db
+from src.database_utils import create_dataset_table, db_engine
 from src.inputs import cli_args
 from src.raster_utils import compute_zonal_statistics, upsample_raster
 
-load_dotenv()
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
 
 if __name__ == "__main__":
     args = cli_args()
-    init_db(args.mode)
     df_iso3s = get_metadata()
     output_dir = Path("test_outputs") / "tabular"
     datasets = [args.dataset] if args.dataset else list(DATASETS.keys())
 
     for dataset in datasets:
         logger.info(f"Updating data for {dataset}...")
+        create_dataset_table(dataset)
+        engine = db_engine(args.mode)
         if args.test:
             logger.info(
                 "Running pipeline in TEST mode. Processing a subset of all data."
@@ -89,8 +88,8 @@ if __name__ == "__main__":
                     logger.debug(
                         f"Raster stats calculated for admin{adm_level} in {elapsed_time:.4f} seconds"
                     )
-                    conn = db_connection(args.mode)
-                    df_all_stats.to_sql(dataset, conn, if_exists="append", index=False)
-                    conn.close()
+                    df_all_stats.to_sql(
+                        dataset, con=engine, if_exists="append", index=False
+                    )
 
         logger.info("... Done calculations.")

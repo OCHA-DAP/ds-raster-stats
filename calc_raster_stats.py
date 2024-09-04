@@ -9,7 +9,7 @@ import geopandas as gpd
 from config import DATASETS, LOG_LEVEL, MAX_ADM
 from src.cod_utils import get_metadata, load_shp
 from src.cog_utils import stack_cogs
-from src.database_utils import create_dataset_table, db_engine
+from src.database_utils import create_dataset_table, db_engine, postgres_upsert
 from src.inputs import cli_args
 from src.raster_utils import compute_zonal_statistics, upsample_raster
 
@@ -88,8 +88,13 @@ if __name__ == "__main__":
                     logger.debug(
                         f"Raster stats calculated for admin{adm_level} in {elapsed_time:.4f} seconds"
                     )
+                    df_all_stats["iso3"] = "TTT"
                     df_all_stats.to_sql(
-                        dataset, con=engine, if_exists="append", index=False
+                        dataset,
+                        con=engine,
+                        if_exists="append",
+                        index=False,
+                        method=postgres_upsert,
                     )
 
         logger.info("... Done calculations.")

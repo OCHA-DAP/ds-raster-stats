@@ -25,8 +25,8 @@ if __name__ == "__main__":
 
     for dataset in datasets:
         logger.info(f"Updating data for {dataset}...")
-        create_dataset_table(dataset)
         engine = db_engine(args.mode)
+        create_dataset_table(dataset, engine)
         if args.test:
             logger.info(
                 "Running pipeline in TEST mode. Processing a subset of all data."

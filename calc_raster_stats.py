@@ -1,21 +1,18 @@
 import logging
-import os
 import tempfile
 import time
 from pathlib import Path
 
 import coloredlogs
 import geopandas as gpd
-from dotenv import load_dotenv
 
 from config import DATASETS, LOG_LEVEL, MAX_ADM
-from src.cloud_utils import write_output_stats
 from src.cod_utils import get_metadata, load_shp
 from src.cog_utils import stack_cogs
+from src.database_utils import create_dataset_table, db_engine, postgres_upsert
 from src.inputs import cli_args
-from src.raster_utils import compute_zonal_statistics, upsample_raster
+from src.raster_utils import compute_zonal_statistics, prep_raster
 
-load_dotenv()
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
@@ -27,7 +24,10 @@ if __name__ == "__main__":
     datasets = [args.dataset] if args.dataset else list(DATASETS.keys())
 
     for dataset in datasets:
+        start_time = time.time()
         logger.info(f"Updating data for {dataset}...")
+        engine = db_engine(args.mode)
+        create_dataset_table(dataset, engine)
         if args.test:
             logger.info(
                 "Running pipeline in TEST mode. Processing a subset of all data."
@@ -41,9 +41,9 @@ if __name__ == "__main__":
             end = DATASETS[dataset]["end_date"]
 
         logger.debug(f"Creating stack of COGs from {start} to {end}...")
-        start_time = time.time()
+        full_start_time = time.time()
         ds = stack_cogs(start, end, dataset, args.mode)
-        ds_upsampled = upsample_raster(ds)
+
         elapsed_time = time.time() - start_time
         logger.debug(f"Finished processing COGs in {elapsed_time:.4f} seconds.")
 
@@ -67,6 +67,10 @@ if __name__ == "__main__":
 
             with tempfile.TemporaryDirectory() as td:
                 load_shp(shp_url, td, iso3)
+                # Prep the raster
+                gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm0.shp")
+                ds_clipped = prep_raster(ds, gdf)
+
                 # --- Now for each admin level in each country
                 for adm_level in list(range(0, max_adm + 1)):
                     # Don't need it to really be a path if writing to cloud
@@ -81,17 +85,21 @@ if __name__ == "__main__":
                     gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{adm_level}.shp")
 
                     df_all_stats = compute_zonal_statistics(
-                        ds_upsampled, gdf, f"ADM{adm_level}_PCODE", adm_level
+                        ds_clipped, gdf, f"ADM{adm_level}_PCODE", adm_level
                     )
+                    df_all_stats["iso3"] = iso3
 
                     elapsed_time = time.time() - start_time
                     logger.debug(
                         f"Raster stats calculated for admin{adm_level} in {elapsed_time:.4f} seconds"
                     )
-
-                    output_file = os.path.join(
-                        adm_dir, f"{dataset}_raster_stats.parquet"
+                    df_all_stats.to_sql(
+                        dataset,
+                        con=engine,
+                        if_exists="append",
+                        index=False,
+                        method=postgres_upsert,
                     )
-                    write_output_stats(df_all_stats, output_file, args.mode)
 
-        logger.info("... Done calculations.")
+        elapsed_time = time.time() - full_start_time
+        logger.info(f"... Done calculations in {elapsed_time:.2f} seconds.")

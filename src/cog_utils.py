@@ -117,8 +117,6 @@ def process_seas5(cog_name, mode):
     da_in["date"] = date_in
     da_in["leadtime"] = da_in.attrs["leadtime"]
     da_in = da_in.expand_dims(["date", "leadtime"])
-
-    da_in = da_in.persist()
     return da_in
 
 

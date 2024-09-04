@@ -115,7 +115,11 @@ def compute_zonal_statistics(
         else:
             raise Exception("Input Dataset must have 2 or 3 dimensions.")
 
-    df_stats = pd.DataFrame(outputs).round(2)
+    df_stats = pd.DataFrame(outputs)
+    # Not sure why, but need to all match this datatype to round properly
+    # when exported to sql database
+    df_stats[percentiles] = df_stats[percentiles].astype("float64")
+    df_stats = df_stats.round(2)
 
     return df_stats
 
@@ -184,4 +188,11 @@ def upsample_raster(ds, resampled_resolution=0.05):
     else:
         raise Exception("Input Dataset must have 2, 3, or 4 dimensions.")
 
+    return ds_resampled
+
+
+def prep_raster(ds, gdf_adm):
+    minx, miny, maxx, maxy = gdf_adm.total_bounds
+    ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny))
+    ds_resampled = upsample_raster(ds_clip)
     return ds_resampled

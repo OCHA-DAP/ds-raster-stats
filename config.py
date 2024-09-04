@@ -1,3 +1,13 @@
+import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+MAX_ADM = 2
+LOG_LEVEL = "DEBUG"
+AZURE_DB_PW = os.getenv("AZURE_DB_PW")
+
 DATASETS = {
     "era5": {
         "blob_prefix": "era5/monthly/processed/daily_precip_reanalysis_v",
@@ -7,7 +17,7 @@ DATASETS = {
         "update_schedule": "0 0 6 * *",
         "dev_run": {
             "start_date": "2020-01-01",
-            "end_date": "2020-05-01",
+            "end_date": "2020-06-01",
             "iso3s": ["ATG", "QAT", "JAM", "SEN", "YEM"],
         },
     },
@@ -37,5 +47,11 @@ DATASETS = {
     },
 }
 
-MAX_ADM = 2
-LOG_LEVEL = "DEBUG"
+DATABASES = {
+    "local": {
+        "engine_url": "sqlite:///chd-rasterstats-local.db",
+    },
+    "dev": {
+        "engine_url": f"postgresql+psycopg2://chdadmin:{AZURE_DB_PW}@chd-rasterstats-dev.postgres.database.azure.com/postgres",  # noqa
+    },
+}

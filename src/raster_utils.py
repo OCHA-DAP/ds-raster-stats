@@ -193,6 +193,6 @@ def upsample_raster(ds, resampled_resolution=0.05):
 
 def prep_raster(ds, gdf_adm):
     minx, miny, maxx, maxy = gdf_adm.total_bounds
-    ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny))
+    ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny)).persist()
     ds_resampled = upsample_raster(ds_clip)
     return ds_resampled

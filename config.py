@@ -18,7 +18,7 @@ DATASETS = {
         "dev_run": {
             "start_date": "2020-01-01",
             "end_date": "2020-06-01",
-            "iso3s": ["ATG", "QAT", "JAM", "SEN", "YEM"],
+            "iso3s": ["AFG", "MEX"],
         },
     },
     "imerg": {

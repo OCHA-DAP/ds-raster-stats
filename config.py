@@ -17,8 +17,8 @@ DATASETS = {
         "update_schedule": "0 0 6 * *",
         "dev_run": {
             "start_date": "2020-01-01",
-            "end_date": "2020-06-01",
-            "iso3s": ["AFG", "MEX"],
+            "end_date": "2020-01-01",
+            "iso3s": ["PHL"],
         },
     },
     "imerg": {
@@ -29,8 +29,8 @@ DATASETS = {
         "update_schedule": "0 20 * * *",
         "dev_run": {
             "start_date": "2020-01-01",
-            "end_date": "2020-01-15",
-            "iso3s": ["ATG", "QAT", "JAM", "SEN", "YEM"],
+            "end_date": "2020-01-01",
+            "iso3s": ["PHL"],
         },
     },
     "seas5": {
@@ -41,8 +41,8 @@ DATASETS = {
         "update_schedule": "0 0 6 * *",
         "dev_run": {
             "start_date": "2020-01-01",
-            "end_date": "2020-02-01",
-            "iso3s": ["ATG", "QAT", "JAM", "SEN", "YEM"],
+            "end_date": "2020-01-01",
+            "iso3s": ["PHL"],
         },
     },
 }

@@ -24,6 +24,7 @@ if __name__ == "__main__":
     datasets = [args.dataset] if args.dataset else list(DATASETS.keys())
 
     for dataset in datasets:
+        full_start_time = time.time()
         start_time = time.time()
         logger.info(f"Updating data for {dataset}...")
         engine = db_engine(args.mode)
@@ -35,15 +36,13 @@ if __name__ == "__main__":
             start = DATASETS[dataset]["dev_run"]["start_date"]
             end = DATASETS[dataset]["dev_run"]["end_date"]
             iso3s = DATASETS[dataset]["dev_run"]["iso3s"]
-            df_iso3s = df_iso3s[df_iso3s.iso_3.isin(iso3s)]
+            # df_iso3s = df_iso3s[df_iso3s.iso_3.isin(iso3s)]
         else:
             start = DATASETS[dataset]["start_date"]
             end = DATASETS[dataset]["end_date"]
 
         logger.debug(f"Creating stack of COGs from {start} to {end}...")
-        full_start_time = time.time()
         ds = stack_cogs(start, end, dataset, args.mode)
-
         elapsed_time = time.time() - start_time
         logger.debug(f"Finished processing COGs in {elapsed_time:.4f} seconds.")
 
@@ -81,18 +80,17 @@ if __name__ == "__main__":
                         adm_dir = f"{country_dir}/adm{adm_level}"
 
                     start_time = time.time()
-
                     gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{adm_level}.shp")
-
                     df_all_stats = compute_zonal_statistics(
                         ds_clipped, gdf, f"ADM{adm_level}_PCODE", adm_level
                     )
                     df_all_stats["iso3"] = iso3
-
                     elapsed_time = time.time() - start_time
                     logger.debug(
-                        f"Raster stats calculated for admin{adm_level} in {elapsed_time:.4f} seconds"
+                        f"- {elapsed_time:.4f}s: Raster stats calculated for admin{adm_level}."
                     )
+
+                    start_time = time.time()
                     df_all_stats.to_sql(
                         dataset,
                         con=engine,
@@ -100,6 +98,10 @@ if __name__ == "__main__":
                         index=False,
                         method=postgres_upsert,
                     )
+                    elapsed_time = time.time() - start_time
+                    logger.debug(
+                        f"- {elapsed_time:.4f}s: Wrote out {len(df_all_stats)} rows to db."
+                    )
 
         elapsed_time = time.time() - full_start_time
-        logger.info(f"... Done calculations in {elapsed_time:.2f} seconds.")
+        logger.info(f"- {elapsed_time:.4f}s: Done calculations.")

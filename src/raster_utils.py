@@ -1,4 +1,5 @@
 import logging
+import time
 
 import coloredlogs
 import numpy as np
@@ -81,6 +82,7 @@ def compute_zonal_statistics(
                 # Some leadtime/date combos are invalid and so don't have any data
                 if bool(np.all(np.isnan(da__.values))):
                     continue
+                start_time = time.time()
                 result = zonal_stats(
                     vectors=gdf[[geom_col]],
                     raster=da__.values,
@@ -88,6 +90,10 @@ def compute_zonal_statistics(
                     nodata=np.nan,
                     all_touched=all_touched,
                     stats=stats,
+                )
+                elapsed_time = time.time() - start_time
+                logger.debug(
+                    f"-- {elapsed_time:.4f}s: Calculated stats for one date and leadtime"
                 )
                 # TODO: How slow is this? Is this still better than going to a df?
                 for i, stat in enumerate(result):
@@ -98,6 +104,7 @@ def compute_zonal_statistics(
                 outputs.extend(result)
         # Non forecast data
         elif nd == 2:
+            start_time = time.time()
             result = zonal_stats(
                 vectors=gdf[[geom_col]],
                 raster=da_.values,
@@ -106,11 +113,18 @@ def compute_zonal_statistics(
                 all_touched=all_touched,
                 stats=stats,
             )
+            elapsed_time = time.time() - start_time
+            logger.debug(f"-- {elapsed_time:.4f}s: Calculated stats for one date")
+
+            start_time = time.time()
             for i, stat in enumerate(result):
                 stat["valid_date"] = date
                 stat["leadtime"] = None  # NA for non-forecast data
                 stat["pcode"] = gdf[id_col][i]
                 stat["adm_level"] = admin_level
+            elapsed_time = time.time() - start_time
+            logger.debug(f"-- {elapsed_time:.4f}s: Added data to columns")
+
             outputs.extend(result)
         else:
             raise Exception("Input Dataset must have 2 or 3 dimensions.")

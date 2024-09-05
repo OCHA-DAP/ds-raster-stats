@@ -36,7 +36,7 @@ def db_engine(mode):
     return create_engine(engine_url)
 
 
-def create_dataset_table(dataset, engine):
+def create_dataset_table(dataset, engine, incl_leadtime=False):
     """
     Create a table for storing dataset statistics in the database.
 
@@ -46,15 +46,16 @@ def create_dataset_table(dataset, engine):
         The name of the dataset for which the table is being created.
     engine : sqlalchemy.engine.Engine
         The SQLAlchemy engine object used to connect to the database.
+    incl_leadtime : Bool
+        Whether or not to include a 'leadtime' column in the table.
+        Will only apply for datasets that are forecasts.
 
     Returns
     -------
     None
     """
     metadata = MetaData()
-    Table(
-        dataset,
-        metadata,
+    columns = [
         Column("min", Double),
         Column("max", Double),
         Column("mean", Double),
@@ -71,14 +72,22 @@ def create_dataset_table(dataset, engine):
         Column("percentile_80", Double),
         Column("percentile_90", Double),
         Column("valid_date", Date),
-        Column("leadtime", String),
         Column("pcode", String),
         Column("adm_level", Integer),
         Column("iso3", CHAR(3)),
+    ]
+
+    unique_constraint_columns = ["valid_date", "pcode"]
+    if incl_leadtime:
+        columns.append(Column("leadtime", String))
+        unique_constraint_columns.append("leadtime")
+
+    Table(
+        dataset,
+        metadata,
+        *columns,
         UniqueConstraint(
-            "valid_date",
-            "leadtime",
-            "pcode",
+            *unique_constraint_columns,
             name=f"{dataset}_valid_date_leadtime_pcode_key",
             postgresql_nulls_not_distinct=True,
         ),

@@ -85,7 +85,7 @@ if __name__ == "__main__":
                         start_time = time.time()
                         gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{adm_level}.shp")
                         df_all_stats = compute_zonal_statistics(
-                            ds_clipped, gdf, f"ADM{adm_level}_PCODE", adm_level
+                            ds_clipped, gdf, f"ADM{adm_level}_PCODE", adm_level, iso3
                         )
 
                         elapsed_time = time.time() - start_time

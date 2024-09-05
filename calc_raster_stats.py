@@ -5,6 +5,7 @@ from pathlib import Path
 
 import coloredlogs
 import geopandas as gpd
+import sqlalchemy
 
 from config import DATASETS, LOG_LEVEL, MAX_ADM
 from src.cod_utils import get_metadata, load_shp
@@ -89,19 +90,24 @@ if __name__ == "__main__":
                     logger.debug(
                         f"- {elapsed_time:.4f}s: Raster stats calculated for admin{adm_level}."
                     )
-
                     start_time = time.time()
-                    df_all_stats.to_sql(
-                        dataset,
-                        con=engine,
-                        if_exists="append",
-                        index=False,
-                        method=postgres_upsert,
-                    )
-                    elapsed_time = time.time() - start_time
-                    logger.debug(
-                        f"- {elapsed_time:.4f}s: Wrote out {len(df_all_stats)} rows to db."
-                    )
+                    try:
+                        df_all_stats.to_sql(
+                            dataset,
+                            con=engine,
+                            if_exists="append",
+                            index=False,
+                            method=postgres_upsert,
+                        )
+                        elapsed_time = time.time() - start_time
+                        logger.debug(
+                            f"- {elapsed_time:.4f}s: Wrote out {len(df_all_stats)} rows to db."
+                        )
+                    except sqlalchemy.exc.ProgrammingError as e:
+                        logger.error(
+                            f"Error writing stats for {iso3} at {adm_level} to database:"
+                        )
+                        logger.error(e)
 
         elapsed_time = time.time() - full_start_time
         logger.info(f"- {elapsed_time:.4f}s: Done calculations.")

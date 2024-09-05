@@ -11,10 +11,10 @@ from src.cod_utils import get_metadata, load_shp
 from src.cog_utils import stack_cogs
 from src.database_utils import (
     create_dataset_table,
-    create_error_table,
+    create_qa_table,
     db_engine,
+    insert_qa_table,
     postgres_upsert,
-    write_error_table,
 )
 from src.inputs import cli_args
 from src.raster_utils import compute_zonal_statistics, prep_raster
@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     # Set up database
     engine = db_engine(args.mode)
-    create_error_table(engine)
+    create_qa_table(engine)
 
     # Loop through each dataset
     for dataset in datasets:
@@ -76,7 +76,7 @@ if __name__ == "__main__":
                 except Exception as e:
                     logger.error(f"Error preparing raster for {iso3}: {e}")
                     stack_trace = traceback.format_exc()
-                    write_error_table(iso3, None, dataset, e, stack_trace, engine)
+                    insert_qa_table(iso3, None, dataset, e, stack_trace, engine)
                     continue
 
                 # Loop through each admin level in each country
@@ -109,7 +109,7 @@ if __name__ == "__main__":
                             f"Error calculating stats for {iso3} at {adm_level}: {e}"
                         )
                         stack_trace = traceback.format_exc()
-                        write_error_table(
+                        insert_qa_table(
                             iso3, adm_level, dataset, e, stack_trace, engine
                         )
 

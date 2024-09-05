@@ -5,12 +5,17 @@ from pathlib import Path
 
 import coloredlogs
 import geopandas as gpd
-import sqlalchemy
 
 from config import DATASETS, LOG_LEVEL, MAX_ADM
 from src.cod_utils import get_metadata, load_shp
 from src.cog_utils import stack_cogs
-from src.database_utils import create_dataset_table, db_engine, postgres_upsert
+from src.database_utils import (
+    create_dataset_table,
+    create_error_table,
+    db_engine,
+    postgres_upsert,
+    write_error_table,
+)
 from src.inputs import cli_args
 from src.raster_utils import compute_zonal_statistics, prep_raster
 
@@ -23,12 +28,13 @@ if __name__ == "__main__":
     df_iso3s = get_metadata()
     output_dir = Path("test_outputs") / "tabular"
     datasets = [args.dataset] if args.dataset else list(DATASETS.keys())
+    engine = db_engine(args.mode)
+    create_error_table(engine)
 
     for dataset in datasets:
         full_start_time = time.time()
         start_time = time.time()
         logger.info(f"Updating data for {dataset}...")
-        engine = db_engine(args.mode)
         create_dataset_table(dataset, engine)
         if args.test:
             logger.info(
@@ -69,7 +75,12 @@ if __name__ == "__main__":
                 load_shp(shp_url, td, iso3)
                 # Prep the raster
                 gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm0.shp")
-                ds_clipped = prep_raster(ds, gdf)
+                try:
+                    ds_clipped = prep_raster(ds, gdf)
+                except Exception as e:
+                    logger.error(f"Error preparing raster for {iso3}:")
+                    logger.error(e)
+                    write_error_table(iso3, None, dataset, e, engine)
 
                 # --- Now for each admin level in each country
                 for adm_level in list(range(0, max_adm + 1)):
@@ -79,19 +90,18 @@ if __name__ == "__main__":
                         adm_dir.mkdir(exist_ok=True, parents=True)
                     else:
                         adm_dir = f"{country_dir}/adm{adm_level}"
-
-                    start_time = time.time()
-                    gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{adm_level}.shp")
-                    df_all_stats = compute_zonal_statistics(
-                        ds_clipped, gdf, f"ADM{adm_level}_PCODE", adm_level
-                    )
-                    df_all_stats["iso3"] = iso3
-                    elapsed_time = time.time() - start_time
-                    logger.debug(
-                        f"- {elapsed_time:.4f}s: Raster stats calculated for admin{adm_level}."
-                    )
-                    start_time = time.time()
                     try:
+                        start_time = time.time()
+                        gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{adm_level}.shp")
+                        df_all_stats = compute_zonal_statistics(
+                            ds_clipped, gdf, f"ADM{adm_level}_PCODE", adm_level
+                        )
+                        df_all_stats["iso3"] = iso3
+                        elapsed_time = time.time() - start_time
+                        logger.debug(
+                            f"- {elapsed_time:.4f}s: Raster stats calculated for admin{adm_level}."
+                        )
+                        start_time = time.time()
                         df_all_stats.to_sql(
                             dataset,
                             con=engine,
@@ -103,11 +113,12 @@ if __name__ == "__main__":
                         logger.debug(
                             f"- {elapsed_time:.4f}s: Wrote out {len(df_all_stats)} rows to db."
                         )
-                    except sqlalchemy.exc.ProgrammingError as e:
+                    except Exception as e:
                         logger.error(
-                            f"Error writing stats for {iso3} at {adm_level} to database:"
+                            f"Error calculating stats for {iso3} at {adm_level}:"
                         )
                         logger.error(e)
+                        write_error_table(iso3, adm_level, dataset, e, engine)
 
         elapsed_time = time.time() - full_start_time
         logger.info(f"- {elapsed_time:.4f}s: Done calculations.")

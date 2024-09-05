@@ -9,6 +9,7 @@ from sqlalchemy import (
     Table,
     UniqueConstraint,
     create_engine,
+    insert,
 )
 
 from config import DATABASES
@@ -17,6 +18,30 @@ from config import DATABASES
 def db_engine(mode):
     engine_url = DATABASES[mode]["engine_url"]
     return create_engine(engine_url)
+
+
+def create_error_table(engine):
+    metadata = MetaData()
+    Table(
+        "qa",
+        metadata,
+        Column("iso3", CHAR(3)),
+        Column("adm_level", Integer),
+        Column("dataset", String),
+        Column("error", String),
+    )
+    metadata.create_all(engine)
+    return
+
+
+def write_error_table(iso3, adm_level, dataset, error, engine):
+    connection = engine.connect()
+    insert_stmt = insert("qa").values(
+        iso3=iso3, adm_level=adm_level, dataset=dataset, error=error
+    )
+    connection.execute(insert_stmt)
+    connection.close()
+    return
 
 
 def create_dataset_table(dataset, engine):
@@ -54,6 +79,7 @@ def create_dataset_table(dataset, engine):
     )
 
     metadata.create_all(engine)
+    return
 
 
 # https://stackoverflow.com/questions/55187884/insert-into-postgresql-table-from-pandas-with-on-conflict-update

@@ -29,8 +29,8 @@ def unpack_dataset_params(dataset, test):
         logger.info("Running pipeline in TEST mode. Processing a subset of all data.")
         start = DATASETS[dataset]["dev_run"]["start_date"]
         end = DATASETS[dataset]["dev_run"]["end_date"]
-        iso3s = DATASETS[dataset]["dev_run"]["iso3s"]
-        df_iso3s = df_iso3s[df_iso3s.iso_3.isin(iso3s)]
+        # iso3s = DATASETS[dataset]["dev_run"]["iso3s"]
+        # df_iso3s = df_iso3s[df_iso3s.iso_3.isin(iso3s)]
     else:
         start = DATASETS[dataset]["start_date"]
         end = DATASETS[dataset]["end_date"]

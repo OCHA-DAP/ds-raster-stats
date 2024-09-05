@@ -19,6 +19,7 @@ def compute_zonal_statistics(
     gdf,
     id_col,
     admin_level,
+    iso3,
     geom_col="geometry",
     lat_coord="y",
     lon_coord="x",
@@ -42,6 +43,8 @@ def compute_zonal_statistics(
         The column in `gdf` that contains unique identifiers for the polygons.
     admin_level : int
         Admin level of the input boundaries. Used to label the output data.
+    iso3 : str
+        ISO3 country code.
     geom_col : str, optional
         The column in `gdf` that contains the geometry of the polygons. Default is "geometry".
     lat_coord : str, optional
@@ -134,6 +137,7 @@ def compute_zonal_statistics(
     # when exported to sql database
     df_stats[percentiles] = df_stats[percentiles].astype("float64")
     df_stats = df_stats.round(2)
+    df_stats["iso3"] = iso3
 
     return df_stats
 

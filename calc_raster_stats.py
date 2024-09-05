@@ -84,6 +84,9 @@ if __name__ == "__main__":
                     try:
                         start_time = time.time()
                         gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{adm_level}.shp")
+                        gdf["geometry"] = gdf["geometry"].simplify(
+                            tolerance=0.001, preserve_topology=True
+                        )
                         df_all_stats = compute_zonal_statistics(
                             ds_clipped, gdf, f"ADM{adm_level}_PCODE", adm_level, iso3
                         )

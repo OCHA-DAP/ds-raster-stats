@@ -1,6 +1,7 @@
 import logging
 import tempfile
 import time
+import traceback
 from pathlib import Path
 
 import coloredlogs
@@ -80,7 +81,9 @@ if __name__ == "__main__":
                 except Exception as e:
                     logger.error(f"Error preparing raster for {iso3}:")
                     logger.error(e)
-                    write_error_table(iso3, None, dataset, e, engine)
+                    stack_trace = traceback.format_exc()
+                    write_error_table(iso3, None, dataset, e, stack_trace, engine)
+                    continue
 
                 # --- Now for each admin level in each country
                 for adm_level in list(range(0, max_adm + 1)):
@@ -118,7 +121,10 @@ if __name__ == "__main__":
                             f"Error calculating stats for {iso3} at {adm_level}:"
                         )
                         logger.error(e)
-                        write_error_table(iso3, adm_level, dataset, e, engine)
+                        stack_trace = traceback.format_exc()
+                        write_error_table(
+                            iso3, adm_level, dataset, e, stack_trace, engine
+                        )
 
         elapsed_time = time.time() - full_start_time
         logger.info(f"- {elapsed_time:.4f}s: Done calculations.")

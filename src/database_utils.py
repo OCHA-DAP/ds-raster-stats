@@ -1,3 +1,5 @@
+import datetime
+
 from sqlalchemy import (
     CHAR,
     Column,
@@ -25,22 +27,32 @@ def create_error_table(engine):
     Table(
         "qa",
         metadata,
+        Column("date", String),
         Column("iso3", CHAR(3)),
         Column("adm_level", Integer),
         Column("dataset", String),
         Column("error", String),
+        Column("stack_trace", String),
     )
     metadata.create_all(engine)
     return
 
 
-def write_error_table(iso3, adm_level, dataset, error, engine):
-    connection = engine.connect()
-    insert_stmt = insert("qa").values(
-        iso3=iso3, adm_level=adm_level, dataset=dataset, error=error
+def write_error_table(iso3, adm_level, dataset, error, stack_trace, engine):
+    metadata = MetaData()
+    qa = Table("qa", metadata, autoload_with=engine)
+    cur_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    stmt = insert(qa).values(
+        date=cur_date,
+        iso3=iso3,
+        adm_level=adm_level,
+        dataset=dataset,
+        error=str(error),
+        stack_trace=stack_trace.strip(),
     )
-    connection.execute(insert_stmt)
-    connection.close()
+    with engine.connect() as conn:
+        conn.execute(stmt)
+        conn.commit()
     return
 
 

@@ -1,5 +1,4 @@
 import logging
-import time
 
 import coloredlogs
 import numpy as np
@@ -53,7 +52,7 @@ def compute_zonal_statistics(
         The name of the longitude coordinate in the DataArray. Default is "x".
     stats : list of str, optional
         List of statistics to compute. If None, a default set of statistics is used,
-        including mean, std, min, max, sum, count, and percentiles.
+        including mean, median, std, min, max, sum, count.
     all_touched : bool, optional
         Whether to include all pixels touched by geometries, or only those whose center
         is within the polygon. Default is False.
@@ -66,10 +65,7 @@ def compute_zonal_statistics(
     """
 
     if not stats:
-        stats = ["mean", "std", "min", "max", "sum", "count"]
-        percentiles = [f"percentile_{x}" for x in list(range(10, 100, 10))]
-        stats.extend(percentiles)
-
+        stats = ["mean", "median", "std", "min", "max", "sum", "count"]
     coords_transform = ds.rio.set_spatial_dims(
         x_dim=lon_coord, y_dim=lat_coord
     ).rio.transform()
@@ -85,7 +81,6 @@ def compute_zonal_statistics(
                 # Some leadtime/date combos are invalid and so don't have any data
                 if bool(np.all(np.isnan(da__.values))):
                     continue
-                start_time = time.time()
                 result = zonal_stats(
                     vectors=gdf[[geom_col]],
                     raster=da__.values,
@@ -94,10 +89,7 @@ def compute_zonal_statistics(
                     all_touched=all_touched,
                     stats=stats,
                 )
-                elapsed_time = time.time() - start_time
-                logger.debug(
-                    f"-- {elapsed_time:.4f}s: Calculated stats for one date and leadtime"
-                )
+
                 # TODO: How slow is this? Is this still better than going to a df?
                 for i, stat in enumerate(result):
                     stat["valid_date"] = date
@@ -107,7 +99,6 @@ def compute_zonal_statistics(
                 outputs.extend(result)
         # Non forecast data
         elif nd == 2:
-            start_time = time.time()
             result = zonal_stats(
                 vectors=gdf[[geom_col]],
                 raster=da_.values,
@@ -116,26 +107,18 @@ def compute_zonal_statistics(
                 all_touched=all_touched,
                 stats=stats,
             )
-            elapsed_time = time.time() - start_time
-            logger.debug(f"-- {elapsed_time:.4f}s: Calculated stats for one date")
 
-            start_time = time.time()
             for i, stat in enumerate(result):
                 stat["valid_date"] = date
                 stat["leadtime"] = None  # NA for non-forecast data
                 stat["pcode"] = gdf[id_col][i]
                 stat["adm_level"] = admin_level
-            elapsed_time = time.time() - start_time
-            logger.debug(f"-- {elapsed_time:.4f}s: Added data to columns")
 
             outputs.extend(result)
         else:
             raise Exception("Input Dataset must have 2 or 3 dimensions.")
 
     df_stats = pd.DataFrame(outputs)
-    # Not sure why, but need to all match this datatype to round properly
-    # when exported to sql database
-    df_stats[percentiles] = df_stats[percentiles].astype("float64")
     df_stats = df_stats.round(2)
     df_stats["iso3"] = iso3
 

@@ -11,8 +11,8 @@ from sqlalchemy import (
     Table,
     UniqueConstraint,
     create_engine,
-    insert,
 )
+from sqlalchemy.dialects.postgresql import insert
 
 from config import DATABASES
 

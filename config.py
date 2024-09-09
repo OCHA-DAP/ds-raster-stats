@@ -14,11 +14,12 @@ DATASETS = {
         "start_date": "1981-01-01",
         "end_date": "2024-07-30",  # TODO
         "coverage": "global",
+        "forecast": False,
         "update_schedule": "0 0 6 * *",
         "dev_run": {
             "start_date": "2020-01-01",
             "end_date": "2020-01-01",  # TODO
-            "iso3s": ["YEM"],
+            "iso3s": ["ZWE"],
         },
     },
     "imerg": {
@@ -26,6 +27,7 @@ DATASETS = {
         "start_date": "2000-01-01",  # TODO
         "end_date": "2024-07-30",  # TODO
         "coverage": "global",
+        "forecast": False,
         "update_schedule": "0 20 * * *",
         "dev_run": {
             "start_date": "2020-01-01",
@@ -38,6 +40,7 @@ DATASETS = {
         "start_date": "1981-01-01",
         "end_date": "2024-07-30",  # TODO
         "coverage": "global",
+        "forecast": True,
         "update_schedule": "0 0 6 * *",
         "dev_run": {
             "start_date": "1981-01-01",

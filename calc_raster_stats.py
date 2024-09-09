@@ -25,6 +25,7 @@ coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
 def unpack_dataset_params(dataset, test):
     df_iso3s = get_metadata()
+    is_forecast = DATASETS[dataset]["forecast"]
     if test:
         logger.info("Running pipeline in TEST mode. Processing a subset of all data.")
         start = DATASETS[dataset]["dev_run"]["start_date"]
@@ -34,7 +35,7 @@ def unpack_dataset_params(dataset, test):
     else:
         start = DATASETS[dataset]["start_date"]
         end = DATASETS[dataset]["end_date"]
-    return start, end, df_iso3s
+    return start, end, is_forecast, df_iso3s
 
 
 if __name__ == "__main__":
@@ -49,8 +50,8 @@ if __name__ == "__main__":
     for dataset in datasets:
         logger.info(f"Updating data for {dataset}...")
         full_start_time = time.time()
-        start, end, df_iso3s = unpack_dataset_params(dataset, args.test)
-        create_dataset_table(dataset, engine)
+        start, end, is_forecast, df_iso3s = unpack_dataset_params(dataset, args.test)
+        create_dataset_table(dataset, engine, is_forecast)
 
         # Get all COGs for the dataset and time period of interest
         logger.debug(f"Creating stack of COGs from {start} to {end}...")

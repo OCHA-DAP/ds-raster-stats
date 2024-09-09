@@ -110,7 +110,6 @@ def compute_zonal_statistics(
 
             for i, stat in enumerate(result):
                 stat["valid_date"] = date
-                stat["leadtime"] = None  # NA for non-forecast data
                 stat["pcode"] = gdf[id_col][i]
                 stat["adm_level"] = admin_level
 

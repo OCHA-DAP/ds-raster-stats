@@ -18,6 +18,7 @@ def compute_zonal_statistics(
     gdf,
     id_col,
     admin_level,
+    iso3,
     geom_col="geometry",
     lat_coord="y",
     lon_coord="x",
@@ -41,6 +42,8 @@ def compute_zonal_statistics(
         The column in `gdf` that contains unique identifiers for the polygons.
     admin_level : int
         Admin level of the input boundaries. Used to label the output data.
+    iso3 : str
+        ISO3 country code.
     geom_col : str, optional
         The column in `gdf` that contains the geometry of the polygons. Default is "geometry".
     lat_coord : str, optional
@@ -49,7 +52,7 @@ def compute_zonal_statistics(
         The name of the longitude coordinate in the DataArray. Default is "x".
     stats : list of str, optional
         List of statistics to compute. If None, a default set of statistics is used,
-        including mean, std, min, max, sum, count, and percentiles.
+        including mean, median, std, min, max, sum, count.
     all_touched : bool, optional
         Whether to include all pixels touched by geometries, or only those whose center
         is within the polygon. Default is False.
@@ -62,10 +65,7 @@ def compute_zonal_statistics(
     """
 
     if not stats:
-        stats = ["mean", "std", "min", "max", "sum", "count"]
-        percentiles = [f"percentile_{x}" for x in list(range(10, 100, 10))]
-        stats.extend(percentiles)
-
+        stats = ["mean", "median", "std", "min", "max", "sum", "count"]
     coords_transform = ds.rio.set_spatial_dims(
         x_dim=lon_coord, y_dim=lat_coord
     ).rio.transform()
@@ -89,6 +89,7 @@ def compute_zonal_statistics(
                     all_touched=all_touched,
                     stats=stats,
                 )
+
                 # TODO: How slow is this? Is this still better than going to a df?
                 for i, stat in enumerate(result):
                     stat["valid_date"] = date
@@ -106,20 +107,19 @@ def compute_zonal_statistics(
                 all_touched=all_touched,
                 stats=stats,
             )
+
             for i, stat in enumerate(result):
                 stat["valid_date"] = date
-                stat["leadtime"] = None  # NA for non-forecast data
                 stat["pcode"] = gdf[id_col][i]
                 stat["adm_level"] = admin_level
+
             outputs.extend(result)
         else:
             raise Exception("Input Dataset must have 2 or 3 dimensions.")
 
     df_stats = pd.DataFrame(outputs)
-    # Not sure why, but need to all match this datatype to round properly
-    # when exported to sql database
-    df_stats[percentiles] = df_stats[percentiles].astype("float64")
     df_stats = df_stats.round(2)
+    df_stats["iso3"] = iso3
 
     return df_stats
 
@@ -193,6 +193,6 @@ def upsample_raster(ds, resampled_resolution=0.05):
 
 def prep_raster(ds, gdf_adm):
     minx, miny, maxx, maxy = gdf_adm.total_bounds
-    ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny))
+    ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny)).persist()
     ds_resampled = upsample_raster(ds_clip)
     return ds_resampled

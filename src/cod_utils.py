@@ -13,7 +13,7 @@ def get_metadata():
     Returns
     -------
     pandas.DataFrame
-        A DataFrame containing the metadata sorted by the "src_update" column
+        A DataFrame containing the metadata sorted by the "iso_3" column
         in descending order.
     """
     url = "https://data.fieldmaps.io/cod.csv"

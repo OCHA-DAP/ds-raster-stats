@@ -10,7 +10,7 @@ AZURE_DB_PW = os.getenv("AZURE_DB_PW")
 
 DATASETS = {
     "era5": {
-        "blob_prefix": "era5/monthly/processed/daily_precip_reanalysis_v",
+        "blob_prefix": "era5/monthly/processed/precip_reanalysis_v",
         "start_date": "1981-01-01",
         "end_date": "2024-07-30",  # TODO
         "coverage": "global",

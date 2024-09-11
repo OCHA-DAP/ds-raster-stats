@@ -25,6 +25,7 @@ def compute_zonal_statistics(
     lon_coord="x",
     stats=None,
     all_touched=False,
+    simplify_geom=True,
 ):
     """
     Compute zonal statistics for a raster dataset using a GeoDataFrame of polygons.
@@ -70,6 +71,9 @@ def compute_zonal_statistics(
     coords_transform = ds.rio.set_spatial_dims(
         x_dim=lon_coord, y_dim=lat_coord
     ).rio.transform()
+
+    if simplify_geom:
+        gdf[geom_col] = gdf[geom_col].simplify(tolerance=0.001, preserve_topology=True)
 
     outputs = []
     for date in ds.date.values:

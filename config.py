@@ -19,7 +19,7 @@ DATASETS = {
         "dev_run": {
             "start_date": "2020-01-01",
             "end_date": "2020-01-01",  # TODO
-            "iso3s": ["ZWE"],
+            "iso3s": ["ETH"],
         },
     },
     "imerg": {

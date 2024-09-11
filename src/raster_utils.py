@@ -197,9 +197,12 @@ def upsample_raster(ds, resampled_resolution=0.05):
 
 
 def prep_raster(ds, gdf_adm):
+    logger.debug("Clipping raster to iso3 bounds and persisting in memory...")
     minx, miny, maxx, maxy = gdf_adm.total_bounds
     ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny)).persist()
+    logger.debug("Upsampling raster...")
     ds_resampled = upsample_raster(ds_clip)
+    logger.debug("Raster prep completed.")
     return ds_resampled
 
 
@@ -226,12 +229,14 @@ def fast_compute_zonal_statistics(
     admin_raster,
     adm_level,
     iso3,
+    adm_ids,
     stats=["mean", "max", "min", "median", "sum", "std", "count"],
     rast_fill=np.nan,
 ):
     outputs = []
     # TODO: Can this be vectorized further?
     for date in ds.date.values:
+        logger.debug(f"Calculating for {date}...")
         src_raster = ds.sel(date=date).values
         stacked_arrays = np.stack([src_raster, admin_raster])
 
@@ -283,7 +288,7 @@ def fast_compute_zonal_statistics(
 
         for i, stat in enumerate(feature_stats):
             stat["valid_date"] = date
-            stat["pcode"] = "todo"
+            stat["pcode"] = adm_ids[i]
             stat["adm_level"] = adm_level
 
         outputs.extend(feature_stats)

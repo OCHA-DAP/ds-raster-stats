@@ -17,7 +17,7 @@ from src.database_utils import (
     postgres_upsert,
 )
 from src.inputs import cli_args
-from src.raster_utils import compute_zonal_statistics, prep_raster
+from src.raster_utils import fast_compute_zonal_statistics, prep_raster, rasterize_admin
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
@@ -30,8 +30,8 @@ def unpack_dataset_params(dataset, test):
         logger.info("Running pipeline in TEST mode. Processing a subset of all data.")
         start = DATASETS[dataset]["dev_run"]["start_date"]
         end = DATASETS[dataset]["dev_run"]["end_date"]
-        iso3s = DATASETS[dataset]["dev_run"]["iso3s"]
-        df_iso3s = df_iso3s[df_iso3s.iso_3.isin(iso3s)]
+        # iso3s = DATASETS[dataset]["dev_run"]["iso3s"]
+        # df_iso3s = df_iso3s[df_iso3s.iso_3.isin(iso3s)]
     else:
         start = DATASETS[dataset]["start_date"]
         end = DATASETS[dataset]["end_date"]
@@ -85,8 +85,21 @@ if __name__ == "__main__":
                     try:
                         start_time = time.time()
                         gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{adm_level}.shp")
-                        df_all_stats = compute_zonal_statistics(
-                            ds_clipped, gdf, f"ADM{adm_level}_PCODE", adm_level, iso3
+
+                        logger.debug("Rasterizing admin bounds...")
+                        src_transform = ds_clipped.rio.transform()
+                        src_width = ds_clipped.rio.width
+                        src_height = ds_clipped.rio.height
+                        admin_raster = rasterize_admin(
+                            gdf, src_width, src_height, src_transform, all_touched=False
+                        )
+
+                        df_all_stats = fast_compute_zonal_statistics(
+                            ds_clipped,
+                            admin_raster,
+                            adm_level,
+                            iso3,
+                            gdf[f"ADM{adm_level}_PCODE"],
                         )
 
                         elapsed_time = time.time() - start_time

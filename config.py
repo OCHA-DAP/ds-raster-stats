@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 MAX_ADM = 2
-LOG_LEVEL = "DEBUG"
+LOG_LEVEL = "INFO"
 AZURE_DB_PW = os.getenv("AZURE_DB_PW")
 
 DATASETS = {
@@ -15,10 +15,11 @@ DATASETS = {
         "end_date": "2024-07-30",  # TODO
         "coverage": "global",
         "forecast": False,
+        "frequency": "monthly",
         "update_schedule": "0 0 6 * *",
         "dev_run": {
-            "start_date": "1981-01-01",
-            "end_date": "2024-06-01",  # TODO
+            "start_date": "2020-01-01",
+            "end_date": "2020-02-01",
             "iso3s": ["BRA"],
         },
     },
@@ -29,6 +30,7 @@ DATASETS = {
         "coverage": "global",
         "forecast": False,
         "update_schedule": "0 20 * * *",
+        "frequency": "daily",
         "dev_run": {
             "start_date": "2020-01-01",
             "end_date": "2020-01-01",
@@ -41,6 +43,7 @@ DATASETS = {
         "end_date": "2024-07-30",  # TODO
         "coverage": "global",
         "forecast": True,
+        "frequency": "monthly",
         "update_schedule": "0 0 6 * *",
         "dev_run": {
             "start_date": "1981-01-01",

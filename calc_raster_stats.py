@@ -14,10 +14,9 @@ from src.database_utils import (
     create_qa_table,
     db_engine,
     insert_qa_table,
-    postgres_upsert,
 )
 from src.inputs import cli_args
-from src.raster_utils import fast_compute_zonal_statistics, prep_raster, rasterize_admin
+from src.raster_utils import fast_zonal_stats_runner, prep_raster
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
@@ -80,43 +79,19 @@ if __name__ == "__main__":
                     insert_qa_table(iso3, None, dataset, e, stack_trace, engine)
                     continue
 
-                # Loop through each admin level in each country
+                # Loop through each adm
                 for adm_level in list(range(0, max_adm + 1)):
                     try:
-                        start_time = time.time()
                         gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{adm_level}.shp")
-
-                        logger.debug("Rasterizing admin bounds...")
-                        src_transform = ds_clipped.rio.transform()
-                        src_width = ds_clipped.rio.width
-                        src_height = ds_clipped.rio.height
-                        admin_raster = rasterize_admin(
-                            gdf, src_width, src_height, src_transform, all_touched=False
-                        )
-
-                        df_all_stats = fast_compute_zonal_statistics(
+                        logger.info(f"Computing stats for adm{adm_level}...")
+                        fast_zonal_stats_runner(
                             ds_clipped,
-                            admin_raster,
+                            gdf,
                             adm_level,
                             iso3,
-                            gdf[f"ADM{adm_level}_PCODE"],
-                        )
-
-                        elapsed_time = time.time() - start_time
-                        logger.debug(
-                            f"- {elapsed_time:.4f}s: Raster stats calculated for admin{adm_level}."
-                        )
-                        start_time = time.time()
-                        df_all_stats.to_sql(
-                            dataset,
-                            con=engine,
-                            if_exists="append",
-                            index=False,
-                            method=postgres_upsert,
-                        )
-                        elapsed_time = time.time() - start_time
-                        logger.debug(
-                            f"- {elapsed_time:.4f}s: Wrote out {len(df_all_stats)} rows to db."
+                            save_to_database=True,
+                            engine=engine,
+                            dataset=dataset,
                         )
                     except Exception as e:
                         logger.error(
@@ -126,6 +101,7 @@ if __name__ == "__main__":
                         insert_qa_table(
                             iso3, adm_level, dataset, e, stack_trace, engine
                         )
+                        continue
 
         elapsed_time = time.time() - full_start_time
         logger.info(f"- {elapsed_time:.4f}s: Done calculations.")

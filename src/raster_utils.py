@@ -9,6 +9,7 @@ from rasterio.features import rasterize
 from rasterstats import zonal_stats
 
 from config import LOG_LEVEL
+from src.database_utils import postgres_upsert
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
@@ -129,13 +130,61 @@ def compute_zonal_statistics(
     return df_stats
 
 
-# Adapted from https://github.com/sdtaylor/python-rasterstats/commit/12d0432128bdb66aacaf7a65e753f28616febe11
-def fast_compute_zonal_statistics(
+def fast_zonal_stats_runner(
     ds,
-    admin_raster,
+    gdf,
     adm_level,
     iso3,
-    adm_ids,
+    stats=["mean", "max", "min", "median", "sum", "std", "count"],
+    rast_fill=np.nan,
+    save_to_database=False,
+    engine=None,
+    dataset=None,
+):
+    # TODO: Pre-compute and save
+    # Rasterize the adm bounds
+    src_transform = ds.rio.transform()
+    src_width = ds.rio.width
+    src_height = ds.rio.height
+    admin_raster = rasterize_admin(
+        gdf, src_width, src_height, src_transform, all_touched=False
+    )
+    adm_ids = gdf[f"ADM{adm_level}_PCODE"]
+
+    outputs = []
+    # TODO: Can this be vectorized further?
+    for date in ds.date.values:
+        logger.debug(f"Calculating for {date}...")
+        src_raster = ds.sel(date=date).values
+        stats = fast_zonal_stats(src_raster, admin_raster, stats, rast_fill=rast_fill)
+
+        for i, stat in enumerate(stats):
+            stat["valid_date"] = date
+            stat["pcode"] = adm_ids[i]
+            stat["adm_level"] = adm_level
+
+        outputs.extend(stats)
+
+    df_stats = pd.DataFrame(outputs)
+    df_stats = df_stats.round(2)
+    df_stats["iso3"] = iso3
+
+    if save_to_database and engine and dataset:
+        df_stats.to_sql(
+            dataset,
+            con=engine,
+            if_exists="append",
+            index=False,
+            method=postgres_upsert,
+        )
+        return
+    return df_stats
+
+
+# Adapted from https://github.com/sdtaylor/python-rasterstats/commit/12d0432128bdb66aacaf7a65e753f28616febe11
+def fast_zonal_stats(
+    src_raster,
+    admin_raster,
     stats=["mean", "max", "min", "median", "sum", "std", "count"],
     rast_fill=np.nan,
 ):
@@ -143,95 +192,52 @@ def fast_compute_zonal_statistics(
     A more performant approach to compute zonal statistics for a
     raster dataset over administrative regions.
 
-    Parameters
-    ----------
-    ds : xarray.Dataset
-        Raster dataset with 'date' and lat/lon dimensions for which to compute statistics.
-    admin_raster : numpy.ndarray
-        Rasterized administrative boundaries.
-    adm_level : int
-        Administrative level at which to compute statistics.
-    iso3 : str
-        ISO3 country code.
-    adm_ids : list
-        List of administrative region IDs corresponding to `admin_raster`.
-    stats : list of str, optional
-        List of statistics to compute (e.g., "mean", "max", "min").
-        Default is ["mean", "max", "min", "median", "sum", "std", "count"].
-    rast_fill : float, optional
-        Value used to fill missing data in the rasters. Default is `np.nan`.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing the computed statistics for each zone and date.
-
     """
-    outputs = []
-    # TODO: Can this be vectorized further?
-    for date in ds.date.values:
-        logger.debug(f"Calculating for {date}...")
-        src_raster = ds.sel(date=date).values
-        stacked_arrays = np.stack([src_raster, admin_raster])
 
-        # Don't include the fill nans in our counts
-        drop_nans = stacked_arrays[1][~np.isnan(stacked_arrays[1])]
-        geom_ids, pixel_count = np.unique(drop_nans, return_counts=True)
+    stacked_arrays = np.stack([src_raster, admin_raster])
 
-        # Drop the fill value which gets placed between polygons. It may not
-        # be present if the raster is 100% covered by polygons
-        if geom_ids[0] == rast_fill:
-            geom_ids = geom_ids[1:]
-            pixel_count = pixel_count[1:]
+    # Don't include the fill nans in our counts
+    drop_nans = stacked_arrays[1][~np.isnan(stacked_arrays[1])]
+    geom_ids, pixel_count = np.unique(drop_nans, return_counts=True)
 
-        # Another array with shape (n_geoms, largest_geom_n_pixels)
-        # where values within every geom are located in the respective row,
-        # and any extra padding will be masked out.
-        largest_geom = pixel_count.max()
-        n_features = int(geom_ids.max()) + 1
+    if geom_ids[0] == rast_fill:
+        geom_ids = geom_ids[1:]
+        pixel_count = pixel_count[1:]
 
-        sorted_array = np.empty(shape=(n_features, largest_geom))
-        sorted_array[:] = rast_fill
-        for geom_i, n_pixels in zip(geom_ids, pixel_count):
-            sorted_array[int(geom_i), 0:n_pixels] = stacked_arrays[0][
-                stacked_arrays[1] == geom_i
-            ]
-        # Calculate and save all the stats
-        feature_stats = [{} for i in range(n_features)]
-        if "mean" in stats:
-            for i, value in enumerate(np.nanmean(sorted_array, 1)):
-                feature_stats[i]["mean"] = value
-        if "median" in stats:
-            for i, value in enumerate(np.nanmedian(sorted_array, 1)):
-                feature_stats[i]["median"] = value
-        if "max" in stats:
-            for i, value in enumerate(np.nanmax(sorted_array, 1)):
-                feature_stats[i]["max"] = value
-        if "min" in stats:
-            for i, value in enumerate(np.nanmin(sorted_array, 1)):
-                feature_stats[i]["min"] = value
-        if "sum" in stats:
-            for i, value in enumerate(np.nansum(sorted_array, 1)):
-                feature_stats[i]["sum"] = value
-        if "std" in stats:
-            for i, value in enumerate(np.nanstd(sorted_array, 1)):
-                feature_stats[i]["std"] = value
-        if "count" in stats:
-            for i, value in enumerate(np.sum(~np.isnan(sorted_array), axis=1)):
-                feature_stats[i]["count"] = value
+    largest_geom = pixel_count.max()
+    n_features = int(geom_ids.max()) + 1
 
-        for i, stat in enumerate(feature_stats):
-            stat["valid_date"] = date
-            stat["pcode"] = adm_ids[i]
-            stat["adm_level"] = adm_level
+    sorted_array = np.empty(shape=(n_features, largest_geom))
+    sorted_array[:] = rast_fill
+    for geom_i, n_pixels in zip(geom_ids, pixel_count):
+        sorted_array[int(geom_i), 0:n_pixels] = stacked_arrays[0][
+            stacked_arrays[1] == geom_i
+        ]
 
-        outputs.extend(feature_stats)
+    feature_stats = [{} for i in range(n_features)]
+    if "mean" in stats:
+        for i, value in enumerate(np.nanmean(sorted_array, 1)):
+            feature_stats[i]["mean"] = value
+    if "median" in stats:
+        for i, value in enumerate(np.nanmedian(sorted_array, 1)):
+            feature_stats[i]["median"] = value
+    if "max" in stats:
+        for i, value in enumerate(np.nanmax(sorted_array, 1)):
+            feature_stats[i]["max"] = value
+    if "min" in stats:
+        for i, value in enumerate(np.nanmin(sorted_array, 1)):
+            feature_stats[i]["min"] = value
+    if "sum" in stats:
+        for i, value in enumerate(np.nansum(sorted_array, 1)):
+            feature_stats[i]["sum"] = value
+    if "std" in stats:
+        for i, value in enumerate(np.nanstd(sorted_array, 1)):
+            feature_stats[i]["std"] = value
+    if "count" in stats:
+        for i, value in enumerate(np.sum(~np.isnan(sorted_array), axis=1)):
+            feature_stats[i]["count"] = value
 
-    df_stats = pd.DataFrame(outputs)
-    df_stats = df_stats.round(2)
-    df_stats["iso3"] = iso3
-
-    return df_stats
+    return feature_stats
 
 
 def upsample_raster(ds, resampled_resolution=0.05):

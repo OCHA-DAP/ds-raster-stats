@@ -1,14 +1,18 @@
 import logging
+import time
 
 import coloredlogs
 import numpy as np
 import pandas as pd
 import xarray as xr
+from exactextract import exact_extract
 from rasterio.enums import Resampling
 from rasterio.features import rasterize
 from rasterstats import zonal_stats
 
 from config import LOG_LEVEL
+from src.data_utils import features_to_dataframe
+from src.database_utils import postgres_upsert
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
@@ -129,6 +133,45 @@ def compute_zonal_statistics(
     return df_stats
 
 
+def exact_extract_runner(
+    ds, gdf, adm_level, iso3, dataset=None, save_to_database=True, engine=None
+):
+    stats = ["mean", "max", "min", "median", "sum", "stdev", "count"]
+
+    start_time = time.time()
+    results = exact_extract(ds, gdf, stats, include_cols=f"ADM{adm_level}_PCODE")
+    elapsed_time = time.time() - start_time
+    logger.debug(
+        f"- {elapsed_time:.4f}s: Raster stats calculated for admin{adm_level}."
+    )
+
+    start_time = time.time()
+    df = features_to_dataframe(
+        results, adm_level, str(ds.date.values[0]), str(ds.date.values[-1]), "monthly"
+    )
+    df["adm_level"] = adm_level
+    df["iso3"] = iso3
+
+    elapsed_time = time.time() - start_time
+    logger.debug(
+        f"- {elapsed_time:.4f}s: Converted results to dataframe with {len(df)} rows"
+    )
+
+    if save_to_database and engine:
+        start_time = time.time()
+        df.to_sql(
+            dataset,
+            con=engine,
+            if_exists="append",
+            index=False,
+            method=postgres_upsert,
+        )
+        elapsed_time = time.time() - start_time
+        logger.debug(f"- {elapsed_time:.4f}s: Wrote out dataframe to database")
+        return
+    return df
+
+
 # Adapted from https://github.com/sdtaylor/python-rasterstats/commit/12d0432128bdb66aacaf7a65e753f28616febe11
 def fast_compute_zonal_statistics(
     ds,
@@ -138,6 +181,7 @@ def fast_compute_zonal_statistics(
     adm_ids,
     stats=["mean", "max", "min", "median", "sum", "std", "count"],
     rast_fill=np.nan,
+    save_to_database=True,
 ):
     """
     A more performant approach to compute zonal statistics for a
@@ -301,14 +345,15 @@ def upsample_raster(ds, resampled_resolution=0.05):
     return ds_resampled
 
 
-def prep_raster(ds, gdf_adm):
+def prep_raster(ds, gdf_adm, upsample=True):
     logger.debug("Clipping raster to iso3 bounds and persisting in memory...")
     minx, miny, maxx, maxy = gdf_adm.total_bounds
     ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny)).persist()
-    logger.debug("Upsampling raster...")
-    ds_resampled = upsample_raster(ds_clip)
+    if upsample:
+        logger.debug("Upsampling raster...")
+        ds_clip = upsample_raster(ds_clip)
     logger.debug("Raster prep completed.")
-    return ds_resampled
+    return ds_clip
 
 
 def rasterize_admin(

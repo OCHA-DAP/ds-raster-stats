@@ -104,4 +104,4 @@ if __name__ == "__main__":
                         continue
 
         elapsed_time = time.time() - full_start_time
-        logger.info(f"- {elapsed_time:.4f}s: Done calculations.")
+        logger.info(f"- {elapsed_time:.4f}s: Done calculating and saving stats.")

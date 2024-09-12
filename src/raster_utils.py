@@ -1,4 +1,5 @@
 import logging
+import warnings
 
 import coloredlogs
 import numpy as np
@@ -169,12 +170,14 @@ def fast_zonal_stats_runner(
     df_stats = df_stats.round(2)
     df_stats["iso3"] = iso3
 
+    logger.info(f"Writing {len(df_stats)} rows to database...")
     if save_to_database and engine and dataset:
         df_stats.to_sql(
             dataset,
             con=engine,
             if_exists="append",
             index=False,
+            chunksize=100000,
             method=postgres_upsert,
         )
         return
@@ -215,27 +218,31 @@ def fast_zonal_stats(
         ]
 
     feature_stats = [{} for i in range(n_features)]
-    if "mean" in stats:
-        for i, value in enumerate(np.nanmean(sorted_array, 1)):
-            feature_stats[i]["mean"] = value
-    if "median" in stats:
-        for i, value in enumerate(np.nanmedian(sorted_array, 1)):
-            feature_stats[i]["median"] = value
-    if "max" in stats:
-        for i, value in enumerate(np.nanmax(sorted_array, 1)):
-            feature_stats[i]["max"] = value
-    if "min" in stats:
-        for i, value in enumerate(np.nanmin(sorted_array, 1)):
-            feature_stats[i]["min"] = value
-    if "sum" in stats:
-        for i, value in enumerate(np.nansum(sorted_array, 1)):
-            feature_stats[i]["sum"] = value
-    if "std" in stats:
-        for i, value in enumerate(np.nanstd(sorted_array, 1)):
-            feature_stats[i]["std"] = value
-    if "count" in stats:
-        for i, value in enumerate(np.sum(~np.isnan(sorted_array), axis=1)):
-            feature_stats[i]["count"] = value
+
+    # TODO: Temp suppress while developing!
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        if "mean" in stats:
+            for i, value in enumerate(np.nanmean(sorted_array, 1)):
+                feature_stats[i]["mean"] = value
+        if "median" in stats:
+            for i, value in enumerate(np.nanmedian(sorted_array, 1)):
+                feature_stats[i]["median"] = value
+        if "max" in stats:
+            for i, value in enumerate(np.nanmax(sorted_array, 1)):
+                feature_stats[i]["max"] = value
+        if "min" in stats:
+            for i, value in enumerate(np.nanmin(sorted_array, 1)):
+                feature_stats[i]["min"] = value
+        if "sum" in stats:
+            for i, value in enumerate(np.nansum(sorted_array, 1)):
+                feature_stats[i]["sum"] = value
+        if "std" in stats:
+            for i, value in enumerate(np.nanstd(sorted_array, 1)):
+                feature_stats[i]["std"] = value
+        if "count" in stats:
+            for i, value in enumerate(np.sum(~np.isnan(sorted_array), axis=1)):
+                feature_stats[i]["count"] = value
 
     return feature_stats
 

@@ -136,7 +136,7 @@ def compute_zonal_statistics(
 def exact_extract_runner(
     ds, gdf, adm_level, iso3, dataset=None, save_to_database=True, engine=None
 ):
-    stats = ["mean", "max", "min", "median", "sum", "stdev", "count"]
+    stats = ["mean", "max", "min", "median", "sum", "stdev", "count", "sum"]
 
     start_time = time.time()
     results = exact_extract(ds, gdf, stats, include_cols=f"ADM{adm_level}_PCODE")

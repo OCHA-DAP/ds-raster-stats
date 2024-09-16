@@ -139,6 +139,7 @@ def exact_extract_runner(
     stats = ["mean", "max", "min", "median", "sum", "stdev", "count", "sum"]
 
     start_time = time.time()
+    gdf["geometry"] = gdf["geometry"].simplify(tolerance=0.001, preserve_topology=True)
     results = exact_extract(ds, gdf, stats, include_cols=f"ADM{adm_level}_PCODE")
     elapsed_time = time.time() - start_time
     logger.debug(

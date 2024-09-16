@@ -17,9 +17,9 @@ DATASETS = {
         "forecast": False,
         "update_schedule": "0 0 6 * *",
         "dev_run": {
-            "start_date": "2020-01-01",
-            "end_date": "2020-01-01",  # TODO
-            "iso3s": ["ZWE"],
+            "start_date": "1981-01-01",
+            "end_date": "2024-01-01",  # TODO
+            "iso3s": ["BRA"],
         },
     },
     "imerg": {

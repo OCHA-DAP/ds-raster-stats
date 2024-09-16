@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
 
+# TODO: ARCHIVE!
 def compute_zonal_statistics(
     ds,
     gdf,
@@ -157,21 +158,20 @@ def fast_zonal_stats_runner(
     for date in ds.date.values:
         logger.debug(f"Calculating for {date}...")
         src_raster = ds.sel(date=date).values
-        stats = fast_zonal_stats(src_raster, admin_raster, stats, rast_fill=rast_fill)
+        results = fast_zonal_stats(src_raster, admin_raster, stats, rast_fill=rast_fill)
+        for i, result in enumerate(results):
+            result["valid_date"] = date
+            result["pcode"] = adm_ids[i]
+            result["adm_level"] = adm_level
 
-        for i, stat in enumerate(stats):
-            stat["valid_date"] = date
-            stat["pcode"] = adm_ids[i]
-            stat["adm_level"] = adm_level
-
-        outputs.extend(stats)
+        outputs.extend(results)
 
     df_stats = pd.DataFrame(outputs)
     df_stats = df_stats.round(2)
     df_stats["iso3"] = iso3
 
-    logger.info(f"Writing {len(df_stats)} rows to database...")
     if save_to_database and engine and dataset:
+        logger.info(f"Writing {len(df_stats)} rows to database...")
         df_stats.to_sql(
             dataset,
             con=engine,

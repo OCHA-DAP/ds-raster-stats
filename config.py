@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 MAX_ADM = 2
-LOG_LEVEL = "INFO"
+LOG_LEVEL = "DEBUG"
 AZURE_DB_PW = os.getenv("AZURE_DB_PW")
 
 DATASETS = {

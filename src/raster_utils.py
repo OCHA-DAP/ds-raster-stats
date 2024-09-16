@@ -124,7 +124,7 @@ def compute_zonal_statistics(
     return df_stats
 
 
-def upsample_raster(ds, resampled_resolution=0.05):
+def upsample_raster(ds, resampled_resolution=0.001):
     """
     Upsample a raster to a higher resolution using nearest neighbor resampling,
     via the `Resampling.nearest` method from `rasterio`.

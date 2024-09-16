@@ -220,6 +220,8 @@ def fast_zonal_stats(
     feature_stats = [{} for i in range(n_features)]
 
     # TODO: Temp suppress while developing!
+    # This is suppressing warnings when all values in a slice are NA,
+    # which is expected in some cases where there are no pixel centroids in an adm
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
         if "mean" in stats:

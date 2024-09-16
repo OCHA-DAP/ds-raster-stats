@@ -346,13 +346,13 @@ def upsample_raster(ds, resampled_resolution=0.05):
     return ds_resampled
 
 
-def prep_raster(ds, gdf_adm, upsample=True):
+def prep_raster(ds, gdf_adm, upsample=True, upsample_resolution=0.025):
     logger.debug("Clipping raster to iso3 bounds and persisting in memory...")
     minx, miny, maxx, maxy = gdf_adm.total_bounds
     ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny)).persist()
     if upsample:
         logger.debug("Upsampling raster...")
-        ds_clip = upsample_raster(ds_clip)
+        ds_clip = upsample_raster(ds_clip, upsample_resolution)
     logger.debug("Raster prep completed.")
     return ds_clip
 

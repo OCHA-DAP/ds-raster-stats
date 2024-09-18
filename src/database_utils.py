@@ -157,10 +157,10 @@ def insert_qa_table(iso3, adm_level, dataset, error, stack_trace, engine):
     return
 
 
-# https://stackoverflow.com/questions/55187884/insert-into-postgresql-table-from-pandas-with-on-conflict-update
 def postgres_upsert(table, conn, keys, data_iter, constraint=None):
     """
-    Perform an upsert (insert or update) operation on a PostgreSQL table.
+    Perform an upsert (insert or update) operation on a PostgreSQL table. Adapted from:
+    https://stackoverflow.com/questions/55187884/insert-into-postgresql-table-from-pandas-with-on-conflict-update
 
     Parameters
     ----------

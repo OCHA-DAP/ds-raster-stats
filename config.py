@@ -18,14 +18,14 @@ DATASETS = {
         "frequency": "monthly",
         "update_schedule": "0 0 6 * *",
         "dev_run": {
-            "start_date": "1981-01-01",
-            "end_date": "2024-02-01",
-            "iso3s": ["BRA"],
+            "start_date": "2020-01-01",
+            "end_date": "2020-05-01",
+            "iso3s": ["AFG"],
         },
     },
     "imerg": {
-        "blob_prefix": "imerg/v7/late/processed/imerg-daily-late-",
-        "start_date": "2000-01-01",  # TODO
+        "blob_prefix": "imerg/daily/late/v7/imerg-daily-late-",
+        "start_date": "2000-06-01",  # TODO
         "end_date": "2024-07-30",  # TODO
         "coverage": "global",
         "forecast": False,
@@ -33,12 +33,12 @@ DATASETS = {
         "frequency": "daily",
         "dev_run": {
             "start_date": "2020-01-01",
-            "end_date": "2020-01-01",
-            "iso3s": ["PHL"],
+            "end_date": "2020-01-04",
+            "iso3s": ["ETH"],
         },
     },
     "seas5": {
-        "blob_prefix": "seas5/processed/precip_em_i",
+        "blob_prefix": "seas5/monthly/processed/precip_em_i",
         "start_date": "1981-01-01",
         "end_date": "2024-07-30",  # TODO
         "coverage": "global",
@@ -58,6 +58,10 @@ DATABASES = {
         "engine_url": "sqlite:///chd-rasterstats-local.db",
     },
     "dev": {
+        "engine_url": f"postgresql+psycopg2://chdadmin:{AZURE_DB_PW}@chd-rasterstats-dev.postgres.database.azure.com/postgres",  # noqa
+    },
+    # TODO: Have separate PROD sql database
+    "prod": {
         "engine_url": f"postgresql+psycopg2://chdadmin:{AZURE_DB_PW}@chd-rasterstats-dev.postgres.database.azure.com/postgres",  # noqa
     },
 }

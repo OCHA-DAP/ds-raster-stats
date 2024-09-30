@@ -84,10 +84,10 @@ def get_iso3_data(iso3_codes, engine):
         else:
             query = text("SELECT * FROM public.iso3 WHERE iso_3 = ANY(:codes)")
             params = {"codes": iso3_codes}
-        df = pd.read_sql_query(query, engine, params=params)
+        df = pd.read_sql_query(query, engine.connect(), params=params)
     else:
         query = text("SELECT * FROM public.iso3")
-        df = pd.read_sql_query(query, engine)
+        df = pd.read_sql_query(query, engine.connect())
 
     return df
 

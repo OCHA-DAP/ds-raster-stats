@@ -323,11 +323,6 @@ def rasterize_admin(
     geometries = [
         (geom, value) for geom, value in zip(gdf.geometry, gdf.reset_index()["index"])
     ]
-    print(len(geometries))
-    print(src_height)
-    print(src_width)
-    print(src_transform)
-    print(rast_fill)
     admin_raster = rasterize(
         shapes=geometries,
         out_shape=(src_height, src_width),

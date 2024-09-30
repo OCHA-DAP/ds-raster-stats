@@ -26,6 +26,7 @@ def parse_date(filename, dataset):
     return pd.to_datetime(date)
 
 
+# TODO: Update now that IMERG data has the right .attrs metadata
 def process_imerg(cog_name, mode):
     """
     Processes an IMERG Cloud Optimized GeoTIFF (COG) file

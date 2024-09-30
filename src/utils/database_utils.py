@@ -2,6 +2,7 @@ import datetime
 
 from sqlalchemy import (
     CHAR,
+    Boolean,
     Column,
     Date,
     Double,
@@ -115,6 +116,20 @@ def create_qa_table(engine):
     )
     metadata.create_all(engine)
     return
+
+
+def create_iso3_table(engine):
+    metadata = MetaData()
+    Table(
+        "iso3",
+        metadata,
+        Column("iso3", CHAR(3)),
+        Column("has_active_hrp", Boolean),
+        Column("max_adm_level", Integer),
+        Column("stats_last_updated", Date),
+        Column("shp_url", String),
+    )
+    metadata.create_all(engine)
 
 
 def insert_qa_table(iso3, adm_level, dataset, error, stack_trace, engine):

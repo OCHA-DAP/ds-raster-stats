@@ -5,17 +5,9 @@ from io import StringIO
 
 import pandas as pd
 import requests
-from sqlalchemy import (
-    CHAR,
-    Boolean,
-    Column,
-    Date,
-    Integer,
-    MetaData,
-    String,
-    Table,
-    text,
-)
+from sqlalchemy import text
+
+from src.utils.database_utils import create_iso3_table
 
 
 def get_metadata():
@@ -77,20 +69,6 @@ def get_iso3_data(iso3_codes, engine):
         params = {"codes": iso3_codes}
     df = pd.read_sql_query(query, engine, params=params)
     return df
-
-
-def create_iso3_table(engine):
-    metadata = MetaData()
-    Table(
-        "iso3",
-        metadata,
-        Column("iso3", CHAR(3)),
-        Column("has_active_hrp", Boolean),
-        Column("max_adm_level", Integer),
-        Column("stats_last_updated", Date),
-        Column("shp_url", String),
-    )
-    metadata.create_all(engine)
 
 
 def determine_max_adm_level(row):

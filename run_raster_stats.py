@@ -38,7 +38,7 @@ if __name__ == "__main__":
     sel_iso3s = settings["test"]["iso3s"] if args.test else None
     df_iso3s = get_iso3_data(sel_iso3s, engine)
 
-    logger.debug(f"Creating stack of COGs from {start} to {end}...")
+    logger.info(f"Creating stack of COGs from {start} to {end}...")
     ds = stack_cogs(start, end, dataset, args.mode)
 
     # Loop through each country
@@ -70,7 +70,7 @@ if __name__ == "__main__":
                         gdf,
                         adm_level,
                         iso3,
-                        save_to_database=True,
+                        save_to_database=False,
                         engine=engine,
                         dataset=dataset,
                     )

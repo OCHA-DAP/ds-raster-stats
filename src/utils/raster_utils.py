@@ -283,12 +283,12 @@ def prep_raster(ds, gdf_adm):
     xarray.Dataset
         The clipped and upsampled raster dataset.
     """
-    logger.debug("Clipping raster to iso3 bounds and persisting in memory...")
+    logger.info("Clipping raster to iso3 bounds and persisting in memory...")
     minx, miny, maxx, maxy = gdf_adm.total_bounds
     ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny)).persist()
-    logger.debug("Upsampling raster...")
+    logger.info("Upsampling raster...")
     ds_resampled = upsample_raster(ds_clip)
-    logger.debug("Raster prep completed.")
+    logger.info("Raster prep completed.")
     return ds_resampled
 
 

@@ -7,7 +7,7 @@ load_dotenv()
 
 
 MAX_ADM = 2
-LOG_LEVEL = "DEBUG"
+LOG_LEVEL = "INFO"
 AZURE_DB_PW = os.getenv("AZURE_DB_PW")
 DATABASES = {
     "local": "sqlite:///chd-rasterstats-local.db",

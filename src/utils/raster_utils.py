@@ -73,14 +73,31 @@ def fast_zonal_stats_runner(
     # TODO: Can this be vectorized further?
     for date in ds.date.values:
         logger.debug(f"Calculating for {date}...")
-        src_raster = ds.sel(date=date).values
-        results = fast_zonal_stats(src_raster, admin_raster, stats, rast_fill=rast_fill)
-        for i, result in enumerate(results):
-            result["valid_date"] = date
-            result["pcode"] = adm_ids[i]
-            result["adm_level"] = adm_level
-
-        outputs.extend(results)
+        ds_sel = ds.sel(date=date)
+        if "leadtime" in ds_sel.dims:
+            for lt in ds_sel.leadtime.values:
+                ds__ = ds_sel.sel(leadtime=lt)
+                # Some leadtime/date combos are invalid and so don't have any data
+                if bool(np.all(np.isnan(ds__.values))):
+                    continue
+                results = fast_zonal_stats(
+                    ds__.values, admin_raster, stats, rast_fill=rast_fill
+                )
+                for i, result in enumerate(results):
+                    result["valid_date"] = date
+                    result["pcode"] = adm_ids[i]
+                    result["adm_level"] = adm_level
+                    result["leadtime"] = lt
+                outputs.extend(results)
+        else:
+            results = fast_zonal_stats(
+                ds_sel.values, admin_raster, stats, rast_fill=rast_fill
+            )
+            for i, result in enumerate(results):
+                result["valid_date"] = date
+                result["pcode"] = adm_ids[i]
+                result["adm_level"] = adm_level
+            outputs.extend(results)
 
     df_stats = pd.DataFrame(outputs)
     df_stats = df_stats.round(2)

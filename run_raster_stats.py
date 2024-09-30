@@ -6,8 +6,6 @@ import coloredlogs
 import geopandas as gpd
 
 from src.config.settings import LOG_LEVEL, load_pipeline_config, parse_pipeline_config
-from src.scripts.build_country_metadata import main as build_country_metadata
-from src.utils.cod_utils import get_iso3_data, load_shp
 from src.utils.cog_utils import stack_cogs
 from src.utils.database_utils import (
     create_dataset_table,
@@ -16,6 +14,7 @@ from src.utils.database_utils import (
     insert_qa_table,
 )
 from src.utils.inputs import cli_args
+from src.utils.iso3_utils import create_iso3_df, get_iso3_data, load_shp
 from src.utils.raster_utils import fast_zonal_stats_runner, prep_raster
 
 logger = logging.getLogger(__name__)
@@ -32,7 +31,7 @@ if __name__ == "__main__":
     settings = load_pipeline_config(dataset)
     start, end, is_forecast = parse_pipeline_config(settings, args.test)
     create_dataset_table(dataset, engine, is_forecast)
-    build_country_metadata(args.mode)
+    create_iso3_df(engine)
 
     sel_iso3s = settings["test"]["iso3s"] if args.test else None
     df_iso3s = get_iso3_data(sel_iso3s, engine)

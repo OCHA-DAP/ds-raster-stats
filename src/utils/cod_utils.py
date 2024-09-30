@@ -4,6 +4,7 @@ from io import StringIO
 
 import pandas as pd
 import requests
+from sqlalchemy import text
 
 
 def get_metadata():
@@ -54,3 +55,14 @@ def load_shp(shp_url, shp_dir, iso3):
 
     with zipfile.ZipFile(temp_path, "r") as zip_ref:
         zip_ref.extractall(shp_dir)
+
+
+def get_iso3_data(iso3_codes, engine):
+    if len(iso3_codes) == 1:
+        query = text("SELECT * FROM public.iso3 WHERE iso_3 = :code")
+        params = {"code": iso3_codes[0]}
+    else:
+        query = text("SELECT * FROM public.iso3 WHERE iso_3 = ANY(:codes)")
+        params = {"codes": iso3_codes}
+    df = pd.read_sql_query(query, engine, params=params)
+    return df

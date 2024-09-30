@@ -1,5 +1,22 @@
 # ds-raster-stats
 
+## Usage
+
+This pipeline can be run from the command line by calling `python run_raster_stats.py` with appropriate input args:
+
+```
+usage: run_raster_stats.py [-h] [--mode {local,dev,prod}] [--test] {seas5,era5,imerg}
+
+positional arguments:
+  {seas5,era5,imerg}    Dataset for which to calculate raster stats
+
+options:
+  -h, --help            show this help message and exit
+  --mode {local,dev,prod}, -m {local,dev,prod}
+                        Run the pipeline in 'local', 'dev', or 'prod' mode.
+  --test                Processes a smaller subset of the source data. Use to test the pipeline.
+```
+
 ## Development Setup
 
 1. Clone this repository and create a virtual Python (3.12.4) environment:

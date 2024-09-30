@@ -1,0 +1,8 @@
+blob_prefix: imerg/daily/late/v7/imerg-daily-late-
+start_date: 2000-06-01
+end_date: 2024-07-30
+forecast: False
+test:
+  start_date: 2020-01-01
+  end_date: 2020-01-15
+  iso3s: ["AFG"]

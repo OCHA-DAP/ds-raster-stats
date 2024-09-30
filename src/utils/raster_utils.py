@@ -8,8 +8,8 @@ import xarray as xr
 from rasterio.enums import Resampling
 from rasterio.features import rasterize
 
-from config import LOG_LEVEL
-from src.database_utils import postgres_upsert
+from src.config.settings import LOG_LEVEL
+from src.utils.database_utils import postgres_upsert
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
@@ -158,27 +158,21 @@ def fast_zonal_stats(
     # which is expected in some cases where there are no pixel centroids in an adm
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
-        if "mean" in stats:
-            for i, value in enumerate(np.nanmean(sorted_array, 1)):
-                feature_stats[i]["mean"] = value
-        if "median" in stats:
-            for i, value in enumerate(np.nanmedian(sorted_array, 1)):
-                feature_stats[i]["median"] = value
-        if "max" in stats:
-            for i, value in enumerate(np.nanmax(sorted_array, 1)):
-                feature_stats[i]["max"] = value
-        if "min" in stats:
-            for i, value in enumerate(np.nanmin(sorted_array, 1)):
-                feature_stats[i]["min"] = value
-        if "sum" in stats:
-            for i, value in enumerate(np.nansum(sorted_array, 1)):
-                feature_stats[i]["sum"] = value
-        if "std" in stats:
-            for i, value in enumerate(np.nanstd(sorted_array, 1)):
-                feature_stats[i]["std"] = value
-        if "count" in stats:
-            for i, value in enumerate(np.sum(~np.isnan(sorted_array), axis=1)):
-                feature_stats[i]["count"] = value
+        stat_functions = {
+            "mean": np.nanmean,
+            "median": np.nanmedian,
+            "max": np.nanmax,
+            "min": np.nanmin,
+            "sum": np.nansum,
+            "std": np.nanstd,
+            "count": lambda x, axis: np.sum(~np.isnan(x), axis=axis),
+        }
+
+        for stat in stats:
+            if stat in stat_functions:
+                values = stat_functions[stat](sorted_array, axis=1)
+                for i, value in enumerate(values):
+                    feature_stats[i][stat] = value
 
     return feature_stats
 

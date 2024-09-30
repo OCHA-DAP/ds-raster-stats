@@ -6,8 +6,8 @@ import rioxarray as rxr
 import tqdm
 import xarray as xr
 
-from config import DATASETS
-from src.cloud_utils import get_cog_url, get_container_client
+from src.config.settings import load_pipeline_config
+from src.utils.cloud_utils import get_cog_url, get_container_client
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level="DEBUG", logger=logger)
@@ -157,7 +157,8 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
     container_client = get_container_client(mode, "raster")
 
     try:
-        prefix = DATASETS[dataset]["blob_prefix"]
+        config = load_pipeline_config(dataset)
+        prefix = config["blob_prefix"]
     except Exception:
         logger.error("Input `dataset` must be one of `era5`, `seas5`, or `imerg`.")
 

@@ -14,7 +14,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import insert
 
-from config import DATABASES
+from src.config.settings import DATABASES
 
 
 def db_engine(mode):
@@ -32,7 +32,7 @@ def db_engine(mode):
     sqlalchemy.engine.Engine
         A SQLAlchemy engine object for the specified database mode.
     """
-    engine_url = DATABASES[mode]["engine_url"]
+    engine_url = DATABASES[mode]
     return create_engine(engine_url)
 
 

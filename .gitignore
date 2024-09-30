@@ -17,3 +17,5 @@ test_outputs/*
 *.db
 *.db-journal
 *.sql
+
+data/*

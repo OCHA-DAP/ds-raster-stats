@@ -25,4 +25,9 @@ def cli_args():
         help="""Processes a smaller subset of the source data. Use to test the pipeline.""",
         action="store_true",
     )
+    parser.add_argument(
+        "--build-iso3",
+        help="""Builds the `iso3` table in Postgres""",
+        action="store_true",
+    )
     return parser.parse_args()

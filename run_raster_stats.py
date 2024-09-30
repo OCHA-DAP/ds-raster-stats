@@ -31,7 +31,9 @@ if __name__ == "__main__":
     settings = load_pipeline_config(dataset)
     start, end, is_forecast = parse_pipeline_config(settings, args.test)
     create_dataset_table(dataset, engine, is_forecast)
-    create_iso3_df(engine)
+    if args.build_iso3:
+        logger.info("Creating ISO3 table in Postgres database...")
+        create_iso3_df(engine)
 
     sel_iso3s = settings["test"]["iso3s"] if args.test else None
     df_iso3s = get_iso3_data(sel_iso3s, engine)

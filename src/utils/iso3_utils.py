@@ -61,6 +61,22 @@ def load_shp(shp_url, shp_dir, iso3):
 
 
 def get_iso3_data(iso3_codes, engine):
+    """
+    Retrieve ISO3 data from a database for given ISO3 code(s).
+
+    Parameters
+    ----------
+    iso3_codes : list of str
+        A list containing one or more three-letter ISO country codes.
+    engine : sqlalchemy.engine.base.Engine
+        SQLAlchemy engine object for database connection.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A DataFrame containing the ISO3 data for the specified country code(s).
+
+    """
     if len(iso3_codes) == 1:
         query = text("SELECT * FROM public.iso3 WHERE iso_3 = :code")
         params = {"code": iso3_codes[0]}
@@ -72,6 +88,20 @@ def get_iso3_data(iso3_codes, engine):
 
 
 def determine_max_adm_level(row):
+    """
+    Determine the maximum administrative level to calculate stats to,
+    based on HRP status and data availability.
+
+    Parameters
+    ----------
+    row : pandas.Series
+        A row from a DataFrame containing 'has_active_hrp' and 'src_lvl' columns.
+
+    Returns
+    -------
+    int
+        The determined maximum administrative level.
+    """
     if row["has_active_hrp"]:
         return min(2, row["src_lvl"])
     else:
@@ -79,6 +109,19 @@ def determine_max_adm_level(row):
 
 
 def create_iso3_df(engine):
+    """
+    Create and populate an ISO3 table in the database with country information.
+    NOTE: Needs to be run locally with an appropriate CSV in the `data/` directory.
+
+    Parameters
+    ----------
+    engine : sqlalchemy.engine.base.Engine
+        SQLAlchemy engine object for database connection.
+
+    Returns
+    -------
+    None
+    """
     create_iso3_table(engine)
     # Get all countries with CODs
     df_all = get_metadata()

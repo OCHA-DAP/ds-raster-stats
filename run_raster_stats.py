@@ -8,7 +8,6 @@ import coloredlogs
 import geopandas as gpd
 import pandas as pd
 from sqlalchemy import create_engine
-from sqlalchemy.pool import QueuePool
 
 from src.config.settings import LOG_LEVEL, load_pipeline_config, parse_pipeline_config
 from src.utils.cog_utils import stack_cogs
@@ -45,11 +44,12 @@ def setup_logger(name, level=logging.INFO):
     return logger
 
 
-def process_chunk(start, end, dataset, mode, df_iso3s, engine):
+def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
     process_name = current_process().name
     logger = setup_logger(f"{process_name}: {dataset}_{start}")
     logger.info(f"Starting processing for {dataset} from {start} to {end}")
 
+    engine = create_engine(engine_url)
     ds = stack_cogs(start, end, dataset, mode)
 
     try:
@@ -119,9 +119,7 @@ if __name__ == "__main__":
     logger.info(f"Updating data for {dataset}...")
 
     engine_url = db_engine(args.mode)
-    engine = create_engine(
-        engine_url, poolclass=QueuePool, pool_size=15, max_overflow=15
-    )
+    engine = create_engine(engine_url)
 
     create_qa_table(engine)
     settings = load_pipeline_config(dataset)
@@ -136,13 +134,13 @@ if __name__ == "__main__":
     date_ranges = split_date_range(start, end)
 
     if len(date_ranges) > 1:
-        num_processes = 10
+        num_processes = 5
         logger.info(
             f"Processing {len(date_ranges)} chunks with {num_processes} processes"
         )
 
         process_args = [
-            (start, end, dataset, args.mode, df_iso3s, engine)
+            (start, end, dataset, args.mode, df_iso3s, engine_url)
             for start, end in date_ranges
         ]
 
@@ -151,6 +149,6 @@ if __name__ == "__main__":
 
     else:
         logger.info("Processing entire date range in a single chunk")
-        process_chunk((start, end, dataset, args.mode, df_iso3s, engine))
+        process_chunk((start, end, dataset, args.mode, df_iso3s, engine_url))
 
     logger.info("Done calculating and saving stats.")

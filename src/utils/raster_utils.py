@@ -25,6 +25,7 @@ def fast_zonal_stats_runner(
     save_to_database=False,
     engine=None,
     dataset=None,
+    logger=None,
 ):
     """
     Run zonal stats calculations for a raster dataset over administrative boundaries
@@ -59,6 +60,10 @@ def fast_zonal_stats_runner(
         administrative unit. If `save_to_database` is True, the DataFrame is saved
         to the database and None is returned.
     """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+        logger.addHandler(logging.NullHandler())
+
     # TODO: Pre-compute and save
     # Rasterize the adm bounds
     src_transform = ds.rio.transform()
@@ -194,7 +199,7 @@ def fast_zonal_stats(
     return feature_stats
 
 
-def upsample_raster(ds, resampled_resolution=0.05):
+def upsample_raster(ds, resampled_resolution=0.05, logger=None):
     """
     Upsample a raster to a higher resolution using nearest neighbor resampling,
     via the `Resampling.nearest` method from `rasterio`.
@@ -211,6 +216,11 @@ def upsample_raster(ds, resampled_resolution=0.05):
     xarray.Dataset
         The upsampled raster as a Dataset with the new resolution.
     """
+
+    if logger is None:
+        logger = logging.getLogger(__name__)
+        logger.addHandler(logging.NullHandler())
+
     # Assuming square resolution
     input_resolution = ds.rio.resolution()[0]
     upscale_factor = input_resolution / resampled_resolution
@@ -261,7 +271,7 @@ def upsample_raster(ds, resampled_resolution=0.05):
     return ds_resampled
 
 
-def prep_raster(ds, gdf_adm):
+def prep_raster(ds, gdf_adm, logger=None):
     """
     Prepares and resamples a raster dataset by clipping it to the bounds of the
     provided administrative regions and then upsampling the result.
@@ -283,11 +293,15 @@ def prep_raster(ds, gdf_adm):
     xarray.Dataset
         The clipped and upsampled raster dataset.
     """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+        logger.addHandler(logging.NullHandler())
+
     logger.info("Clipping raster to iso3 bounds and persisting in memory...")
     minx, miny, maxx, maxy = gdf_adm.total_bounds
     ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny)).persist()
     logger.info("Upsampling raster...")
-    ds_resampled = upsample_raster(ds_clip)
+    ds_resampled = upsample_raster(ds_clip, logger=logger)
     logger.info("Raster prep completed.")
     return ds_resampled
 

@@ -1,6 +1,8 @@
 import logging
+import sys
 import tempfile
 import traceback
+from multiprocessing import Pool, cpu_count, current_process
 
 import coloredlogs
 import geopandas as gpd
@@ -22,9 +24,30 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
 
-def process_chunk(start, end, dataset, args, engine, df_iso3s):
-    logger.info(f"Processing data from {start} to {end}")
-    ds = stack_cogs(start, end, dataset, args.mode)
+def setup_logger(name, level=logging.INFO):
+    """Function to setup a logger that prints to console"""
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    coloredlogs.install(level=level, logger=logger)
+
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+    return logger
+
+
+def process_chunk(start, end, dataset, mode, df_iso3s):
+    process_name = current_process().name
+    logger = setup_logger(f"{process_name}: {dataset}_{start}")
+    logger.info(f"Starting processing for {dataset} from {start} to {end}")
+
+    engine = db_engine(mode)
+    ds = stack_cogs(start, end, dataset, mode)
 
     for idx, row in df_iso3s.iterrows():
         iso3 = row["iso_3"]
@@ -36,7 +59,7 @@ def process_chunk(start, end, dataset, args, engine, df_iso3s):
             load_shp(shp_url, td, iso3)
             gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm0.shp")
             try:
-                ds_clipped = prep_raster(ds, gdf)
+                ds_clipped = prep_raster(ds, gdf, logger=logger)
             except Exception as e:
                 logger.error(f"Error preparing raster for {iso3}: {e}")
                 stack_trace = traceback.format_exc()
@@ -55,6 +78,7 @@ def process_chunk(start, end, dataset, args, engine, df_iso3s):
                         save_to_database=True,
                         engine=engine,
                         dataset=dataset,
+                        logger=logger,
                     )
                 except Exception as e:
                     logger.error(
@@ -84,11 +108,22 @@ if __name__ == "__main__":
     date_ranges = split_date_range(start, end)
 
     if len(date_ranges) > 1:
-        logger.info(f"Processing data in {len(date_ranges)} chunks")
+        logger.info(f"Processing data in {len(date_ranges)} chunks in parallel")
+
+        # Prepare arguments for parallel processing
+        process_args = [
+            (start, end, dataset, args.mode, df_iso3s) for start, end in date_ranges
+        ]
+
+        # Use all available CPU cores except one
+        num_processes = max(1, cpu_count() - 1)
+        print(cpu_count())
+
+        # Process chunks in parallel
+        with Pool(num_processes) as pool:
+            pool.starmap(process_chunk, process_args)
     else:
         logger.info("Processing entire date range in a single chunk")
-
-    for start_date, end_date in date_ranges:
-        process_chunk(start_date, end_date, dataset, args, engine, df_iso3s)
+        process_chunk((start, end, dataset, args.mode, df_iso3s))
 
     logger.info("Done calculating and saving stats.")

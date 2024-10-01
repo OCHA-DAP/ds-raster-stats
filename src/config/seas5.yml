@@ -5,4 +5,4 @@ forecast: True
 test:
   start_date: 1981-01-01
   end_date: 2021-05-01
-  iso3s: ["AFG"]
+  iso3s: ["ETH"]

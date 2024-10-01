@@ -2,7 +2,7 @@ import logging
 import sys
 import tempfile
 import traceback
-from multiprocessing import Pool, cpu_count, current_process
+from multiprocessing import Pool, current_process
 
 import coloredlogs
 import geopandas as gpd
@@ -45,12 +45,10 @@ def setup_logger(name, level=logging.INFO):
     return logger
 
 
-def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
+def process_chunk(start, end, dataset, mode, df_iso3s, engine):
     process_name = current_process().name
     logger = setup_logger(f"{process_name}: {dataset}_{start}")
     logger.info(f"Starting processing for {dataset} from {start} to {end}")
-
-    engine = create_engine(engine_url, poolclass=QueuePool, pool_size=2, max_overflow=1)
 
     ds = stack_cogs(start, end, dataset, mode)
 
@@ -121,7 +119,9 @@ if __name__ == "__main__":
     logger.info(f"Updating data for {dataset}...")
 
     engine_url = db_engine(args.mode)
-    engine = create_engine(engine_url, poolclass=QueuePool, pool_size=3, max_overflow=2)
+    engine = create_engine(
+        engine_url, poolclass=QueuePool, pool_size=15, max_overflow=15
+    )
 
     create_qa_table(engine)
     settings = load_pipeline_config(dataset)
@@ -136,13 +136,13 @@ if __name__ == "__main__":
     date_ranges = split_date_range(start, end)
 
     if len(date_ranges) > 1:
-        num_processes = min(len(date_ranges), cpu_count() - 1, 10)
+        num_processes = 10
         logger.info(
             f"Processing {len(date_ranges)} chunks with {num_processes} processes"
         )
 
         process_args = [
-            (start, end, dataset, args.mode, df_iso3s, engine_url)
+            (start, end, dataset, args.mode, df_iso3s, engine)
             for start, end in date_ranges
         ]
 
@@ -151,6 +151,6 @@ if __name__ == "__main__":
 
     else:
         logger.info("Processing entire date range in a single chunk")
-        process_chunk((start, end, dataset, args.mode, df_iso3s, engine_url))
+        process_chunk((start, end, dataset, args.mode, df_iso3s, engine))
 
     logger.info("Done calculating and saving stats.")

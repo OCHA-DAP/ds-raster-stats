@@ -50,7 +50,7 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
     logger = setup_logger(f"{process_name}: {dataset}_{start}")
     logger.info(f"Starting processing for {dataset} from {start} to {end}")
 
-    engine = create_engine(engine_url, poolclass=QueuePool, pool_size=3, max_overflow=2)
+    engine = create_engine(engine_url, poolclass=QueuePool, pool_size=2, max_overflow=1)
 
     ds = stack_cogs(start, end, dataset, mode)
 
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     date_ranges = split_date_range(start, end)
 
     if len(date_ranges) > 1:
-        num_processes = min(len(date_ranges), cpu_count() - 1)
+        num_processes = min(len(date_ranges), cpu_count() - 1, 10)
         logger.info(
             f"Processing {len(date_ranges)} chunks with {num_processes} processes"
         )

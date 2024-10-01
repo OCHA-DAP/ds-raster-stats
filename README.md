@@ -40,6 +40,7 @@ pip install -r requirements-dev.txt
 # Connection to Azure blob storage
 DSCI_AZ_SAS_DEV=<provided-on-request>
 DSCI_AZ_SAS_PROD=<provided-on-request>
+AZURE_DB_PW=<provided-on-request>
 ```
 
 ### Pre-Commit

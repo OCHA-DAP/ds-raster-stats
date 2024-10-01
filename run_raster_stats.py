@@ -99,13 +99,19 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
                 df_all_results = pd.concat(all_results, ignore_index=True)
 
                 logger.info(f"Writing {len(df_all_results)} rows to database...")
-                df_all_results.to_sql(
-                    dataset,
-                    con=engine,
-                    if_exists="append",
-                    index=False,
-                    method=postgres_upsert,
-                )
+                try:
+                    df_all_results.to_sql(
+                        dataset,
+                        con=engine,
+                        if_exists="append",
+                        index=False,
+                        method=postgres_upsert,
+                    )
+                except Exception as e:
+                    logger.error(f"Error uploading data for {iso3}: {e}")
+                    stack_trace = traceback.format_exc()
+                    insert_qa_table(iso3, adm_level, dataset, e, stack_trace, engine)
+                    continue
             # Clear memory
             del ds_clipped
 

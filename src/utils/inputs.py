@@ -7,6 +7,12 @@ def cli_args():
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "dataset",
+        help="Dataset for which to calculate raster stats",
+        choices=["seas5", "era5", "imerg"],
+        default=None,
+    )
+    parser.add_argument(
         "--mode",
         "-m",
         help="Run the pipeline in 'local', 'dev', or 'prod' mode.",
@@ -15,23 +21,13 @@ def cli_args():
         default="local",
     )
     parser.add_argument(
-        "--dataset",
-        "-d",
-        help="""Calculate stats for only the indicated dataset.
-        Must be on of the options in `config.py`.
-        """,
-        type=str,
-        choices=["seas5", "era5", "imerg"],
-        default=None,
-    )
-    parser.add_argument(
-        "--update",
-        help="""Will only update the raster stats from the latest source files.""",
+        "--test",
+        help="""Processes a smaller subset of the source data. Use to test the pipeline.""",
         action="store_true",
     )
     parser.add_argument(
-        "--test",
-        help="""Processes a smaller subset of the source data. Use to test the pipeline.""",
+        "--build-iso3",
+        help="""Builds the `iso3` table in Postgres""",
         action="store_true",
     )
     return parser.parse_args()

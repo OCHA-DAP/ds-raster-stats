@@ -2,6 +2,7 @@ import datetime
 
 from sqlalchemy import (
     CHAR,
+    Boolean,
     Column,
     Date,
     Double,
@@ -14,7 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import insert
 
-from config import DATABASES
+from src.config.settings import DATABASES
 
 
 def db_engine(mode):
@@ -32,7 +33,7 @@ def db_engine(mode):
     sqlalchemy.engine.Engine
         A SQLAlchemy engine object for the specified database mode.
     """
-    engine_url = DATABASES[mode]["engine_url"]
+    engine_url = DATABASES[mode]
     return create_engine(engine_url)
 
 
@@ -117,6 +118,20 @@ def create_qa_table(engine):
     return
 
 
+def create_iso3_table(engine):
+    metadata = MetaData()
+    Table(
+        "iso3",
+        metadata,
+        Column("iso3", CHAR(3)),
+        Column("has_active_hrp", Boolean),
+        Column("max_adm_level", Integer),
+        Column("stats_last_updated", Date),
+        Column("shp_url", String),
+    )
+    metadata.create_all(engine)
+
+
 def insert_qa_table(iso3, adm_level, dataset, error, stack_trace, engine):
     """
     Insert an error record into the 'qa' table in the database.
@@ -157,10 +172,10 @@ def insert_qa_table(iso3, adm_level, dataset, error, stack_trace, engine):
     return
 
 
-# https://stackoverflow.com/questions/55187884/insert-into-postgresql-table-from-pandas-with-on-conflict-update
 def postgres_upsert(table, conn, keys, data_iter, constraint=None):
     """
-    Perform an upsert (insert or update) operation on a PostgreSQL table.
+    Perform an upsert (insert or update) operation on a PostgreSQL table. Adapted from:
+    https://stackoverflow.com/questions/55187884/insert-into-postgresql-table-from-pandas-with-on-conflict-update
 
     Parameters
     ----------

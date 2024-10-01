@@ -1,4 +1,5 @@
 import datetime
+import time
 
 from sqlalchemy import (
     CHAR,
@@ -14,8 +15,20 @@ from sqlalchemy import (
     create_engine,
 )
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.pool import QueuePool
 
 from src.config.settings import DATABASES
+
+
+def create_engine_with_retries(url, max_retries=3, retry_interval=5):
+    for attempt in range(max_retries):
+        try:
+            return create_engine(url, poolclass=QueuePool, pool_size=3, max_overflow=2)
+        except OperationalError:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(retry_interval)
 
 
 def db_engine(mode):
@@ -34,7 +47,7 @@ def db_engine(mode):
         A SQLAlchemy engine object for the specified database mode.
     """
     engine_url = DATABASES[mode]
-    return create_engine(engine_url)
+    return engine_url
 
 
 def create_dataset_table(dataset, engine, incl_leadtime=False):

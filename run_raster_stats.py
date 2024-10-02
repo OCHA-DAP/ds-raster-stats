@@ -70,30 +70,24 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
                     insert_qa_table(iso3, None, dataset, e, stack_trace, engine)
                     continue
 
-            try:
-                all_results = []
-                for adm_level in range(max_adm + 1):
-                    gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{adm_level}.shp")
-                    logger.info(f"Computing stats for adm{adm_level}...")
-                    df_results = fast_zonal_stats_runner(
-                        ds_clipped,
-                        gdf,
-                        adm_level,
-                        iso3,
-                        save_to_database=False,
-                        engine=None,
-                        dataset=dataset,
-                        logger=logger,
-                    )
-                    if df_results is not None:
-                        all_results.append(df_results)
-                df_all_results = pd.concat(all_results, ignore_index=True)
-            except Exception as e:
-                logger.error(f"Error calculating stats for {iso3} at {adm_level}: {e}")
-                stack_trace = traceback.format_exc()
-                insert_qa_table(iso3, adm_level, dataset, e, stack_trace, engine)
-                continue
                 try:
+                    all_results = []
+                    for adm_level in range(max_adm + 1):
+                        gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{adm_level}.shp")
+                        logger.info(f"Computing stats for adm{adm_level}...")
+                        df_results = fast_zonal_stats_runner(
+                            ds_clipped,
+                            gdf,
+                            adm_level,
+                            iso3,
+                            save_to_database=False,
+                            engine=None,
+                            dataset=dataset,
+                            logger=logger,
+                        )
+                        if df_results is not None:
+                            all_results.append(df_results)
+                    df_all_results = pd.concat(all_results, ignore_index=True)
                     logger.info(f"Writing {len(df_all_results)} rows to database...")
                     df_all_results.to_sql(
                         dataset,
@@ -103,7 +97,7 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
                         method=postgres_upsert,
                     )
                 except Exception as e:
-                    logger.error(f"Error uploading data for {iso3}: {e}")
+                    logger.error(f"Error calculating stats for {iso3}: {e}")
                     stack_trace = traceback.format_exc()
                     insert_qa_table(iso3, adm_level, dataset, e, stack_trace, engine)
                     continue

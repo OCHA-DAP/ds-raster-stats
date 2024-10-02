@@ -3,6 +3,6 @@ start_date: 2000-06-01
 end_date: 2024-07-30
 forecast: False
 test:
-  start_date: 2020-01-01
-  end_date: 2020-01-15
-  iso3s: ["AFG"]
+  start_date: 2000-06-01
+  end_date: 2002-01-15
+  iso3s: ["AFG", "ETH", "HTI", "LBN"]

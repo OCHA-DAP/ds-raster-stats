@@ -90,7 +90,7 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
                     df_all_results = pd.concat(all_results, ignore_index=True)
                     logger.info(f"Writing {len(df_all_results)} rows to database...")
                     df_all_results.to_sql(
-                        dataset,
+                        f"{dataset}_dev",
                         con=engine,
                         if_exists="append",
                         index=False,
@@ -144,6 +144,6 @@ if __name__ == "__main__":
 
     else:
         logger.info("Processing entire date range in a single chunk")
-        process_chunk((start, end, dataset, args.mode, df_iso3s, engine_url))
+        process_chunk(start, end, dataset, args.mode, df_iso3s, engine_url)
 
     logger.info("Done calculating and saving stats.")

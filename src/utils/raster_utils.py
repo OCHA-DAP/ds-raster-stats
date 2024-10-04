@@ -10,6 +10,7 @@ from rasterio.features import rasterize
 
 from src.config.settings import LOG_LEVEL
 from src.utils.database_utils import postgres_upsert
+from src.utils.general_utils import add_months_to_date
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
@@ -90,6 +91,7 @@ def fast_zonal_stats_runner(
                 )
                 for i, result in enumerate(results):
                     result["valid_date"] = date
+                    result["pub_date"] = add_months_to_date(date, -lt)
                     result["pcode"] = adm_ids[i]
                     result["adm_level"] = adm_level
                     result["leadtime"] = lt
@@ -105,7 +107,6 @@ def fast_zonal_stats_runner(
             outputs.extend(results)
 
     df_stats = pd.DataFrame(outputs)
-    df_stats = df_stats.round(2)
     df_stats["iso3"] = iso3
 
     if save_to_database and engine and dataset:

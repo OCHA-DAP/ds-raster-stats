@@ -91,7 +91,7 @@ def fast_zonal_stats_runner(
                 )
                 for i, result in enumerate(results):
                     result["valid_date"] = date
-                    result["pub_date"] = add_months_to_date(date, -lt)
+                    result["issued_date"] = add_months_to_date(date, -lt)
                     result["pcode"] = adm_ids[i]
                     result["adm_level"] = adm_level
                     result["leadtime"] = lt

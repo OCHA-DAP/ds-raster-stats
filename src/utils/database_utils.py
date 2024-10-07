@@ -62,7 +62,7 @@ def create_dataset_table(dataset, engine, is_forecast=False):
         The SQLAlchemy engine object used to connect to the database.
     is_forecast : Bool
         Whether or not the dataset is a forecast. Will include `leadtime` and
-        `pub_date` columns if so.
+        `issued_date` columns if so.
 
     Returns
     -------
@@ -85,7 +85,7 @@ def create_dataset_table(dataset, engine, is_forecast=False):
 
     unique_constraint_columns = ["valid_date", "pcode"]
     if is_forecast:
-        columns.insert(3, Column("pub_date", Date))
+        columns.insert(3, Column("issued_date", Date))
         columns.insert(4, Column("leadtime", String))
         unique_constraint_columns.append("leadtime")
 

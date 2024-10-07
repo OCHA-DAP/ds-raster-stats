@@ -20,7 +20,7 @@ from src.utils.database_utils import (
 )
 from src.utils.general_utils import split_date_range
 from src.utils.inputs import cli_args
-from src.utils.iso3_utils import create_iso3_df, get_iso3_data, load_shp
+from src.utils.iso3_utils import create_iso3_df, get_iso3_data, load_shp_from_azure
 from src.utils.raster_utils import fast_zonal_stats_runner, prep_raster
 
 logger = logging.getLogger(__name__)
@@ -55,12 +55,12 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
     try:
         for _, row in df_iso3s.iterrows():
             iso3 = row["iso_3"]
-            shp_url = row["o_shp"]
+            # shp_url = row["o_shp"]
             max_adm = row["max_adm_level"]
             logger.info(f"Processing data for {iso3}...")
 
             with tempfile.TemporaryDirectory() as td:
-                load_shp(shp_url, td, iso3)
+                load_shp_from_azure(iso3, td, mode)
                 gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm0.shp")
                 try:
                     ds_clipped = prep_raster(ds, gdf, logger=logger)

@@ -86,7 +86,7 @@ def create_dataset_table(dataset, engine, is_forecast=False):
     unique_constraint_columns = ["valid_date", "pcode"]
     if is_forecast:
         columns.insert(3, Column("issued_date", Date))
-        columns.insert(4, Column("leadtime", String))
+        columns.insert(4, Column("leadtime", Integer))
         unique_constraint_columns.append("leadtime")
 
     Table(

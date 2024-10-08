@@ -5,4 +5,4 @@ forecast: True
 test:
   start_date: 2020-01-01
   end_date: 2020-05-01
-  iso3s: ["ETH"]
+  iso3s: ["ETH", "AFG", "CMR"]

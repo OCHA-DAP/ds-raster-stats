@@ -90,7 +90,7 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
                     df_all_results = pd.concat(all_results, ignore_index=True)
                     logger.info(f"Writing {len(df_all_results)} rows to database...")
                     df_all_results.to_sql(
-                        f"{dataset}_dev",
+                        f"{dataset}",
                         con=engine,
                         if_exists="append",
                         index=False,

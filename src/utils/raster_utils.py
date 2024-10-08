@@ -74,10 +74,6 @@ def fast_zonal_stats_runner(
         gdf, src_width, src_height, src_transform, all_touched=False
     )
     adm_ids = gdf[f"ADM{adm_level}_PCODE"]
-    print(adm_ids)
-    print(src_width)
-    print(src_height)
-    print(admin_raster.shape)
 
     outputs = []
     # TODO: Can this be vectorized further?

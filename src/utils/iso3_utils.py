@@ -82,18 +82,12 @@ def load_shp_from_azure(iso3, shp_dir, mode):
     container_client = get_container_client(mode, "polygon")
     blob_client = container_client.get_blob_client(blob_name)
 
-    if not blob_client.exists():
-        print(f"No shapefile zip found for: {blob_name}")
-        return
-
     temp_path = os.path.join(shp_dir, f"{iso3}_shapefile.zip")
     with open(temp_path, "wb") as download_file:
         download_file.write(blob_client.download_blob().readall())
 
     with zipfile.ZipFile(temp_path, "r") as zip_ref:
         zip_ref.extractall(shp_dir)
-
-    print(f"Shapefile for {iso3} downloaded and extracted to: {shp_dir}")
 
 
 def get_iso3_data(iso3_codes, engine):

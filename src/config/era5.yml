@@ -1,6 +1,6 @@
 blob_prefix: era5/monthly/processed/precip_reanalysis_v
 start_date: 1981-01-01
-end_date: 2024-07-30
+end_date: 2024-10-30
 forecast: False
 test:
   start_date: 2020-01-01

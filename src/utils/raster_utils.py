@@ -35,7 +35,7 @@ def fast_zonal_stats_runner(
     Parameters
     ----------
     ds : xarray.Dataset
-        The input raster dataset. Should have the following dimensions: `x`, `y`, `date`, `leadtime` (otional).
+        The input raster dataset. Should have the following dimensions: `x`, `y`, `date`, `leadtime` (optional).
     gdf : geopandas.GeoDataFrame
         A GeoDataFrame containing the administrative boundaries.
     adm_level : int
@@ -74,6 +74,10 @@ def fast_zonal_stats_runner(
         gdf, src_width, src_height, src_transform, all_touched=False
     )
     adm_ids = gdf[f"ADM{adm_level}_PCODE"]
+    print(adm_ids)
+    print(src_width)
+    print(src_height)
+    print(admin_raster.shape)
 
     outputs = []
     # TODO: Can this be vectorized further?

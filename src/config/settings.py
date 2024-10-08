@@ -6,13 +6,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-MAX_ADM = 2
 LOG_LEVEL = "INFO"
-AZURE_DB_PW = os.getenv("AZURE_DB_PW")
+AZURE_DB_PW_DEV = os.getenv("AZURE_DB_PW_DEV")
+AZURE_DB_PW_PROD = os.getenv("AZURE_DB_PW_PROD")
 DATABASES = {
     "local": "sqlite:///chd-rasterstats-local.db",
-    "dev": f"postgresql+psycopg2://chdadmin:{AZURE_DB_PW}@chd-rasterstats-dev.postgres.database.azure.com/postgres",  # noqa
-    "prod": f"postgresql+psycopg2://chdadmin:{AZURE_DB_PW}@chd-rasterstats-dev.postgres.database.azure.com/postgres",  # noqa
+    "dev": f"postgresql+psycopg2://chdadmin:{AZURE_DB_PW_DEV}@chd-rasterstats-dev.postgres.database.azure.com/postgres",  # noqa
+    "prod": f"postgresql+psycopg2://chdadmin:{AZURE_DB_PW_PROD}@chd-rasterstats-prod.postgres.database.azure.com/postgres",  # noqa
 }
 
 

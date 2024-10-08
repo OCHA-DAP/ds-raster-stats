@@ -90,12 +90,12 @@ def create_dataset_table(dataset, engine, is_forecast=False):
         unique_constraint_columns.append("leadtime")
 
     Table(
-        f"{dataset}_dev",
+        f"{dataset}",
         metadata,
         *columns,
         UniqueConstraint(
             *unique_constraint_columns,
-            name=f"{dataset}_dev_valid_date_leadtime_pcode_key",
+            name=f"{dataset}_valid_date_leadtime_pcode_key",
             postgresql_nulls_not_distinct=True,
         ),
     )

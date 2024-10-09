@@ -336,7 +336,9 @@ def rasterize_admin(
     Returns
     -------
     numpy.ndarray
-        A 2D array representing the rasterized administrative regions.
+        A 2D array representing the rasterized administrative regions. Each admin region is given an id
+        that matches the index location in the input gdf. If `all_touched=True`, then some admin regions
+        may not be present in the output raster (if they do not have overlap with any pixel centroids)
     """
     gdf["geometry"] = gdf["geometry"].simplify(tolerance=0.001, preserve_topology=True)
     geometries = [

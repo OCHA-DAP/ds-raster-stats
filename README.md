@@ -1,4 +1,6 @@
-# ds-raster-stats
+# Raster Statistics Pipelines
+
+This repo contains code to calculate raster (or zonal) statistics from internal stores of gridded datasets.
 
 ## Usage
 

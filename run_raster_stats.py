@@ -14,7 +14,7 @@ from src.utils.cog_utils import stack_cogs
 from src.utils.database_utils import (
     create_dataset_table,
     create_qa_table,
-    db_engine,
+    db_engine_url,
     insert_qa_table,
     postgres_upsert,
 )
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     dataset = args.dataset
     logger.info(f"Updating data for {dataset}...")
 
-    engine_url = db_engine(args.mode)
+    engine_url = db_engine_url(args.mode)
     engine = create_engine(engine_url)
 
     create_qa_table(engine)

@@ -1,5 +1,4 @@
 import datetime
-import time
 
 from sqlalchemy import (
     CHAR,
@@ -12,28 +11,15 @@ from sqlalchemy import (
     String,
     Table,
     UniqueConstraint,
-    create_engine,
 )
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.exc import OperationalError
-from sqlalchemy.pool import QueuePool
 
 from src.config.settings import DATABASES
 
 
-def create_engine_with_retries(url, max_retries=3, retry_interval=5):
-    for attempt in range(max_retries):
-        try:
-            return create_engine(url, poolclass=QueuePool, pool_size=3, max_overflow=2)
-        except OperationalError:
-            if attempt == max_retries - 1:
-                raise
-            time.sleep(retry_interval)
-
-
-def db_engine(mode):
+def db_engine_url(mode):
     """
-    Create a SQLAlchemy engine for connecting to the specified database.
+    Create a SQLAlchemy engine url for connecting to the specified database.
     Must be defined in config.DATABASES.
 
     Parameters
@@ -43,11 +29,10 @@ def db_engine(mode):
 
     Returns
     -------
-    sqlalchemy.engine.Engine
-        A SQLAlchemy engine object for the specified database mode.
+    str
+        The engine rul for the appropriate mode
     """
-    engine_url = DATABASES[mode]
-    return engine_url
+    return DATABASES[mode]
 
 
 def create_dataset_table(dataset, engine, is_forecast=False):

@@ -74,6 +74,7 @@ def fast_zonal_stats_runner(
         gdf, src_width, src_height, src_transform, all_touched=False
     )
     adm_ids = gdf[f"ADM{adm_level}_PCODE"]
+    n_adms = len(adm_ids)
 
     outputs = []
     # TODO: Can this be vectorized further?
@@ -87,7 +88,7 @@ def fast_zonal_stats_runner(
                 if bool(np.all(np.isnan(ds__.values))):
                     continue
                 results = fast_zonal_stats(
-                    ds__.values, admin_raster, stats, rast_fill=rast_fill
+                    ds__.values, admin_raster, n_adms, stats, rast_fill=rast_fill
                 )
                 for i, result in enumerate(results):
                     result["valid_date"] = date
@@ -98,7 +99,7 @@ def fast_zonal_stats_runner(
                 outputs.extend(results)
         else:
             results = fast_zonal_stats(
-                ds_sel.values, admin_raster, stats, rast_fill=rast_fill
+                ds_sel.values, admin_raster, n_adms, stats, rast_fill=rast_fill
             )
             for i, result in enumerate(results):
                 result["valid_date"] = date
@@ -126,6 +127,7 @@ def fast_zonal_stats_runner(
 def fast_zonal_stats(
     src_raster,
     admin_raster,
+    n_adms=None,
     stats=["mean", "max", "min", "median", "sum", "std", "count"],
     rast_fill=np.nan,
 ):
@@ -141,6 +143,8 @@ def fast_zonal_stats(
     admin_raster : numpy.ndarray
         A raster (2D array) representing administrative regions, where each unique value
         corresponds to a different administrative unit.
+    n_adms: int, optional
+        Number of admin units (as not all may be present in the admin_raster)
     stats : list of str, optional
         List of statistics to compute. Supported values are "mean", "max", "min",
         "median", "sum", "std", and "count".
@@ -165,7 +169,7 @@ def fast_zonal_stats(
         pixel_count = pixel_count[1:]
 
     largest_geom = pixel_count.max()
-    n_features = int(geom_ids.max()) + 1
+    n_features = n_adms if n_adms else int(geom_ids.max()) + 1
 
     sorted_array = np.empty(shape=(n_features, largest_geom))
     sorted_array[:] = rast_fill

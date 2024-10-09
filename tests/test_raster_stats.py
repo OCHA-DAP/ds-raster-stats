@@ -75,20 +75,6 @@ def test_fast_zonal_stats(sample_raster, sample_admin_raster, dropped_admin_rast
     assert np.isnan(result_dropped[3]["mean"]), "Incorrect mean for sone 3"
 
 
-def test_rasterize_admin(sample_gdf, sample_transform):
-    src_width, src_height = 3, 3
-    result = rasterize_admin(sample_gdf, src_width, src_height, sample_transform)
-
-    expected = np.array(
-        [
-            [np.nan, np.nan, np.nan],
-            [np.nan, np.nan, np.nan],
-            [0, np.nan, np.nan],
-        ]
-    )
-    np.testing.assert_array_equal(result, expected, "Incorrect rasterization result")
-
-
 @pytest.fixture
 def sample_xarray_dataarray_with_date():
     data = np.array(
@@ -126,6 +112,31 @@ def sample_gdf_with_pcode():
     )
 
 
+def test_rasterize_admin(sample_gdf_with_pcode, sample_xarray_dataarray_with_date):
+    da = sample_xarray_dataarray_with_date
+    gdf = sample_gdf_with_pcode
+    src_transform = da.rio.transform()
+    src_width = da.rio.width
+    src_height = da.rio.height
+    admin_raster = rasterize_admin(
+        gdf, src_width, src_height, src_transform, all_touched=False
+    )
+
+    # The pcode at index 1 is dropped because it doesn't overlap with the
+    # centroid with any raster cells
+    expected = np.array(
+        [
+            [np.nan, np.nan, np.nan, np.nan],
+            [np.nan, np.nan, 2.0, np.nan],
+            [np.nan, 0.0, 2.0, np.nan],
+            [np.nan, np.nan, np.nan, np.nan],
+        ]
+    )
+    np.testing.assert_array_equal(
+        admin_raster, expected, "Incorrect rasterization result"
+    )
+
+
 def test_fast_zonal_stats_runner(
     sample_xarray_dataarray_with_date, sample_gdf_with_pcode
 ):
@@ -149,6 +160,67 @@ def test_fast_zonal_stats_runner(
         "count": [1, 0, 2, 1, 0, 2],
         "valid_date": pd.date_range("2021-01-01", periods=2).repeat(3),
         "pcode": ["LEFT", "TOP", "RIGHT", "LEFT", "TOP", "RIGHT"],
+        "adm_level": [1, 1, 1, 1, 1, 1],
+        "iso3": ["TST", "TST", "TST", "TST", "TST", "TST"],
+    }
+    expected_df = pd.DataFrame(expected_data)
+
+    # Assert equality
+    assert_frame_equal(result, expected_df, check_dtype=False)
+
+    # Additional checks
+    assert len(result) == 6, "Incorrect number of rows"
+    assert len(result.pcode.unique()) == 3, "Not all pcodes included"
+    assert set(result.columns) == set(
+        expected_df.columns
+    ), "Mismatch in DataFrame columns"
+    assert result["iso3"].unique() == ["TST"], "Incorrect ISO3 code"
+    assert result["adm_level"].unique() == [1], "Incorrect admin level"
+
+
+@pytest.fixture
+def sample_gdf_with_pcode_na_last():
+    geometries = [
+        Polygon(
+            [(-1, -1), (-0.5, -0.8), (0, -0.5), (-0.2, 0), (-0.8, 0.2), (-1, 0.5)]
+        ),  # Left region
+        Polygon(
+            [(0.2, -1), (1, -0.8), (0.8, 0), (1, 0.5), (0.5, 0.8), (0, 0.2)]
+        ),  # Right region
+        Polygon([(-0.2, 0.2), (0.2, 0.5), (0, 1), (-0.5, 0.8)]),  # Top region
+    ]
+    return gpd.GeoDataFrame(
+        {"geometry": geometries, "ADM1_PCODE": ["LEFT", "RIGHT", "TOP"]}
+    )
+
+
+# Test the edge case where a pcode with na values (ie. no raster coverage)
+# is the last pcode in the dataframe. This catches a potential error in
+# how the `fast_zonal_stats` function interacts with the `rasterize_admin` outputs
+# to make sure that all pcodes (even if na) are present in the output dataframe
+def test_fast_zonal_stats_runner_with_na_last(
+    sample_xarray_dataarray_with_date, sample_gdf_with_pcode_na_last
+):
+    # Call the function
+    result = fast_zonal_stats_runner(
+        ds=sample_xarray_dataarray_with_date,
+        gdf=sample_gdf_with_pcode_na_last,
+        adm_level=1,
+        iso3="TST",
+        save_to_database=False,
+    )
+
+    # Expected output
+    expected_data = {
+        "mean": [10.0, 9.0, np.nan, 26.0, 25.0, np.nan],
+        "max": [10.0, 11.0, np.nan, 26.0, 27.0, np.nan],
+        "min": [10.0, 7.0, np.nan, 26.0, 23.0, np.nan],
+        "median": [10.0, 9.0, np.nan, 26.0, 25.0, np.nan],
+        "sum": [10.0, 18.0, 0.0, 26.0, 50.0, 0.0],
+        "std": [0.0, 2.0, np.nan, 0.0, 2.0, np.nan],
+        "count": [1, 2, 0, 1, 2, 0],
+        "valid_date": pd.date_range("2021-01-01", periods=2).repeat(3),
+        "pcode": ["LEFT", "RIGHT", "TOP", "LEFT", "RIGHT", "TOP"],
         "adm_level": [1, 1, 1, 1, 1, 1],
         "iso3": ["TST", "TST", "TST", "TST", "TST", "TST"],
     }

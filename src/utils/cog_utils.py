@@ -174,7 +174,11 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
         raise Exception("No COGs found to process")
 
     das = []
-    for cog in tqdm.tqdm(cogs_list):
+
+    # Only show progress bar if running in interactive mode (ie. running locally)
+    cogs_list = tqdm.tqdm(cogs_list) if mode == "local" else cogs_list
+
+    for cog in cogs_list:
         if dataset == "era5":
             da_in = process_era5(cog, mode)
         elif dataset == "seas5":

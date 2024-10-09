@@ -2,25 +2,24 @@ import datetime
 
 from sqlalchemy import (
     CHAR,
+    REAL,
     Boolean,
     Column,
     Date,
-    Double,
     Integer,
     MetaData,
     String,
     Table,
     UniqueConstraint,
-    create_engine,
 )
 from sqlalchemy.dialects.postgresql import insert
 
 from src.config.settings import DATABASES
 
 
-def db_engine(mode):
+def db_engine_url(mode):
     """
-    Create a SQLAlchemy engine for connecting to the specified database.
+    Create a SQLAlchemy engine url for connecting to the specified database.
     Must be defined in config.DATABASES.
 
     Parameters
@@ -30,14 +29,13 @@ def db_engine(mode):
 
     Returns
     -------
-    sqlalchemy.engine.Engine
-        A SQLAlchemy engine object for the specified database mode.
+    str
+        The engine rul for the appropriate mode
     """
-    engine_url = DATABASES[mode]
-    return create_engine(engine_url)
+    return DATABASES[mode]
 
 
-def create_dataset_table(dataset, engine, incl_leadtime=False):
+def create_dataset_table(dataset, engine, is_forecast=False):
     """
     Create a table for storing dataset statistics in the database.
 
@@ -47,9 +45,9 @@ def create_dataset_table(dataset, engine, incl_leadtime=False):
         The name of the dataset for which the table is being created.
     engine : sqlalchemy.engine.Engine
         The SQLAlchemy engine object used to connect to the database.
-    incl_leadtime : Bool
-        Whether or not to include a 'leadtime' column in the table.
-        Will only apply for datasets that are forecasts.
+    is_forecast : Bool
+        Whether or not the dataset is a forecast. Will include `leadtime` and
+        `issued_date` columns if so.
 
     Returns
     -------
@@ -57,26 +55,27 @@ def create_dataset_table(dataset, engine, incl_leadtime=False):
     """
     metadata = MetaData()
     columns = [
-        Column("min", Double),
-        Column("max", Double),
-        Column("mean", Double),
-        Column("median", Double),
-        Column("count", Integer),
-        Column("sum", Double),
-        Column("std", Double),
-        Column("valid_date", Date),
-        Column("pcode", String),
-        Column("adm_level", Integer),
         Column("iso3", CHAR(3)),
+        Column("pcode", String),
+        Column("valid_date", Date),
+        Column("adm_level", Integer),
+        Column("mean", REAL),
+        Column("median", REAL),
+        Column("min", REAL),
+        Column("max", REAL),
+        Column("count", Integer),
+        Column("sum", REAL),
+        Column("std", REAL),
     ]
 
     unique_constraint_columns = ["valid_date", "pcode"]
-    if incl_leadtime:
-        columns.append(Column("leadtime", String))
+    if is_forecast:
+        columns.insert(3, Column("issued_date", Date))
+        columns.insert(4, Column("leadtime", Integer))
         unique_constraint_columns.append("leadtime")
 
     Table(
-        dataset,
+        f"{dataset}",
         metadata,
         *columns,
         UniqueConstraint(

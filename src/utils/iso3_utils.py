@@ -7,6 +7,7 @@ import pandas as pd
 import requests
 from sqlalchemy import text
 
+from src.utils.cloud_utils import get_container_client
 from src.utils.database_utils import create_iso3_table
 
 
@@ -55,6 +56,35 @@ def load_shp(shp_url, shp_dir, iso3):
 
     with open(temp_path, "wb") as f:
         f.write(response.content)
+
+    with zipfile.ZipFile(temp_path, "r") as zip_ref:
+        zip_ref.extractall(shp_dir)
+
+
+def load_shp_from_azure(iso3, shp_dir, mode):
+    """
+    Download and extract a zipped shapefile from Azure Blob Storage.
+
+    Parameters
+    ----------
+    iso3 : str
+        A three-letter ISO code used to identify the shapefile.
+    shp_dir : str
+        The directory where the zipped shapefile will be saved and extracted.
+    mode : str
+        The current mode, determining which Azure storage container to point to (dev or prod)
+
+    Returns
+    -------
+    None
+    """
+    blob_name = f"{iso3.lower()}_shp.zip"
+    container_client = get_container_client(mode, "polygon")
+    blob_client = container_client.get_blob_client(blob_name)
+
+    temp_path = os.path.join(shp_dir, f"{iso3}_shapefile.zip")
+    with open(temp_path, "wb") as download_file:
+        download_file.write(blob_client.download_blob().readall())
 
     with zipfile.ZipFile(temp_path, "r") as zip_ref:
         zip_ref.extractall(shp_dir)

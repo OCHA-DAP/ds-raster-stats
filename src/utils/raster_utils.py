@@ -10,6 +10,7 @@ from rasterio.features import rasterize
 
 from src.config.settings import LOG_LEVEL
 from src.utils.database_utils import postgres_upsert
+from src.utils.general_utils import add_months_to_date
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
@@ -25,6 +26,7 @@ def fast_zonal_stats_runner(
     save_to_database=False,
     engine=None,
     dataset=None,
+    logger=None,
 ):
     """
     Run zonal stats calculations for a raster dataset over administrative boundaries
@@ -33,7 +35,7 @@ def fast_zonal_stats_runner(
     Parameters
     ----------
     ds : xarray.Dataset
-        The input raster dataset. Should have the following dimensions: `x`, `y`, `date`, `leadtime` (otional).
+        The input raster dataset. Should have the following dimensions: `x`, `y`, `date`, `leadtime` (optional).
     gdf : geopandas.GeoDataFrame
         A GeoDataFrame containing the administrative boundaries.
     adm_level : int
@@ -59,6 +61,10 @@ def fast_zonal_stats_runner(
         administrative unit. If `save_to_database` is True, the DataFrame is saved
         to the database and None is returned.
     """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+        logger.addHandler(logging.NullHandler())
+
     # TODO: Pre-compute and save
     # Rasterize the adm bounds
     src_transform = ds.rio.transform()
@@ -68,6 +74,7 @@ def fast_zonal_stats_runner(
         gdf, src_width, src_height, src_transform, all_touched=False
     )
     adm_ids = gdf[f"ADM{adm_level}_PCODE"]
+    n_adms = len(adm_ids)
 
     outputs = []
     # TODO: Can this be vectorized further?
@@ -81,17 +88,18 @@ def fast_zonal_stats_runner(
                 if bool(np.all(np.isnan(ds__.values))):
                     continue
                 results = fast_zonal_stats(
-                    ds__.values, admin_raster, stats, rast_fill=rast_fill
+                    ds__.values, admin_raster, n_adms, stats=stats, rast_fill=rast_fill
                 )
                 for i, result in enumerate(results):
                     result["valid_date"] = date
+                    result["issued_date"] = add_months_to_date(date, -lt)
                     result["pcode"] = adm_ids[i]
                     result["adm_level"] = adm_level
                     result["leadtime"] = lt
                 outputs.extend(results)
         else:
             results = fast_zonal_stats(
-                ds_sel.values, admin_raster, stats, rast_fill=rast_fill
+                ds_sel.values, admin_raster, n_adms, stats=stats, rast_fill=rast_fill
             )
             for i, result in enumerate(results):
                 result["valid_date"] = date
@@ -100,7 +108,6 @@ def fast_zonal_stats_runner(
             outputs.extend(results)
 
     df_stats = pd.DataFrame(outputs)
-    df_stats = df_stats.round(2)
     df_stats["iso3"] = iso3
 
     if save_to_database and engine and dataset:
@@ -120,6 +127,7 @@ def fast_zonal_stats_runner(
 def fast_zonal_stats(
     src_raster,
     admin_raster,
+    n_adms=None,
     stats=["mean", "max", "min", "median", "sum", "std", "count"],
     rast_fill=np.nan,
 ):
@@ -135,6 +143,8 @@ def fast_zonal_stats(
     admin_raster : numpy.ndarray
         A raster (2D array) representing administrative regions, where each unique value
         corresponds to a different administrative unit.
+    n_adms: int, optional
+        Number of admin units (as not all may be present in the admin_raster)
     stats : list of str, optional
         List of statistics to compute. Supported values are "mean", "max", "min",
         "median", "sum", "std", and "count".
@@ -159,7 +169,7 @@ def fast_zonal_stats(
         pixel_count = pixel_count[1:]
 
     largest_geom = pixel_count.max()
-    n_features = int(geom_ids.max()) + 1
+    n_features = n_adms if n_adms else (int(geom_ids.max()) + 1)
 
     sorted_array = np.empty(shape=(n_features, largest_geom))
     sorted_array[:] = rast_fill
@@ -194,7 +204,7 @@ def fast_zonal_stats(
     return feature_stats
 
 
-def upsample_raster(ds, resampled_resolution=0.05):
+def upsample_raster(ds, resampled_resolution=0.05, logger=None):
     """
     Upsample a raster to a higher resolution using nearest neighbor resampling,
     via the `Resampling.nearest` method from `rasterio`.
@@ -211,6 +221,11 @@ def upsample_raster(ds, resampled_resolution=0.05):
     xarray.Dataset
         The upsampled raster as a Dataset with the new resolution.
     """
+
+    if logger is None:
+        logger = logging.getLogger(__name__)
+        logger.addHandler(logging.NullHandler())
+
     # Assuming square resolution
     input_resolution = ds.rio.resolution()[0]
     upscale_factor = input_resolution / resampled_resolution
@@ -261,7 +276,7 @@ def upsample_raster(ds, resampled_resolution=0.05):
     return ds_resampled
 
 
-def prep_raster(ds, gdf_adm):
+def prep_raster(ds, gdf_adm, logger=None):
     """
     Prepares and resamples a raster dataset by clipping it to the bounds of the
     provided administrative regions and then upsampling the result.
@@ -283,11 +298,15 @@ def prep_raster(ds, gdf_adm):
     xarray.Dataset
         The clipped and upsampled raster dataset.
     """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+        logger.addHandler(logging.NullHandler())
+
     logger.info("Clipping raster to iso3 bounds and persisting in memory...")
     minx, miny, maxx, maxy = gdf_adm.total_bounds
     ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny)).persist()
     logger.info("Upsampling raster...")
-    ds_resampled = upsample_raster(ds_clip)
+    ds_resampled = upsample_raster(ds_clip, logger=logger)
     logger.info("Raster prep completed.")
     return ds_resampled
 
@@ -317,7 +336,9 @@ def rasterize_admin(
     Returns
     -------
     numpy.ndarray
-        A 2D array representing the rasterized administrative regions.
+        A 2D array representing the rasterized administrative regions. Each admin region is given an id
+        that matches the index location in the input gdf. If `all_touched=True`, then some admin regions
+        may not be present in the output raster (if they do not have overlap with any pixel centroids)
     """
     gdf["geometry"] = gdf["geometry"].simplify(tolerance=0.001, preserve_topology=True)
     geometries = [

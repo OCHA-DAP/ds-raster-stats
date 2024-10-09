@@ -5,6 +5,7 @@ import pytest
 import rioxarray  # noqa: F401
 import xarray as xr
 from pandas.testing import assert_frame_equal
+from rasterio.transform import from_bounds
 from shapely.geometry import Polygon
 
 from src.utils.raster_utils import (
@@ -46,6 +47,11 @@ def dropped_admin_raster():
 def sample_gdf():
     geometry = Polygon([(-1, -1), (-1, 1), (1, 1), (1, -1), (-1, -1)])
     return gpd.GeoDataFrame({"geometry": [geometry]})
+
+
+@pytest.fixture
+def sample_transform():
+    return from_bounds(0, 0, 3, 3, 3, 3)
 
 
 def test_fast_zonal_stats(sample_raster, sample_admin_raster, dropped_admin_raster):

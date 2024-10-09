@@ -56,7 +56,7 @@ def sample_transform():
 
 def test_fast_zonal_stats(sample_raster, sample_admin_raster, dropped_admin_raster):
     stats = ["mean", "max", "min", "median", "sum", "std", "count"]
-    result = fast_zonal_stats(sample_raster, sample_admin_raster, stats)
+    result = fast_zonal_stats(sample_raster, sample_admin_raster, stats=stats)
     assert len(result) == 3, "Incorrect number of zones"
     assert result[0]["mean"] == pytest.approx(8.0), "Incorrect mean for zone 1"
     assert result[1]["max"] == 4, "Incorrect max for zone 2"
@@ -66,7 +66,7 @@ def test_fast_zonal_stats(sample_raster, sample_admin_raster, dropped_admin_rast
     assert result[2]["std"] == pytest.approx(1.247219), "Incorrect std for zone 3"
     assert result[0]["count"] == 3, "Incorrect count for zone 1"
 
-    result_dropped = fast_zonal_stats(sample_raster, dropped_admin_raster, stats)
+    result_dropped = fast_zonal_stats(sample_raster, dropped_admin_raster, stats=stats)
     assert len(result_dropped) == 6, "Incorrect number of zones"
     # Same as before for the '0' region
     assert result_dropped[0]["mean"] == pytest.approx(8.0), "Incorrect mean for zone 1"

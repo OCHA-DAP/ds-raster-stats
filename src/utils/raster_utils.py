@@ -88,7 +88,7 @@ def fast_zonal_stats_runner(
                 if bool(np.all(np.isnan(ds__.values))):
                     continue
                 results = fast_zonal_stats(
-                    ds__.values, admin_raster, n_adms, stats, rast_fill=rast_fill
+                    ds__.values, admin_raster, n_adms, stats=stats, rast_fill=rast_fill
                 )
                 for i, result in enumerate(results):
                     result["valid_date"] = date
@@ -99,7 +99,7 @@ def fast_zonal_stats_runner(
                 outputs.extend(results)
         else:
             results = fast_zonal_stats(
-                ds_sel.values, admin_raster, n_adms, stats, rast_fill=rast_fill
+                ds_sel.values, admin_raster, n_adms, stats=stats, rast_fill=rast_fill
             )
             for i, result in enumerate(results):
                 result["valid_date"] = date
@@ -169,7 +169,7 @@ def fast_zonal_stats(
         pixel_count = pixel_count[1:]
 
     largest_geom = pixel_count.max()
-    n_features = n_adms if n_adms else int(geom_ids.max()) + 1
+    n_features = n_adms if n_adms else (int(geom_ids.max()) + 1)
 
     sorted_array = np.empty(shape=(n_features, largest_geom))
     sorted_array[:] = rast_fill

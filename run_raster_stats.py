@@ -129,7 +129,7 @@ if __name__ == "__main__":
     date_ranges = split_date_range(start, end)
 
     if len(date_ranges) > 1:
-        num_processes = 5
+        num_processes = 2
         logger.info(
             f"Processing {len(date_ranges)} chunks with {num_processes} processes"
         )

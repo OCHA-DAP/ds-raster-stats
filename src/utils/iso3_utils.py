@@ -107,7 +107,7 @@ def get_iso3_data(iso3_codes, engine):
         A DataFrame containing the ISO3 data for the specified country code(s).
 
     """
-    if iso3_codes:
+    if iso3_codes and len(iso3_codes) > 0:
         if len(iso3_codes) == 1:
             query = text("SELECT * FROM public.iso3 WHERE iso_3 = :code")
             params = {"code": iso3_codes[0]}

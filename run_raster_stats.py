@@ -74,7 +74,7 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
                     all_results = []
                     for adm_level in range(max_adm + 1):
                         gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{adm_level}.shp")
-                        logger.info(f"Computing stats for adm{adm_level}...")
+                        logger.debug(f"Computing stats for adm{adm_level}...")
                         df_results = fast_zonal_stats_runner(
                             ds_clipped,
                             gdf,
@@ -88,7 +88,7 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
                         if df_results is not None:
                             all_results.append(df_results)
                     df_all_results = pd.concat(all_results, ignore_index=True)
-                    logger.info(f"Writing {len(df_all_results)} rows to database...")
+                    logger.debug(f"Writing {len(df_all_results)} rows to database...")
                     df_all_results.to_sql(
                         f"{dataset}",
                         con=engine,

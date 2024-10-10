@@ -111,7 +111,7 @@ def fast_zonal_stats_runner(
     df_stats["iso3"] = iso3
 
     if save_to_database and engine and dataset:
-        logger.info(f"Writing {len(df_stats)} rows to database...")
+        logger.warning(f"In raster utils, writing {len(df_stats)} rows to database...")
         df_stats.to_sql(
             dataset,
             con=engine,
@@ -302,12 +302,12 @@ def prep_raster(ds, gdf_adm, logger=None):
         logger = logging.getLogger(__name__)
         logger.addHandler(logging.NullHandler())
 
-    logger.info("Clipping raster to iso3 bounds and persisting in memory...")
+    logger.debug("Clipping raster to iso3 bounds and persisting in memory...")
     minx, miny, maxx, maxy = gdf_adm.total_bounds
     ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny)).persist()
-    logger.info("Upsampling raster...")
+    logger.debug("Upsampling raster...")
     ds_resampled = upsample_raster(ds_clip, logger=logger)
-    logger.info("Raster prep completed.")
+    logger.debug("Raster prep completed.")
     return ds_resampled
 
 

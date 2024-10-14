@@ -54,7 +54,7 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
 
     try:
         for _, row in df_iso3s.iterrows():
-            iso3 = row["iso_3"]
+            iso3 = row["iso3"]
             # shp_url = row["o_shp"]
             max_adm = row["max_adm_level"]
             logger.info(f"Processing data for {iso3}...")

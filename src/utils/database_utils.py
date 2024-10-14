@@ -30,7 +30,7 @@ def db_engine_url(mode):
     Returns
     -------
     str
-        The engine rul for the appropriate mode
+        The engine url for the appropriate mode
     """
     return DATABASES[mode]
 

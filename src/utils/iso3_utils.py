@@ -3,6 +3,7 @@ import zipfile
 from datetime import datetime
 from io import StringIO
 
+import numpy as np
 import pandas as pd
 import requests
 from sqlalchemy import text
@@ -109,10 +110,10 @@ def get_iso3_data(iso3_codes, engine):
     """
     if iso3_codes and len(iso3_codes) > 0:
         if len(iso3_codes) == 1:
-            query = text("SELECT * FROM public.iso3 WHERE iso_3 = :code")
+            query = text("SELECT * FROM public.iso3 WHERE iso3 = :code")
             params = {"code": iso3_codes[0]}
         else:
-            query = text("SELECT * FROM public.iso3 WHERE iso_3 = ANY(:codes)")
+            query = text("SELECT * FROM public.iso3 WHERE iso3 = ANY(:codes)")
             params = {"codes": iso3_codes}
         df = pd.read_sql_query(query, engine.connect(), params=params)
     else:
@@ -186,7 +187,38 @@ def create_iso3_df(engine):
     df["max_adm_level"] = df.apply(determine_max_adm_level, axis=1)
     df["stats_last_updated"] = None
 
-    df.to_sql(
+    # Also need global p-codes list from https://fieldmaps.io/data/cod
+    # We want to get the total number of pcodes per iso3, across each admin level
+    df_pcodes = pd.read_csv("data/global-pcodes.csv")
+    df_pcodes.drop(df_pcodes.index[0], inplace=True)
+    df_counts = (
+        df_pcodes.groupby(["Location", "Admin Level"])["P-Code"]
+        .count()
+        .reset_index(name="P-Code Count")
+    )
+    df_counts["Admin Level"] = df_counts["Admin Level"].astype(int)
+    df_counts = df_counts[df_counts["Admin Level"].isin([0, 1, 2])]
+
+    df_wide = df_counts.pivot(
+        index="Location", columns="Admin Level", values="P-Code Count"
+    )
+    df_wide.columns = [f"adm{level}-pcode-count" for level in df_wide.columns]
+    df_wide = df_wide.reset_index()
+    df_wide["adm0-pcode-count"] = 1
+
+    df_merged = df.merge(df_wide, left_on="iso_3", right_on="Location")
+    df_merged["adm2-pcode-count"] = np.where(
+        df_merged["max_adm_level"] == 2, df_merged["adm2-pcode-count"], np.nan
+    )
+    df_merged["total-pcodes"] = (
+        df_merged[["adm1-pcode-count", "adm2-pcode-count", "adm0-pcode-count"]]
+        .fillna(0)
+        .sum(axis=1)
+    )
+    df_merged = df_merged.drop(columns=["src_lvl", "Location"])
+    df_merged.rename(columns={"iso_3": "iso3"}, inplace=True)
+
+    df_merged.to_sql(
         "iso3",
         con=engine,
         if_exists="replace",

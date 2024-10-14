@@ -12,7 +12,7 @@ AZURE_DB_PW_PROD = os.getenv("AZURE_DB_PW_PROD")
 DATABASES = {
     "local": "sqlite:///chd-rasterstats-local.db",
     "dev": f"postgresql+psycopg2://chdadmin:{AZURE_DB_PW_DEV}@chd-rasterstats-dev.postgres.database.azure.com/postgres",  # noqa
-    "prod": f"postgresql+psycopg2://chdadmin:{AZURE_DB_PW_DEV}@chd-rasterstats-dev.postgres.database.azure.com/postgres",  # noqa
+    "prod": f"postgresql+psycopg2://chdadmin:{AZURE_DB_PW_PROD}@chd-rasterstats-prod.postgres.database.azure.com/postgres",  # noqa
 }
 
 

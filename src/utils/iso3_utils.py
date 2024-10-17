@@ -3,10 +3,12 @@ import zipfile
 from datetime import datetime
 from io import StringIO
 
+import numpy as np
 import pandas as pd
 import requests
 from sqlalchemy import text
 
+from src.utils.cloud_utils import get_container_client
 from src.utils.database_utils import create_iso3_table
 
 
@@ -60,6 +62,35 @@ def load_shp(shp_url, shp_dir, iso3):
         zip_ref.extractall(shp_dir)
 
 
+def load_shp_from_azure(iso3, shp_dir, mode):
+    """
+    Download and extract a zipped shapefile from Azure Blob Storage.
+
+    Parameters
+    ----------
+    iso3 : str
+        A three-letter ISO code used to identify the shapefile.
+    shp_dir : str
+        The directory where the zipped shapefile will be saved and extracted.
+    mode : str
+        The current mode, determining which Azure storage container to point to (dev or prod)
+
+    Returns
+    -------
+    None
+    """
+    blob_name = f"{iso3.lower()}_shp.zip"
+    container_client = get_container_client(mode, "polygon")
+    blob_client = container_client.get_blob_client(blob_name)
+
+    temp_path = os.path.join(shp_dir, f"{iso3}_shapefile.zip")
+    with open(temp_path, "wb") as download_file:
+        download_file.write(blob_client.download_blob().readall())
+
+    with zipfile.ZipFile(temp_path, "r") as zip_ref:
+        zip_ref.extractall(shp_dir)
+
+
 def get_iso3_data(iso3_codes, engine):
     """
     Retrieve ISO3 data from a database for given ISO3 code(s).
@@ -77,12 +108,12 @@ def get_iso3_data(iso3_codes, engine):
         A DataFrame containing the ISO3 data for the specified country code(s).
 
     """
-    if iso3_codes:
+    if iso3_codes and len(iso3_codes) > 0:
         if len(iso3_codes) == 1:
-            query = text("SELECT * FROM public.iso3 WHERE iso_3 = :code")
+            query = text("SELECT * FROM public.iso3 WHERE iso3 = :code")
             params = {"code": iso3_codes[0]}
         else:
-            query = text("SELECT * FROM public.iso3 WHERE iso_3 = ANY(:codes)")
+            query = text("SELECT * FROM public.iso3 WHERE iso3 = ANY(:codes)")
             params = {"codes": iso3_codes}
         df = pd.read_sql_query(query, engine.connect(), params=params)
     else:
@@ -156,7 +187,38 @@ def create_iso3_df(engine):
     df["max_adm_level"] = df.apply(determine_max_adm_level, axis=1)
     df["stats_last_updated"] = None
 
-    df.to_sql(
+    # Also need global p-codes list from https://fieldmaps.io/data/cod
+    # We want to get the total number of pcodes per iso3, across each admin level
+    df_pcodes = pd.read_csv("data/global-pcodes.csv")
+    df_pcodes.drop(df_pcodes.index[0], inplace=True)
+    df_counts = (
+        df_pcodes.groupby(["Location", "Admin Level"])["P-Code"]
+        .count()
+        .reset_index(name="P-Code Count")
+    )
+    df_counts["Admin Level"] = df_counts["Admin Level"].astype(int)
+    df_counts = df_counts[df_counts["Admin Level"].isin([0, 1, 2])]
+
+    df_wide = df_counts.pivot(
+        index="Location", columns="Admin Level", values="P-Code Count"
+    )
+    df_wide.columns = [f"adm{level}-pcode-count" for level in df_wide.columns]
+    df_wide = df_wide.reset_index()
+    df_wide["adm0-pcode-count"] = 1
+
+    df_merged = df.merge(df_wide, left_on="iso_3", right_on="Location")
+    df_merged["adm2-pcode-count"] = np.where(
+        df_merged["max_adm_level"] == 2, df_merged["adm2-pcode-count"], np.nan
+    )
+    df_merged["total-pcodes"] = (
+        df_merged[["adm1-pcode-count", "adm2-pcode-count", "adm0-pcode-count"]]
+        .fillna(0)
+        .sum(axis=1)
+    )
+    df_merged = df_merged.drop(columns=["src_lvl", "Location"])
+    df_merged.rename(columns={"iso_3": "iso3"}, inplace=True)
+
+    df_merged.to_sql(
         "iso3",
         con=engine,
         if_exists="replace",

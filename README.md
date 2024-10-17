@@ -1,4 +1,6 @@
-# ds-raster-stats
+# Raster Statistics Pipelines
+
+This repo contains code to calculate raster (or zonal) statistics from internal stores of gridded datasets.
 
 ## Usage
 
@@ -40,7 +42,8 @@ pip install -r requirements-dev.txt
 # Connection to Azure blob storage
 DSCI_AZ_SAS_DEV=<provided-on-request>
 DSCI_AZ_SAS_PROD=<provided-on-request>
-AZURE_DB_PW=<provided-on-request>
+AZURE_DB_PW_DEV=<provided-on-request>
+AZURE_DB_PW_PROD=<provided-on-request>
 ```
 
 ### Pre-Commit

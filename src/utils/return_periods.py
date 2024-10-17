@@ -35,9 +35,7 @@ def lp3_params_all(group):
 
 
 def lp3_rp(x, params, est_method="lmoments"):
-    # Log-transform the data
     x = np.asarray(x)
-    # x[x <= 0] = np.min(x[x > 0])
     x_sorted = np.sort(x)
     x_log = np.log(x_sorted)
 
@@ -77,6 +75,23 @@ def lp3_rp(x, params, est_method="lmoments"):
 
 
 def lp3_rv(rp, params, est_method="usgs"):
+    """
+    Calculate return values for given return periods using the Log-Pearson Type III distribution.
+
+    Parameters:
+    rp (list or array-like): List of return periods.
+    params (dict or tuple): Parameters for the distribution.
+        - For 'usgs' method, a dictionary with keys 'g' (skewness), 'mu' (mean), and 'sd' (standard deviation).
+        - For 'lmoments' method, a dictionary with parameters for the Pearson Type III distribution.
+        - For 'scipy' method, a tuple with parameters for the Pearson Type III distribution.
+    est_method (str, optional): Method to estimate the return values. Options are 'usgs', 'lmoments', or 'scipy'. Default is 'usgs'.
+
+    Returns:
+    numpy.ndarray: Return values corresponding to the given return periods.
+
+    Raises:
+    ValueError: If an invalid estimation method is provided.
+    """
     est_method = est_method.lower()
     if est_method not in ["usgs", "lmoments", "scipy"]:
         raise ValueError(
@@ -99,12 +114,10 @@ def lp3_rv(rp, params, est_method="usgs"):
         ret = 10 ** (y_fit_rp)
         # return return_value_lp3_usgs(x, rp)
     elif est_method == "lmoments":
-        quantile = distr.pe3.ppf(1 - np.array(rp_exceedance), **params)
-        # quantile = distr.pe3.isf(rp_exceedance, **params)
-        ret = 10 ** (quantile)
+        value_log = distr.pe3.ppf(1 - np.array(rp_exceedance), **params)
+        ret = 10 ** (value_log)
     elif est_method == "scipy":
-        quantile = pearson3.ppf(1 - np.array(rp_exceedance), *params)
-        ret = 10 ** (quantile)
-        # pass
+        value_log = pearson3.ppf(1 - np.array(rp_exceedance), *params)
+        ret = 10 ** (value_log)
 
     return ret

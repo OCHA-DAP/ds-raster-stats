@@ -19,3 +19,5 @@ test_outputs/*
 *.sql
 
 data/*
+
+src.egg-info/*

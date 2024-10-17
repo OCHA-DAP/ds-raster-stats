@@ -28,16 +28,16 @@ def lp3_params(x, est_method="lmoments"):
     return params
 
 
-def lp3_params_all(group):
+def lp3_params_all(value):
     methods = ["usgs", "lmoments", "scipy"]
-    params = {method: lp3_params(group["value"], method) for method in methods}
+    params = {method: lp3_params(value, method) for method in methods}
     return pd.Series(params)
 
 
 def lp3_rp(x, params, est_method="lmoments"):
     x = np.asarray(x)
     x_sorted = np.sort(x)
-    x_log = np.log(x_sorted)
+    x_log = np.log10(x_sorted)
 
     if est_method == "scipy":
         # Calculate the CDF for the log-transformed data
@@ -64,7 +64,7 @@ def lp3_rp(x, params, est_method="lmoments"):
 
     else:
         raise ValueError(
-            "Invalid package specified. Choose 'distr' or 'scipy'."
+            "Invalid package specified. Choose 'distr' , 'usgs',or 'scipy'."
         )
 
     # Calculate the return periods

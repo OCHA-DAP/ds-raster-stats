@@ -76,7 +76,7 @@ rp.lp3_params(df_max[df_max["adm1_en"]==sample_admin].value,est_method = "scipy"
 # We can also run them all at once with this wrapper
 
 # %%
-rp.lp3_params_all2(df_max[df_max["adm1_en"]==sample_admin].value)
+rp.lp3_params_all(df_max[df_max["adm1_en"]==sample_admin].value)
 
 # %% [markdown]
 # Use wrapper function with `groupby` to run for each admin
@@ -90,7 +90,7 @@ df_params = df_max.groupby("adm1_en")["value"].apply(rp.lp3_params_all).reset_in
 # Now we can loop through each admin and calculate RPs associated with each value
 
 # %%
-unique_adm1s = df_params_long["adm1_en"].unique()
+unique_adm1s = df_params["adm1_en"].unique()
 df_list = []
 
 for adm in unique_adm1s:

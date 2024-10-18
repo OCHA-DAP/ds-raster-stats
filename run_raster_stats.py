@@ -44,10 +44,11 @@ def setup_logger(name, level=logging.INFO):
     return logger
 
 
-def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
+def process_chunk(start, end, dataset, mode, df_iso3s, engine_url, temp=False):
     process_name = current_process().name
     logger = setup_logger(f"{process_name}: {dataset}_{start}")
     logger.info(f"Starting processing for {dataset} from {start} to {end}")
+    dataset_table_name = dataset if not temp else f"{dataset}_temp"
 
     engine = create_engine(engine_url)
     ds = stack_cogs(start, end, dataset, mode)
@@ -60,7 +61,7 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
             logger.info(f"Processing data for {iso3}...")
 
             with tempfile.TemporaryDirectory() as td:
-                load_shp_from_azure(iso3, td, mode)
+                load_shp_from_azure(iso3, td, mode, temp)
                 gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm0.shp")
                 try:
                     ds_clipped = prep_raster(ds, gdf, logger=logger)
@@ -90,7 +91,7 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
                     df_all_results = pd.concat(all_results, ignore_index=True)
                     logger.debug(f"Writing {len(df_all_results)} rows to database...")
                     df_all_results.to_sql(
-                        f"{dataset}",
+                        dataset_table_name,
                         con=engine,
                         if_exists="append",
                         index=False,
@@ -113,13 +114,15 @@ if __name__ == "__main__":
     dataset = args.dataset
     logger.info(f"Updating data for {dataset}...")
 
+    dataset_table_name = f"{dataset}_temp" if args.temp else dataset
+
     engine_url = db_engine_url(args.mode)
     engine = create_engine(engine_url)
 
     create_qa_table(engine)
     settings = load_pipeline_config(dataset)
     start, end, is_forecast = parse_pipeline_config(settings, args.test)
-    create_dataset_table(dataset, engine, is_forecast)
+    create_dataset_table(dataset_table_name, engine, is_forecast)
     if args.build_iso3:
         logger.info("Creating ISO3 table in Postgres database...")
         create_iso3_df(engine)
@@ -135,7 +138,7 @@ if __name__ == "__main__":
         )
 
         process_args = [
-            (start, end, dataset, args.mode, df_iso3s, engine_url)
+            (start, end, dataset, args.mode, df_iso3s, engine_url, args.temp)
             for start, end in date_ranges
         ]
 
@@ -144,6 +147,6 @@ if __name__ == "__main__":
 
     else:
         logger.info("Processing entire date range in a single chunk")
-        process_chunk(start, end, dataset, args.mode, df_iso3s, engine_url)
+        process_chunk(start, end, dataset, args.mode, df_iso3s, engine_url, args.temp)
 
     logger.info("Done calculating and saving stats.")

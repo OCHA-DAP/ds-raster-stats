@@ -62,7 +62,7 @@ def load_shp(shp_url, shp_dir, iso3):
         zip_ref.extractall(shp_dir)
 
 
-def load_shp_from_azure(iso3, shp_dir, mode):
+def load_shp_from_azure(iso3, shp_dir, mode, temp=False):
     """
     Download and extract a zipped shapefile from Azure Blob Storage.
 
@@ -79,7 +79,10 @@ def load_shp_from_azure(iso3, shp_dir, mode):
     -------
     None
     """
-    blob_name = f"{iso3.lower()}_shp.zip"
+    if temp:
+        blob_name = f"temp/{iso3.lower()}_shp.zip"
+    else:
+        blob_name = f"{iso3.lower()}_shp.zip"
     container_client = get_container_client(mode, "polygon")
     blob_client = container_client.get_blob_client(blob_name)
 

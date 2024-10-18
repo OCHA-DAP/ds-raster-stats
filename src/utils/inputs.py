@@ -30,4 +30,9 @@ def cli_args():
         help="""Builds the `iso3` table in Postgres""",
         action="store_true",
     )
+    parser.add_argument(
+        "--temp",
+        help="""Runs against `temp` boundaries stored in Azure""",
+        action="store_true",
+    )
     return parser.parse_args()

@@ -116,16 +116,10 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
 
 if __name__ == "__main__":
     args = cli_args()
-    dataset = args.dataset
-    logger.info(f"Updating data for {dataset}...")
 
     engine_url = db_engine_url(args.mode)
     engine = create_engine(engine_url)
 
-    create_qa_table(engine)
-    settings = load_pipeline_config(dataset)
-    start, end, is_forecast = parse_pipeline_config(settings, args.test)
-    create_dataset_table(dataset, engine, is_forecast)
     if args.update_metadata:
         logger.info("Updating metadata in Postgres database...")
         create_iso3_df(engine)
@@ -136,6 +130,14 @@ if __name__ == "__main__":
             sel_iso3s=None,
         )
         sys.exit(0)
+
+    dataset = args.dataset
+    logger.info(f"Updating data for {dataset}...")
+
+    create_qa_table(engine)
+    settings = load_pipeline_config(dataset)
+    start, end, is_forecast = parse_pipeline_config(settings, args.test)
+    create_dataset_table(dataset, engine, is_forecast)
 
     sel_iso3s = settings["test"]["iso3s"] if args.test else None
     df_iso3s = get_iso3_data(sel_iso3s, engine)

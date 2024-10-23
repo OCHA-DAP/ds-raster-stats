@@ -11,6 +11,7 @@ def cli_args():
         help="Dataset for which to calculate raster stats",
         choices=["seas5", "era5", "imerg"],
         default=None,
+        nargs="?",
     )
     parser.add_argument(
         "--mode",

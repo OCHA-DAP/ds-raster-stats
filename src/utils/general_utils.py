@@ -4,7 +4,6 @@ import pandas as pd
 from dateutil.relativedelta import relativedelta
 
 from src.utils.cloud_utils import get_container_client
-from src.utils.cog_utils import parse_date
 
 
 def split_date_range(start_date, end_date):
@@ -105,3 +104,16 @@ def get_most_recent_date(mode, name_prefix, dataset):
     most_recent_date = max(file_dates.values())
 
     return most_recent_date
+
+
+def parse_date(filename, dataset):
+    """
+    Parses the date based on a COG filename.
+    """
+    if (dataset == "era5") or (dataset == "imerg"):
+        date = pd.to_datetime(filename[-14:-4])
+    elif dataset == "seas5":
+        date = pd.to_datetime(filename[-18:-8])
+    else:
+        raise Exception("Input `dataset` must be one of: imerg, era5, seas5")
+    return pd.to_datetime(date)

@@ -221,9 +221,6 @@ def process_polygon_metadata(engine, mode, upsampled_resolution, sel_iso3s=None)
                     gdf["name_language"] = name_column[-2:]
                     gdf["iso3"] = iso3
 
-                    print(gdf.head(5))
-                    gdf.to_csv("test.csv")
-
                     gdf.to_sql(
                         "polygon",
                         con=engine,

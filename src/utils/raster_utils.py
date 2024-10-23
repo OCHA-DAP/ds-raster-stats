@@ -8,7 +8,7 @@ import xarray as xr
 from rasterio.enums import Resampling
 from rasterio.features import rasterize
 
-from src.config.settings import LOG_LEVEL
+from src.config.settings import LOG_LEVEL, UPSAMPLED_RESOLUTION
 from src.utils.database_utils import postgres_upsert
 from src.utils.general_utils import add_months_to_date
 
@@ -204,7 +204,7 @@ def fast_zonal_stats(
     return feature_stats
 
 
-def upsample_raster(ds, resampled_resolution=0.05, logger=None):
+def upsample_raster(ds, resampled_resolution=UPSAMPLED_RESOLUTION, logger=None):
     """
     Upsample a raster to a higher resolution using nearest neighbor resampling,
     via the `Resampling.nearest` method from `rasterio`.
@@ -214,7 +214,7 @@ def upsample_raster(ds, resampled_resolution=0.05, logger=None):
     ds : xarray.Dataset
         The raster data set to upsample. Must not have >4 dimensions.
     resampled_resolution : float, optional
-        The desired resolution for the upsampled raster. Default is 0.05.
+        The desired resolution for the upsampled raster.
 
     Returns
     -------

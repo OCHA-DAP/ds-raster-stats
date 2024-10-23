@@ -9,7 +9,12 @@ import geopandas as gpd
 import pandas as pd
 from sqlalchemy import create_engine
 
-from src.config.settings import LOG_LEVEL, load_pipeline_config, parse_pipeline_config
+from src.config.settings import (
+    LOG_LEVEL,
+    UPSAMPLED_RESOLUTION,
+    load_pipeline_config,
+    parse_pipeline_config,
+)
 from src.utils.cog_utils import stack_cogs
 from src.utils.database_utils import (
     create_dataset_table,
@@ -21,6 +26,7 @@ from src.utils.database_utils import (
 from src.utils.general_utils import split_date_range
 from src.utils.inputs import cli_args
 from src.utils.iso3_utils import create_iso3_df, get_iso3_data, load_shp_from_azure
+from src.utils.metadata_utils import process_polygon_metadata
 from src.utils.raster_utils import fast_zonal_stats_runner, prep_raster
 
 logger = logging.getLogger(__name__)
@@ -120,9 +126,16 @@ if __name__ == "__main__":
     settings = load_pipeline_config(dataset)
     start, end, is_forecast = parse_pipeline_config(settings, args.test)
     create_dataset_table(dataset, engine, is_forecast)
-    if args.build_iso3:
-        logger.info("Creating ISO3 table in Postgres database...")
+    if args.update_metadata:
+        logger.info("Updating metadata in Postgres database...")
         create_iso3_df(engine)
+        process_polygon_metadata(
+            engine,
+            args.mode,
+            upsampled_resolution=UPSAMPLED_RESOLUTION,
+            sel_iso3s=None,
+        )
+        sys.exit(0)
 
     sel_iso3s = settings["test"]["iso3s"] if args.test else None
     df_iso3s = get_iso3_data(sel_iso3s, engine)

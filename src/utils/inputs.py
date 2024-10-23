@@ -28,7 +28,7 @@ def cli_args():
     )
     parser.add_argument(
         "--update-metadata",
-        help="Update the polygon metadata table.",
+        help="Update the iso3 and polygon metadata tables.",
         action="store_true",
     )
     return parser.parse_args()

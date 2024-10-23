@@ -26,6 +26,11 @@ def cli_args():
         action="store_true",
     )
     parser.add_argument(
+        "--update",
+        help="""Calculates stats based on recently updated data""",
+        action="store_true",
+    )
+    parser.add_argument(
         "--build-iso3",
         help="""Builds the `iso3` table in Postgres""",
         action="store_true",

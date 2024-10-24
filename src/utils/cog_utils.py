@@ -123,6 +123,23 @@ def process_seas5(cog_name, mode):
     return da_in
 
 
+def process_floodscan(cog_name, mode):
+    cog_url = get_cog_url(mode, cog_name)
+    da_in = rxr.open_rasterio(cog_url, chunks="auto")
+
+    year_valid = da_in.attrs["year_valid"]
+    month_valid = str(da_in.attrs["month_valid"]).zfill(2)
+    date_valid = cog_name[-13:-11]  # TODO: Change once attr is updated correctly
+    date_in = f"{year_valid}-{month_valid}-{date_valid}"
+
+    da_in = da_in.squeeze(drop=True)
+    da_in["date"] = date_in
+    da_in = da_in.expand_dims(["date"])
+
+    da_in = da_in.persist()
+    return da_in
+
+
 def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
     """
     Stack Cloud Optimized GeoTIFFs (COGs) for a specified date range into an xarray Dataset.
@@ -138,7 +155,7 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
     end_date : str or datetime-like
         The end date of the date range for stacking the COGs. This can be a string or a datetime object.
     dataset : str, optional
-        The name of the dataset to retrieve COGs from. Options include "era5", "imerg", and "seas5".
+        The name of the dataset to retrieve COGs from. Options include "floodscan", "era5", "imerg", and "seas5".
         Default is "era5".
     mode : str, optional
         The environment mode to use when accessing the cloud storage container. May be "dev", "prod", or "local".
@@ -189,8 +206,11 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
             da_in = process_seas5(cog, mode)
         elif dataset == "imerg":
             da_in = process_imerg(cog, mode)
+        elif dataset == "floodscan":
+            da_in = process_floodscan(cog, mode)
         das.append(da_in)
 
     # Note that we're dropping all attributes here
-    ds = xr.combine_by_coords(das, combine_attrs="drop")
+    # ds = xr.combine_by_coords(das, combine_attrs="drop")
+    ds = xr.concat(das, dim="date")
     return ds

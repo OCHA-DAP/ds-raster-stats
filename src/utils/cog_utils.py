@@ -211,6 +211,5 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
         das.append(da_in)
 
     # Note that we're dropping all attributes here
-    # ds = xr.combine_by_coords(das, combine_attrs="drop")
-    ds = xr.concat(das, dim="date")
+    ds = xr.combine_by_coords(das, combine_attrs="drop")
     return ds

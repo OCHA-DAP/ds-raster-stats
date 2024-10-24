@@ -212,7 +212,8 @@ def upsample_raster(ds, resampled_resolution=0.05, logger=None):
     Parameters
     ----------
     ds : xarray.Dataset
-        The raster data set to upsample. Must not have >4 dimensions.
+        The raster data set to upsample. Must have dimensions 'x', 'y', and 'date',
+        with an optional fourth dimension (e.g., 'band' or 'leadtime').
     resampled_resolution : float, optional
         The desired resolution for the upsampled raster. Default is 0.05.
 
@@ -221,10 +222,15 @@ def upsample_raster(ds, resampled_resolution=0.05, logger=None):
     xarray.Dataset
         The upsampled raster as a Dataset with the new resolution.
     """
-
     if logger is None:
         logger = logging.getLogger(__name__)
         logger.addHandler(logging.NullHandler())
+
+    # Verify required dimensions
+    required_dims = {"x", "y", "date"}
+    missing_dims = required_dims - set(ds.dims)
+    if missing_dims:
+        raise ValueError(f"Dataset missing required dimensions: {missing_dims}")
 
     # Assuming square resolution
     input_resolution = ds.rio.resolution()[0]
@@ -247,31 +253,32 @@ def upsample_raster(ds, resampled_resolution=0.05, logger=None):
         )
         ds = ds.rio.write_crs("EPSG:4326")
 
-    # Forecast data will have 4 dims, since we have a leadtime
-    nd = len(list(ds.dims))
-    if nd == 4:
+    # Get the fourth dimension if it exists (not x, y, or date)
+    dims = list(ds.dims)
+    fourth_dim = next((dim for dim in dims if dim not in {"x", "y", "date"}), None)
+
+    if fourth_dim:  # 4D case
         resampled_arrays = []
-        for lt in ds.leadtime.values:
-            ds_ = ds.sel(leadtime=lt)
+        for val in ds[fourth_dim].values:
+            ds_ = ds.sel({fourth_dim: val})
             ds_ = ds_.rio.reproject(
                 ds_.rio.crs,
-                shape=(ds_.rio.height * 2, ds_.rio.width * 2),
+                shape=(new_height, new_width),
                 resampling=Resampling.nearest,
                 nodata=np.nan,
             )
-            ds_ = ds_.expand_dims(["leadtime"])
+            # Expand along the fourth dimension
+            ds_ = ds_.expand_dims([fourth_dim])
             resampled_arrays.append(ds_)
 
         ds_resampled = xr.combine_by_coords(resampled_arrays, combine_attrs="drop")
-    elif (nd == 2) or (nd == 3):
+    else:  # 3D case (x, y, date)
         ds_resampled = ds.rio.reproject(
             ds.rio.crs,
             shape=(new_height, new_width),
             resampling=Resampling.nearest,
             nodata=np.nan,
         )
-    else:
-        raise Exception("Input Dataset must have 2, 3, or 4 dimensions.")
 
     return ds_resampled
 

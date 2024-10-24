@@ -21,8 +21,10 @@ def parse_date(filename, dataset):
         date = pd.to_datetime(filename[-14:-4])
     elif dataset == "seas5":
         date = pd.to_datetime(filename[-18:-8])
+    elif dataset == "floodscan":
+        date = pd.to_datetime(filename[-21:-11])
     else:
-        raise Exception("Input `dataset` must be one of: imerg, era5, seas5")
+        raise Exception("Input `dataset` must be one of: floodscan, imerg, era5, seas5")
     return pd.to_datetime(date)
 
 
@@ -161,7 +163,9 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
         config = load_pipeline_config(dataset)
         prefix = config["blob_prefix"]
     except Exception:
-        logger.error("Input `dataset` must be one of `era5`, `seas5`, or `imerg`.")
+        logger.error(
+            "Input `dataset` must be one of `floodscan`, `era5`, `seas5`, or `imerg`."
+        )
 
     cogs_list = [
         x.name

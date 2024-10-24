@@ -9,7 +9,7 @@ def cli_args():
     parser.add_argument(
         "dataset",
         help="Dataset for which to calculate raster stats",
-        choices=["seas5", "era5", "imerg"],
+        choices=["seas5", "era5", "imerg", "floodscan"],
         default=None,
     )
     parser.add_argument(

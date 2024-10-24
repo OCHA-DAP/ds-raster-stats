@@ -16,6 +16,17 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
 
+def validate_dimensions(ds):
+    required_dims = {"x", "y", "date"}
+    missing_dims = required_dims - set(ds.dims)
+    if missing_dims:
+        raise ValueError(f"Dataset missing required dimensions: {missing_dims}")
+    # Get the fourth dimension if it exists (not x, y, or date)
+    dims = list(ds.dims)
+    fourth_dim = next((dim for dim in dims if dim not in {"x", "y", "date"}), None)
+    return fourth_dim
+
+
 def fast_zonal_stats_runner(
     ds,
     gdf,
@@ -226,11 +237,7 @@ def upsample_raster(ds, resampled_resolution=0.05, logger=None):
         logger = logging.getLogger(__name__)
         logger.addHandler(logging.NullHandler())
 
-    # Verify required dimensions
-    required_dims = {"x", "y", "date"}
-    missing_dims = required_dims - set(ds.dims)
-    if missing_dims:
-        raise ValueError(f"Dataset missing required dimensions: {missing_dims}")
+    fourth_dim = validate_dimensions(ds)
 
     # Assuming square resolution
     input_resolution = ds.rio.resolution()[0]
@@ -252,10 +259,6 @@ def upsample_raster(ds, resampled_resolution=0.05, logger=None):
             "Input raster data did not have CRS defined. Setting to EPSG:4326."
         )
         ds = ds.rio.write_crs("EPSG:4326")
-
-    # Get the fourth dimension if it exists (not x, y, or date)
-    dims = list(ds.dims)
-    fourth_dim = next((dim for dim in dims if dim not in {"x", "y", "date"}), None)
 
     if fourth_dim:  # 4D case
         resampled_arrays = []

@@ -12,6 +12,7 @@ from src.utils.raster_utils import (
     fast_zonal_stats,
     fast_zonal_stats_runner,
     rasterize_admin,
+    upsample_raster,
 )
 
 
@@ -237,3 +238,96 @@ def test_fast_zonal_stats_runner_with_na_last(
     ), "Mismatch in DataFrame columns"
     assert result["iso3"].unique() == ["TST"], "Incorrect ISO3 code"
     assert result["adm_level"].unique() == [1], "Incorrect admin level"
+
+
+@pytest.fixture
+def simple_dataset():
+    """Create a simple 10x10 test dataset with 1.0 degree resolution."""
+    data = np.random.rand(10, 10)
+    ds = xr.Dataset(
+        data_vars={"data": (("y", "x"), data)},
+        coords={
+            "x": np.arange(-5, 5, 1.0),  # 1.0 degree resolution
+            "y": np.arange(-5, 5, 1.0),
+        },
+    )
+    ds.rio.write_crs("EPSG:4326", inplace=True)
+    return ds
+
+
+@pytest.fixture
+def dataset_with_time(simple_dataset):
+    """Add a time dimension to the simple dataset."""
+    data = np.random.rand(3, 10, 10)  # 3 time steps
+    ds = xr.Dataset(
+        data_vars={"data": (("date", "y", "x"), data)},
+        coords={
+            "x": simple_dataset.x,
+            "y": simple_dataset.y,
+            "date": pd.date_range("2020-01-01", "2020-01-03"),
+        },
+    )
+    ds.rio.write_crs("EPSG:4326", inplace=True)
+    return ds
+
+
+@pytest.fixture
+def dataset_with_leadtime(dataset_with_time):
+    """Add a leadtime dimension to create a 4D dataset."""
+    data = np.random.rand(3, 2, 10, 10)  # 3 times, 2 leadtimes
+    ds = xr.Dataset(
+        data_vars={"data": (("date", "leadtime", "y", "x"), data)},
+        coords={
+            "x": dataset_with_time.x,
+            "y": dataset_with_time.y,
+            "date": dataset_with_time.date,
+            "leadtime": ["1month", "2month"],
+        },
+    )
+    ds.rio.write_crs("EPSG:4326", inplace=True)
+    return ds
+
+
+def test_basic_upsampling(simple_dataset):
+    """Test basic upsampling of a 2D dataset."""
+    target_res = 0.5  # Upsample from 1.0 to 0.5 degrees
+    result = upsample_raster(simple_dataset, resampled_resolution=target_res)
+
+    # Check output resolution
+    assert result.rio.resolution()[0] == target_res
+
+    # Check output dimensions doubled (since resolution halved)
+    assert result.rio.width == simple_dataset.rio.width * 2
+    assert result.rio.height == simple_dataset.rio.height * 2
+
+
+def test_upsampling_with_time(dataset_with_time):
+    """Test upsampling of a 3D dataset with time dimension."""
+    target_res = 0.5
+    result = upsample_raster(dataset_with_time, resampled_resolution=target_res)
+
+    # Check time dimension preserved
+    assert "date" in result.dims
+    assert len(result.date) == len(dataset_with_time.date)
+
+    # Check spatial dimensions
+    assert result.rio.resolution()[0] == target_res
+    assert result.rio.width == dataset_with_time.rio.width * 2
+    assert result.rio.height == dataset_with_time.rio.height * 2
+
+
+def test_upsampling_with_leadtime(dataset_with_leadtime):
+    """Test upsampling of a 4D dataset with time and leadtime dimensions."""
+    target_res = 0.5
+    result = upsample_raster(dataset_with_leadtime, resampled_resolution=target_res)
+
+    # Check temporal dimensions preserved
+    assert "date" in result.dims
+    assert "leadtime" in result.dims
+    assert len(result.date) == len(dataset_with_leadtime.date)
+    assert len(result.leadtime) == len(dataset_with_leadtime.leadtime)
+
+    # Check spatial dimensions
+    assert result.rio.resolution()[0] == target_res
+    assert result.rio.width == dataset_with_leadtime.rio.width * 2
+    assert result.rio.height == dataset_with_leadtime.rio.height * 2

@@ -187,9 +187,11 @@ def create_iso3_df(engine):
     df["max_adm_level"] = df.apply(determine_max_adm_level, axis=1)
     df["stats_last_updated"] = None
 
+    # TODO: This list seems to have some inconsistencies when compared against the
+    # contents of all polygons
     # Also need global p-codes list from https://fieldmaps.io/data/cod
     # We want to get the total number of pcodes per iso3, across each admin level
-    df_pcodes = pd.read_csv("data/global-pcodes.csv")
+    df_pcodes = pd.read_csv("data/global-pcodes.csv", low_memory=False)
     df_pcodes.drop(df_pcodes.index[0], inplace=True)
     df_counts = (
         df_pcodes.groupby(["Location", "Admin Level"])["P-Code"]

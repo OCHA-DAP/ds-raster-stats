@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-
+UPSAMPLED_RESOLUTION = 0.05
 LOG_LEVEL = "INFO"
 AZURE_DB_PW_DEV = os.getenv("AZURE_DB_PW_DEV")
 AZURE_DB_PW_PROD = os.getenv("AZURE_DB_PW_PROD")

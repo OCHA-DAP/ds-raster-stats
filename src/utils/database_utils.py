@@ -35,7 +35,7 @@ def db_engine_url(mode):
     return DATABASES[mode]
 
 
-def create_dataset_table(dataset, engine, is_forecast=False):
+def create_dataset_table(dataset, engine, is_forecast=False, extra_dims=[]):
     """
     Create a table for storing dataset statistics in the database.
 
@@ -71,8 +71,10 @@ def create_dataset_table(dataset, engine, is_forecast=False):
     unique_constraint_columns = ["valid_date", "pcode"]
     if is_forecast:
         columns.insert(3, Column("issued_date", Date))
-        columns.insert(4, Column("leadtime", Integer))
-        unique_constraint_columns.append("leadtime")
+    for idx, dim in enumerate(extra_dims):
+        # TODO: Support non-integer columns
+        columns.insert(idx + 4, Column(dim, Integer))
+        unique_constraint_columns.append(dim)
 
     Table(
         f"{dataset}",

@@ -55,7 +55,6 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
     try:
         for _, row in df_iso3s.iterrows():
             iso3 = row["iso3"]
-            # shp_url = row["o_shp"]
             max_adm = row["max_adm_level"]
             logger.info(f"Processing data for {iso3}...")
 
@@ -118,8 +117,8 @@ if __name__ == "__main__":
 
     create_qa_table(engine)
     settings = load_pipeline_config(dataset)
-    start, end, is_forecast = parse_pipeline_config(settings, args.test)
-    create_dataset_table(dataset, engine, is_forecast)
+    start, end, is_forecast, extra_dims = parse_pipeline_config(settings, args.test)
+    create_dataset_table(dataset, engine, is_forecast, extra_dims)
     if args.build_iso3:
         logger.info("Creating ISO3 table in Postgres database...")
         create_iso3_df(engine)

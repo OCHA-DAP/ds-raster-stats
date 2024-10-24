@@ -31,4 +31,5 @@ def parse_pipeline_config(config, test):
         start_date = config["start_date"]
         end_date = config["end_date"]
     forecast = config["forecast"]
-    return start_date, end_date, forecast
+    extra_dims = config.get("extra_dims", [])
+    return start_date, end_date, forecast, extra_dims

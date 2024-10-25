@@ -153,6 +153,7 @@ def create_polygon_table(engine, datasets):
         Column("name", String),
         Column("name_language", String),
         Column("area", REAL),
+        Column("standard", Boolean),
     ]
 
     for dataset in datasets:

@@ -81,7 +81,7 @@ def calculate_polygon_stats(
         raster=dataset_data,
         affine=dataset_transform,
         nodata=np.nan,
-        all_touched=True,
+        all_touched=False,
         stats=["unique", "count"],
     )
 
@@ -220,6 +220,7 @@ def process_polygon_metadata(engine, mode, upsampled_resolution, sel_iso3s=None)
                     gdf["adm_level"] = i
                     gdf["name_language"] = name_column[-2:]
                     gdf["iso3"] = iso3
+                    gdf["standard"] = True
 
                     gdf.to_sql(
                         "polygon",

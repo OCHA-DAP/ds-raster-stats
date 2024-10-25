@@ -1,4 +1,4 @@
-blob_prefix: floodscan/daily/v5/processed/aer__area_300s_
+blob_prefix: floodscan/daily/v5/processed/aer_area_300s_
 start_date: 1998-01-12
 end_date: Null
 forecast: False
@@ -6,5 +6,5 @@ extra_dims:
   - band
 test:
   start_date: 2023-12-01
-  end_date: 2023-12-05
+  end_date: 2024-01-31
   iso3s: ["ETH"]

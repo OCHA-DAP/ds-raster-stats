@@ -255,7 +255,7 @@ def upsample_raster(ds, resampled_resolution=UPSAMPLED_RESOLUTION, logger=None):
             ds_ = ds.sel(leadtime=lt)
             ds_ = ds_.rio.reproject(
                 ds_.rio.crs,
-                shape=(ds_.rio.height * 2, ds_.rio.width * 2),
+                shape=(new_height, new_width),
                 resampling=Resampling.nearest,
                 nodata=np.nan,
             )

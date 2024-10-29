@@ -6,13 +6,14 @@ import coloredlogs
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from rasterio.enums import Resampling
-from rasterstats import zonal_stats
+import rioxarray as rxr
 
-from src.config.settings import LOG_LEVEL
-from src.utils.cog_utils import stack_cogs
+from src.config.settings import LOG_LEVEL, load_pipeline_config
+from src.utils.cloud_utils import get_container_client
+from src.utils.cog_utils import get_cog_url
 from src.utils.database_utils import create_polygon_table, postgres_upsert
 from src.utils.iso3_utils import get_iso3_data, load_shp_from_azure
+from src.utils.raster_utils import fast_zonal_stats, prep_raster, rasterize_admin
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
@@ -52,99 +53,13 @@ def select_name_column(df, adm_level):
     return adm_columns[0]
 
 
-def calculate_polygon_stats(
-    gdf, dataset_name, dataset_data, dataset_transform, upscale_factor
-):
-    """
-    Calculate polygon statistics for a specific dataset.
-
-    Parameters
-    ----------
-    gdf : geopandas.GeoDataFrame
-        The GeoDataFrame containing polygon geometries.
-    dataset_name : str
-        The name of the dataset.
-    dataset_data : numpy.ndarray
-        The raster data array for the dataset.
-    dataset_transform : affine.Affine
-        The affine transform for the raster data.
-    upscale_factor : float
-        The factor by which the raster has been upsampled.
-
-    Returns
-    -------
-    pandas.DataFrame
-        DataFrame containing polygon statistics for the dataset.
-    """
-    stats = zonal_stats(
-        vectors=gdf[["geometry"]],
-        raster=dataset_data,
-        affine=dataset_transform,
-        nodata=np.nan,
-        all_touched=False,
-        stats=["unique", "count"],
-    )
-
-    df_out = pd.DataFrame.from_dict(stats)
-    df_out[f"{dataset_name}_frac_raw_pixels"] = df_out["count"] / (upscale_factor**2)
-    df_out = df_out.rename(
-        columns={
-            "unique": f"{dataset_name}_n_intersect_raw_pixels",
-            "count": f"{dataset_name}_n_upsampled_pixels",
-        }
-    )
-    return df_out
-
-
-def prepare_dataset_raster(dataset, start_date, end_date, upsampled_resolution):
-    """
-    Prepare raster data for a specific dataset.
-
-    Parameters
-    ----------
-    dataset : str
-        The name of the dataset to prepare.
-    start_date : str
-        Start date for the raster data.
-    end_date : str
-        End date for the raster data.
-    upsampled_resolution : float, optional
-        The desired output resolution after upsampling, by default 0.05.
-
-    Returns
-    -------
-    dict
-        Dictionary containing the prepared dataset information including data,
-        upscale factor, and transform.
-    """
-    ds = stack_cogs(start_date, end_date, dataset)
-    ds.values = np.arange(ds.size).reshape(ds.shape)
-    ds = ds.astype(np.float32)
-
-    if "leadtime" in ds.dims:
-        ds = ds.sel(leadtime=1)
-
-    input_resolution = ds.rio.resolution()[0]
-    upscale_factor = input_resolution / upsampled_resolution
-    new_width = int(ds.rio.width * upscale_factor)
-    new_height = int(ds.rio.height * upscale_factor)
-
-    ds_resampled = ds.rio.reproject(
-        ds.rio.crs,
-        shape=(new_height, new_width),
-        resampling=Resampling.nearest,
-        nodata=np.nan,
-    )
-
-    coords_transform = ds_resampled.rio.set_spatial_dims(
-        x_dim="x", y_dim="y"
-    ).rio.transform()
-
-    return {
-        "data": ds_resampled.values[0],
-        "upscale_factor": upscale_factor,
-        "transform": coords_transform,
-    }
+def get_single_cog(dataset, mode):
+    container_client = get_container_client(mode, "raster")
+    config = load_pipeline_config(dataset)
+    prefix = config["blob_prefix"]
+    cogs_list = [x.name for x in container_client.list_blobs(name_starts_with=prefix)]
+    cog_url = get_cog_url(mode, cogs_list[0])
+    return rxr.open_rasterio(cog_url, chunks="auto")
 
 
 def process_polygon_metadata(engine, mode, upsampled_resolution, sel_iso3s=None):
@@ -168,61 +83,80 @@ def process_polygon_metadata(engine, mode, upsampled_resolution, sel_iso3s=None)
     """
     datasets = get_available_datasets()
     create_polygon_table(engine, datasets)
-
-    dataset_info = {}
-    for dataset in datasets:
-        dataset_info[dataset] = prepare_dataset_raster(
-            dataset, "2024-01-01", "2024-01-01", upsampled_resolution
-        )
-
-    df_iso3s = get_iso3_data(sel_iso3s, engine)
+    df_iso3s = get_iso3_data(None, engine)
 
     with tempfile.TemporaryDirectory() as td:
         for _, row in df_iso3s.iterrows():
             iso3 = row["iso3"]
             logger.info(f"Processing polygon metadata for {iso3}...")
             max_adm = row["max_adm_level"]
-
             load_shp_from_azure(iso3, td, mode)
 
             for i in range(0, max_adm + 1):
-                try:
-                    gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{i}.shp")
+                gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{i}.shp")
+                for dataset in datasets:
+                    da = get_single_cog(dataset, mode)
+                    input_resolution = da.rio.resolution()
+                    gdf_adm0 = gpd.read_file(f"{td}/{iso3.lower()}_adm0.shp")
+                    # We want all values to be unique, so that we can count the total
+                    # number of unique cells from the raw source that contribute to the stats
+                    da.values = np.arange(da.size).reshape(da.shape)
+                    da = da.astype(np.float32)
 
-                    for dataset in datasets:
-                        df_stats = calculate_polygon_stats(
-                            gdf,
-                            dataset,
-                            dataset_info[dataset]["data"],
-                            dataset_info[dataset]["transform"],
-                            dataset_info[dataset]["upscale_factor"],
-                        )
-                        gdf = gdf.join(df_stats)
+                    da_clipped = prep_raster(da, gdf_adm0, logger=logger)
+                    output_resolution = da_clipped.rio.resolution()
+                    upscale_factor = input_resolution[0] / output_resolution[0]
 
-                    # Calculate area in square kilometers
-                    gdf = gdf.to_crs("ESRI:54009")
-                    gdf["area"] = gdf.geometry.area / 1_000_000
+                    src_transform = da_clipped.rio.transform()
+                    src_width = da_clipped.rio.width
+                    src_height = da_clipped.rio.height
 
-                    name_column = select_name_column(gdf, i)
-                    extract_cols = [f"ADM{i}_PCODE", name_column, "area"]
-                    dataset_cols = gdf.columns[
-                        gdf.columns.str.contains(
-                            "_n_intersect_raw_pixels|"
-                            "_frac_raw_pixels|"
-                            "_n_upsampled_pixels"
-                        )
-                    ]
-
-                    gdf = gdf[extract_cols + dataset_cols.tolist()]
-                    gdf = gdf.rename(
-                        columns={f"ADM{i}_PCODE": "pcode", name_column: "name"}
+                    admin_raster = rasterize_admin(
+                        gdf, src_width, src_height, src_transform, all_touched=False
                     )
-                    gdf["adm_level"] = i
-                    gdf["name_language"] = name_column[-2:]
-                    gdf["iso3"] = iso3
-                    gdf["standard"] = True
+                    adm_ids = gdf[f"ADM{i}_PCODE"]
+                    n_adms = len(adm_ids)
 
-                    gdf.to_sql(
+                    results = fast_zonal_stats(
+                        da_clipped.values[0],
+                        admin_raster,
+                        n_adms,
+                        stats=["count", "unique"],
+                        rast_fill=np.nan,
+                    )
+                    df_results = pd.DataFrame.from_dict(results)
+                    df_results[f"{dataset}_frac_raw_pixels"] = df_results["count"] / (
+                        upscale_factor**2
+                    )
+                    df_results = df_results.rename(
+                        columns={
+                            "unique": f"{dataset}_n_intersect_raw_pixels",
+                            "count": f"{dataset}_n_upsampled_pixels",
+                        }
+                    )
+                    gdf = gdf.join(df_results)
+
+                gdf = gdf.to_crs("ESRI:54009")
+                gdf["area"] = gdf.geometry.area / 1_000_000
+
+                name_column = select_name_column(gdf, i)
+                extract_cols = [f"ADM{i}_PCODE", name_column, "area"]
+                dataset_cols = gdf.columns[
+                    gdf.columns.str.contains(
+                        "_n_intersect_raw_pixels|"
+                        "_frac_raw_pixels|"
+                        "_n_upsampled_pixels"
+                    )
+                ]
+
+                df = gdf[extract_cols + dataset_cols.tolist()]
+                df = df.rename(columns={f"ADM{i}_PCODE": "pcode", name_column: "name"})
+                df["adm_level"] = i
+                df["name_language"] = name_column[-2:]
+                df["iso3"] = iso3
+                df["standard"] = True
+                try:
+                    df.to_sql(
                         "polygon",
                         con=engine,
                         if_exists="append",
@@ -230,5 +164,4 @@ def process_polygon_metadata(engine, mode, upsampled_resolution, sel_iso3s=None)
                         method=postgres_upsert,
                     )
                 except Exception as e:
-                    logger.error(f"Error processing {iso3} at ADM{i}: {str(e)}")
-                    continue
+                    logger.error(f"Error: {e}")

@@ -193,6 +193,9 @@ def fast_zonal_stats(
             "sum": np.nansum,
             "std": np.nanstd,
             "count": lambda x, axis: np.sum(~np.isnan(x), axis=axis),
+            "unique": lambda x, axis: np.array(
+                [len(np.unique(row[~np.isnan(row)])) for row in x]
+            ),
         }
 
         for stat in stats:

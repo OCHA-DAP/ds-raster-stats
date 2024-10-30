@@ -91,71 +91,73 @@ def process_polygon_metadata(engine, mode, upsampled_resolution, sel_iso3s=None)
             logger.info(f"Processing polygon metadata for {iso3}...")
             max_adm = row["max_adm_level"]
             load_shp_from_azure(iso3, td, mode)
+            try:
+                for i in range(0, max_adm + 1):
+                    gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{i}.shp")
+                    for dataset in datasets:
+                        da = get_single_cog(dataset, mode)
+                        input_resolution = da.rio.resolution()
+                        gdf_adm0 = gpd.read_file(f"{td}/{iso3.lower()}_adm0.shp")
+                        # We want all values to be unique, so that we can count the total
+                        # number of unique cells from the raw source that contribute to the stats
+                        da.values = np.arange(da.size).reshape(da.shape)
+                        da = da.astype(np.float32)
 
-            for i in range(0, max_adm + 1):
-                gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{i}.shp")
-                for dataset in datasets:
-                    da = get_single_cog(dataset, mode)
-                    input_resolution = da.rio.resolution()
-                    gdf_adm0 = gpd.read_file(f"{td}/{iso3.lower()}_adm0.shp")
-                    # We want all values to be unique, so that we can count the total
-                    # number of unique cells from the raw source that contribute to the stats
-                    da.values = np.arange(da.size).reshape(da.shape)
-                    da = da.astype(np.float32)
+                        da_clipped = prep_raster(da, gdf_adm0, logger=logger)
+                        output_resolution = da_clipped.rio.resolution()
+                        upscale_factor = input_resolution[0] / output_resolution[0]
 
-                    da_clipped = prep_raster(da, gdf_adm0, logger=logger)
-                    output_resolution = da_clipped.rio.resolution()
-                    upscale_factor = input_resolution[0] / output_resolution[0]
+                        src_transform = da_clipped.rio.transform()
+                        src_width = da_clipped.rio.width
+                        src_height = da_clipped.rio.height
 
-                    src_transform = da_clipped.rio.transform()
-                    src_width = da_clipped.rio.width
-                    src_height = da_clipped.rio.height
+                        admin_raster = rasterize_admin(
+                            gdf, src_width, src_height, src_transform, all_touched=False
+                        )
+                        adm_ids = gdf[f"ADM{i}_PCODE"]
+                        n_adms = len(adm_ids)
 
-                    admin_raster = rasterize_admin(
-                        gdf, src_width, src_height, src_transform, all_touched=False
+                        results = fast_zonal_stats(
+                            da_clipped.values[0],
+                            admin_raster,
+                            n_adms,
+                            stats=["count", "unique"],
+                            rast_fill=np.nan,
+                        )
+                        df_results = pd.DataFrame.from_dict(results)
+                        df_results[f"{dataset}_frac_raw_pixels"] = df_results[
+                            "count"
+                        ] / (upscale_factor**2)
+                        df_results = df_results.rename(
+                            columns={
+                                "unique": f"{dataset}_n_intersect_raw_pixels",
+                                "count": f"{dataset}_n_upsampled_pixels",
+                            }
+                        )
+                        gdf = gdf.join(df_results)
+
+                    gdf = gdf.to_crs("ESRI:54009")
+                    gdf["area"] = gdf.geometry.area / 1_000_000
+
+                    name_column = select_name_column(gdf, i)
+                    extract_cols = [f"ADM{i}_PCODE", name_column, "area"]
+                    dataset_cols = gdf.columns[
+                        gdf.columns.str.contains(
+                            "_n_intersect_raw_pixels|"
+                            "_frac_raw_pixels|"
+                            "_n_upsampled_pixels"
+                        )
+                    ]
+
+                    df = gdf[extract_cols + dataset_cols.tolist()]
+                    df = df.rename(
+                        columns={f"ADM{i}_PCODE": "pcode", name_column: "name"}
                     )
-                    adm_ids = gdf[f"ADM{i}_PCODE"]
-                    n_adms = len(adm_ids)
+                    df["adm_level"] = i
+                    df["name_language"] = name_column[-2:]
+                    df["iso3"] = iso3
+                    df["standard"] = True
 
-                    results = fast_zonal_stats(
-                        da_clipped.values[0],
-                        admin_raster,
-                        n_adms,
-                        stats=["count", "unique"],
-                        rast_fill=np.nan,
-                    )
-                    df_results = pd.DataFrame.from_dict(results)
-                    df_results[f"{dataset}_frac_raw_pixels"] = df_results["count"] / (
-                        upscale_factor**2
-                    )
-                    df_results = df_results.rename(
-                        columns={
-                            "unique": f"{dataset}_n_intersect_raw_pixels",
-                            "count": f"{dataset}_n_upsampled_pixels",
-                        }
-                    )
-                    gdf = gdf.join(df_results)
-
-                gdf = gdf.to_crs("ESRI:54009")
-                gdf["area"] = gdf.geometry.area / 1_000_000
-
-                name_column = select_name_column(gdf, i)
-                extract_cols = [f"ADM{i}_PCODE", name_column, "area"]
-                dataset_cols = gdf.columns[
-                    gdf.columns.str.contains(
-                        "_n_intersect_raw_pixels|"
-                        "_frac_raw_pixels|"
-                        "_n_upsampled_pixels"
-                    )
-                ]
-
-                df = gdf[extract_cols + dataset_cols.tolist()]
-                df = df.rename(columns={f"ADM{i}_PCODE": "pcode", name_column: "name"})
-                df["adm_level"] = i
-                df["name_language"] = name_column[-2:]
-                df["iso3"] = iso3
-                df["standard"] = True
-                try:
                     df.to_sql(
                         "polygon",
                         con=engine,
@@ -163,5 +165,5 @@ def process_polygon_metadata(engine, mode, upsampled_resolution, sel_iso3s=None)
                         index=False,
                         method=postgres_upsert,
                     )
-                except Exception as e:
-                    logger.error(f"Error: {e}")
+            except Exception as e:
+                logger.error(f"Error: {e}")

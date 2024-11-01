@@ -131,6 +131,56 @@ def create_iso3_table(engine):
     metadata.create_all(engine)
 
 
+def create_polygon_table(engine, datasets):
+    """
+    Create a table for storing polygon metadata in the database.
+
+    Parameters
+    ----------
+    engine : sqlalchemy.engine.Engine
+        The SQLAlchemy engine object used to connect to the database.
+    datasets : list of str
+        List of dataset names to include in the table structure.
+
+    Returns
+    -------
+    None
+    """
+    columns = [
+        Column("pcode", String),
+        Column("iso3", CHAR(3)),
+        Column("adm_level", Integer),
+        Column("name", String),
+        Column("name_language", String),
+        Column("area", REAL),
+        Column("standard", Boolean),
+    ]
+
+    for dataset in datasets:
+        columns.extend(
+            [
+                Column(f"{dataset}_n_intersect_raw_pixels", Integer),
+                Column(f"{dataset}_frac_raw_pixels", REAL),
+                Column(f"{dataset}_n_upsampled_pixels", Integer),
+            ]
+        )
+
+    metadata = MetaData()
+    Table(
+        "polygon",
+        metadata,
+        *columns,
+        UniqueConstraint(
+            *["pcode", "iso3", "adm_level"],
+            name="polygon_valid_date_leadtime_pcode_key",
+            postgresql_nulls_not_distinct=True,
+        ),
+    )
+
+    metadata.create_all(engine)
+    return
+
+
 def insert_qa_table(iso3, adm_level, dataset, error, stack_trace, engine):
     """
     Insert an error record into the 'qa' table in the database.

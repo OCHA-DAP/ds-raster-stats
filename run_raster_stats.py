@@ -9,12 +9,7 @@ import geopandas as gpd
 import pandas as pd
 from sqlalchemy import create_engine
 
-from src.config.settings import (
-    LOG_LEVEL,
-    UPSAMPLED_RESOLUTION,
-    load_pipeline_config,
-    parse_pipeline_config,
-)
+from src.config.settings import LOG_LEVEL, UPSAMPLED_RESOLUTION, parse_pipeline_config
 from src.utils.cog_utils import stack_cogs
 from src.utils.database_utils import (
     create_dataset_table,
@@ -135,11 +130,11 @@ if __name__ == "__main__":
     logger.info(f"Updating data for {dataset}...")
 
     create_qa_table(engine)
-    settings = load_pipeline_config(dataset)
-    start, end, is_forecast = parse_pipeline_config(settings, args.test)
+    start, end, is_forecast, sel_iso3s = parse_pipeline_config(
+        dataset, args.test, args.update_stats, args.mode
+    )
     create_dataset_table(dataset, engine, is_forecast)
 
-    sel_iso3s = settings["test"]["iso3s"] if args.test else None
     df_iso3s = get_iso3_data(sel_iso3s, engine)
     date_ranges = split_date_range(start, end)
 

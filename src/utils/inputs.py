@@ -27,6 +27,11 @@ def cli_args():
         action="store_true",
     )
     parser.add_argument(
+        "--update-stats",
+        help="""Calculates stats based on recently updated data""",
+        action="store_true",
+    )
+    parser.add_argument(
         "--update-metadata",
         help="Update the iso3 and polygon metadata tables.",
         action="store_true",

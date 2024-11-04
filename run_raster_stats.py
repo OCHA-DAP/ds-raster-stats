@@ -131,7 +131,7 @@ if __name__ == "__main__":
 
     create_qa_table(engine)
     start, end, is_forecast, sel_iso3s = parse_pipeline_config(
-        dataset, args.test, args.update, args.mode
+        dataset, args.test, args.update_stats, args.mode
     )
     create_dataset_table(dataset, engine, is_forecast)
 

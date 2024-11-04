@@ -154,10 +154,8 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
     cogs_list = [
         x.name
         for x in container_client.list_blobs(name_starts_with=prefix)
-        if (parse_date(x.name, dataset) >= start_date)
-        & (parse_date(x.name, dataset) <= end_date)  # noqa
+        if (parse_date(x.name) >= start_date) & (parse_date(x.name) <= end_date)  # noqa
     ]
-
     if len(cogs_list) == 0:
         raise Exception("No COGs found to process")
 
@@ -212,7 +210,7 @@ def get_most_recent_date(mode, name_prefix, dataset):
 
     for blob in blobs:
         try:
-            date = parse_date(blob.name, dataset)
+            date = parse_date(blob.name)
             file_dates[blob.name] = date
         except (ValueError, IndexError) as e:
             print(f"Skipping {blob.name}: {str(e)}")

@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -61,7 +62,7 @@ def add_months_to_date(date_string, months):
 
 
 # TODO: Might not scale well as we get more files in the blob
-def get_most_recent_date(mode, name_prefix, dataset):
+def get_most_recent_date(mode, name_prefix):
     """
     Find files with the most recent date in their filename from Azure blob storage.
 
@@ -76,9 +77,6 @@ def get_most_recent_date(mode, name_prefix, dataset):
     name_prefix : str
         The prefix of the filename before the date portion.
         For example, 'seas5/monthly/processed/precip_em_i'.
-    dataset : str
-        Type of dataset. Must be one of: 'imerg', 'era5', 'seas5'.
-        This determines how the date is extracted from the filename.
 
     Returns
     -------
@@ -92,7 +90,7 @@ def get_most_recent_date(mode, name_prefix, dataset):
 
     for blob in blobs:
         try:
-            date = parse_date(blob.name, dataset)
+            date = parse_date(blob.name)
             file_dates[blob.name] = date
         except (ValueError, IndexError) as e:
             print(f"Skipping {blob.name}: {str(e)}")
@@ -106,14 +104,9 @@ def get_most_recent_date(mode, name_prefix, dataset):
     return most_recent_date
 
 
-def parse_date(filename, dataset):
+def parse_date(filename):
     """
     Parses the date based on a COG filename.
     """
-    if (dataset == "era5") or (dataset == "imerg"):
-        date = pd.to_datetime(filename[-14:-4])
-    elif dataset == "seas5":
-        date = pd.to_datetime(filename[-18:-8])
-    else:
-        raise Exception("Input `dataset` must be one of: imerg, era5, seas5")
-    return pd.to_datetime(date)
+    res = re.search("([0-9]{4}-[0-9]{2}-[0-9]{2})", filename)
+    return pd.to_datetime(res[0])

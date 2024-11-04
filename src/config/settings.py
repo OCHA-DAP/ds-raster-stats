@@ -40,7 +40,7 @@ def parse_pipeline_config(dataset, test, update, mode):
     if not end_date:
         end_date = date.today() - timedelta(days=1)
     if update:
-        last_update = get_most_recent_date(mode, config["blob_prefix"], dataset)
+        last_update = get_most_recent_date(mode, config["blob_prefix"])
         start_date = last_update
         end_date = last_update
     return start_date, end_date, forecast, sel_iso3s

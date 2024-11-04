@@ -8,7 +8,7 @@ from src.utils.general_utils import get_most_recent_date
 
 load_dotenv()
 
-
+UPSAMPLED_RESOLUTION = 0.05
 LOG_LEVEL = "INFO"
 AZURE_DB_PW_DEV = os.getenv("AZURE_DB_PW_DEV")
 AZURE_DB_PW_PROD = os.getenv("AZURE_DB_PW_PROD")

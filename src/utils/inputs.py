@@ -11,6 +11,7 @@ def cli_args():
         help="Dataset for which to calculate raster stats",
         choices=["seas5", "era5", "imerg", "floodscan"],
         default=None,
+        nargs="?",
     )
     parser.add_argument(
         "--mode",
@@ -26,8 +27,13 @@ def cli_args():
         action="store_true",
     )
     parser.add_argument(
-        "--build-iso3",
-        help="""Builds the `iso3` table in Postgres""",
+        "--update-stats",
+        help="""Calculates stats based on recently updated data""",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--update-metadata",
+        help="Update the iso3 and polygon metadata tables.",
         action="store_true",
     )
     return parser.parse_args()

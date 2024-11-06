@@ -8,24 +8,10 @@ import xarray as xr
 
 from src.config.settings import load_pipeline_config
 from src.utils.cloud_utils import get_cog_url, get_container_client
+from src.utils.general_utils import parse_date
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level="DEBUG", logger=logger)
-
-
-def parse_date(filename, dataset):
-    """
-    Parses the date based on a COG filename.
-    """
-    if (dataset == "era5") or (dataset == "imerg"):
-        date = pd.to_datetime(filename[-14:-4])
-    elif dataset == "seas5":
-        date = pd.to_datetime(filename[-18:-8])
-    elif dataset == "floodscan":
-        date = pd.to_datetime(filename[-21:-11])
-    else:
-        raise Exception("Input `dataset` must be one of: floodscan, imerg, era5, seas5")
-    return pd.to_datetime(date)
 
 
 # TODO: Update now that IMERG data has the right .attrs metadata
@@ -187,10 +173,8 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
     cogs_list = [
         x.name
         for x in container_client.list_blobs(name_starts_with=prefix)
-        if (parse_date(x.name, dataset) >= start_date)
-        & (parse_date(x.name, dataset) <= end_date)  # noqa
+        if (parse_date(x.name) >= start_date) & (parse_date(x.name) <= end_date)  # noqa
     ]
-
     if len(cogs_list) == 0:
         raise Exception("No COGs found to process")
 
@@ -213,3 +197,49 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
     # Note that we're dropping all attributes here
     ds = xr.combine_by_coords(das, combine_attrs="drop")
     return ds
+
+
+# TODO: Might not scale well as we get more files in the blob
+def get_most_recent_date(mode, name_prefix, dataset):
+    """
+    Find files with the most recent date in their filename from Azure blob storage.
+
+    This function searches through Azure blob storage for files that start with the
+    given prefix and match the date pattern for the specified dataset. It returns
+    all files that match the most recent date found.
+
+    Parameters
+    ----------
+    mode : str
+        The mode in which the database is being accessed (e.g., 'local', 'dev').
+    name_prefix : str
+        The prefix of the filename before the date portion.
+        For example, 'seas5/monthly/processed/precip_em_i'.
+    dataset : str
+        Type of dataset. Must be one of: 'imerg', 'era5', 'seas5'.
+        This determines how the date is extracted from the filename.
+
+    Returns
+    -------
+    list of str
+        Names of all files that match the most recent date. Empty list if no
+        matching files are found.
+    """
+    container_client = get_container_client(mode, "raster")
+    blobs = container_client.list_blobs(name_starts_with=name_prefix)
+    file_dates = {}
+
+    for blob in blobs:
+        try:
+            date = parse_date(blob.name)
+            file_dates[blob.name] = date
+        except (ValueError, IndexError) as e:
+            print(f"Skipping {blob.name}: {str(e)}")
+            continue
+
+    if not file_dates:
+        return []
+
+    most_recent_date = max(file_dates.values())
+
+    return most_recent_date

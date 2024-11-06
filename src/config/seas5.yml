@@ -1,6 +1,6 @@
 blob_prefix: seas5/monthly/processed/precip_em_i
 start_date: 1981-01-01
-end_date: 2024-10-30
+end_date: Null
 forecast: True
 extra_dims:
   - leadtime

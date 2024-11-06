@@ -1,5 +1,4 @@
 import os
-from io import BytesIO
 
 from azure.storage.blob import ContainerClient
 
@@ -58,35 +57,3 @@ def get_cog_url(mode, cog_name):
         return "test_outputs/" + cog_name
     blob_sas = os.getenv(f"DSCI_AZ_SAS_{mode.upper()}")
     return f"https://imb0chd0{mode}.blob.core.windows.net/raster/{cog_name}?{blob_sas}"
-
-
-def write_output_stats(df, fname, mode="dev"):
-    """
-    Write a DataFrame to a Parquet file either locally or to Azure Blob Storage.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        The DataFrame containing the data to be saved.
-    fname : str
-        The filename or blob name for the output Parquet file.
-    mode : str, optional
-        The mode of operation. If set to "local", the DataFrame is saved to a
-        local Parquet file. Otherwise, the DataFrame is uploaded as a Parquet
-        file to Azure Blob Storage. Default is "dev".
-
-    Returns
-    -------
-    None
-    """
-    if mode == "local":
-        df.to_parquet(fname, engine="pyarrow", index=False)
-    else:
-        # Convert the DataFrame to a Parquet file in memory
-        parquet_buffer = BytesIO()
-        df.to_parquet(parquet_buffer, engine="pyarrow", index=False)
-        parquet_buffer.seek(0)  # Rewind the buffer
-        container_client = get_container_client(mode, "tabular")
-        data = parquet_buffer.getvalue()
-        container_client.upload_blob(name=fname, data=data, overwrite=True)
-    return

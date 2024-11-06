@@ -9,7 +9,7 @@ import geopandas as gpd
 import pandas as pd
 from sqlalchemy import create_engine
 
-from src.config.settings import LOG_LEVEL, load_pipeline_config, parse_pipeline_config
+from src.config.settings import LOG_LEVEL, UPSAMPLED_RESOLUTION, parse_pipeline_config
 from src.utils.cog_utils import stack_cogs
 from src.utils.database_utils import (
     create_dataset_table,
@@ -21,6 +21,7 @@ from src.utils.database_utils import (
 from src.utils.general_utils import split_date_range
 from src.utils.inputs import cli_args
 from src.utils.iso3_utils import create_iso3_df, get_iso3_data, load_shp_from_azure
+from src.utils.metadata_utils import process_polygon_metadata
 from src.utils.raster_utils import fast_zonal_stats_runner, prep_raster
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,7 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
     try:
         for _, row in df_iso3s.iterrows():
             iso3 = row["iso3"]
+            # shp_url = row["o_shp"]
             max_adm = row["max_adm_level"]
             logger.info(f"Processing data for {iso3}...")
 
@@ -109,21 +111,30 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
 
 if __name__ == "__main__":
     args = cli_args()
-    dataset = args.dataset
-    logger.info(f"Updating data for {dataset}...")
 
     engine_url = db_engine_url(args.mode)
     engine = create_engine(engine_url)
 
-    create_qa_table(engine)
-    settings = load_pipeline_config(dataset)
-    start, end, is_forecast, extra_dims = parse_pipeline_config(settings, args.test)
-    create_dataset_table(dataset, engine, is_forecast, extra_dims)
-    if args.build_iso3:
-        logger.info("Creating ISO3 table in Postgres database...")
+    if args.update_metadata:
+        logger.info("Updating metadata in Postgres database...")
         create_iso3_df(engine)
+        process_polygon_metadata(
+            engine,
+            args.mode,
+            upsampled_resolution=UPSAMPLED_RESOLUTION,
+            sel_iso3s=None,
+        )
+        sys.exit(0)
 
-    sel_iso3s = settings["test"]["iso3s"] if args.test else None
+    dataset = args.dataset
+    logger.info(f"Updating data for {dataset}...")
+
+    create_qa_table(engine)
+    start, end, is_forecast, sel_iso3s = parse_pipeline_config(
+        dataset, args.test, args.update_stats, args.mode
+    )
+    create_dataset_table(dataset, engine, is_forecast)
+
     df_iso3s = get_iso3_data(sel_iso3s, engine)
     date_ranges = split_date_range(start, end)
 

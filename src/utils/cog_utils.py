@@ -173,8 +173,10 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
     cogs_list = [
         x.name
         for x in container_client.list_blobs(name_starts_with=prefix)
-        if (parse_date(x.name) >= start_date) & (parse_date(x.name) <= end_date)  # noqa
+        if (parse_date(x.name) >= start_date)
+        & (parse_date(x.name) <= end_date)  # noqa
     ]
+
     if len(cogs_list) == 0:
         raise Exception("No COGs found to process")
 

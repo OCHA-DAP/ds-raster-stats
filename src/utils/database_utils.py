@@ -56,6 +56,8 @@ def create_dataset_table(dataset, engine, is_forecast=False, extra_dims=[]):
     -------
     None
     """
+    if extra_dims is None:
+        extra_dims = []
     metadata = MetaData()
     columns = [
         Column("iso3", CHAR(3)),

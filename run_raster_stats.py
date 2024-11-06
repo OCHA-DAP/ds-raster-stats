@@ -130,10 +130,10 @@ if __name__ == "__main__":
     logger.info(f"Updating data for {dataset}...")
 
     create_qa_table(engine)
-    start, end, is_forecast, sel_iso3s = parse_pipeline_config(
+    start, end, is_forecast, sel_iso3s, extra_dims = parse_pipeline_config(
         dataset, args.test, args.update_stats, args.mode
     )
-    create_dataset_table(dataset, engine, is_forecast)
+    create_dataset_table(dataset, engine, is_forecast, extra_dims)
 
     df_iso3s = get_iso3_data(sel_iso3s, engine)
     date_ranges = split_date_range(start, end)

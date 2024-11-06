@@ -35,7 +35,7 @@ def db_engine_url(mode):
     return DATABASES[mode]
 
 
-def create_dataset_table(dataset, engine, is_forecast=False, extra_dims=[]):
+def create_dataset_table(dataset, engine, is_forecast=False, extra_dims=None):
     """
     Create a table for storing dataset statistics in the database.
 
@@ -48,11 +48,14 @@ def create_dataset_table(dataset, engine, is_forecast=False, extra_dims=[]):
     is_forecast : Bool
         Whether or not the dataset is a forecast. Will include `leadtime` and
         `issued_date` columns if so.
-
+    extra_dims: List
+        List containing the name of the extra dimensions
     Returns
     -------
     None
     """
+    if extra_dims is None:
+        extra_dims = []
     metadata = MetaData()
     columns = [
         Column("iso3", CHAR(3)),

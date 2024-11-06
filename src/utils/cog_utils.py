@@ -14,19 +14,6 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level="DEBUG", logger=logger)
 
 
-def parse_date(filename, dataset):
-    """
-    Parses the date based on a COG filename.
-    """
-    if (dataset == "era5") or (dataset == "imerg"):
-        date = pd.to_datetime(filename[-14:-4])
-    elif dataset == "seas5":
-        date = pd.to_datetime(filename[-18:-8])
-    else:
-        raise Exception("Input `dataset` must be one of: imerg, era5, seas5")
-    return pd.to_datetime(date)
-
-
 # TODO: Update now that IMERG data has the right .attrs metadata
 def process_imerg(cog_name, mode):
     """
@@ -184,8 +171,8 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
     cogs_list = [
         x.name
         for x in container_client.list_blobs(name_starts_with=prefix)
-        if (parse_date(x.name, dataset) >= start_date)
-        & (parse_date(x.name, dataset) <= end_date)  # noqa
+        if (parse_date(x.name) >= start_date)
+        & (parse_date(x.name) <= end_date)  # noqa
     ]
 
     if len(cogs_list) == 0:

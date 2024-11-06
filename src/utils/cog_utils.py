@@ -141,7 +141,7 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
     end_date : str or datetime-like
         The end date of the date range for stacking the COGs. This can be a string or a datetime object.
     dataset : str, optional
-        The name of the dataset to retrieve COGs from. Options include "era5", "imerg", and "seas5".
+        The name of the dataset to retrieve COGs from. Options include "floodscan", "era5", "imerg", and "seas5".
         Default is "era5".
     mode : str, optional
         The environment mode to use when accessing the cloud storage container. May be "dev", "prod", or "local".
@@ -166,7 +166,9 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
         config = load_pipeline_config(dataset)
         prefix = config["blob_prefix"]
     except Exception:
-        logger.error("Input `dataset` must be one of `era5`, `seas5`, or `imerg`.")
+        logger.error(
+            "Input `dataset` must be one of `floodscan`, `era5`, `seas5`, or `imerg`."
+        )
 
     cogs_list = [
         x.name

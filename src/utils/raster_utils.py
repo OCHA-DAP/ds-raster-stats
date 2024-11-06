@@ -16,6 +16,17 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
 
+def validate_dimensions(ds):
+    required_dims = {"x", "y", "date"}
+    missing_dims = required_dims - set(ds.dims)
+    if missing_dims:
+        raise ValueError(f"Dataset missing required dimensions: {missing_dims}")
+    # Get the fourth dimension if it exists (not x, y, or date)
+    dims = list(ds.dims)
+    fourth_dim = next((dim for dim in dims if dim not in {"x", "y", "date"}), None)
+    return fourth_dim
+
+
 def fast_zonal_stats_runner(
     ds,
     gdf,
@@ -35,7 +46,8 @@ def fast_zonal_stats_runner(
     Parameters
     ----------
     ds : xarray.Dataset
-        The input raster dataset. Should have the following dimensions: `x`, `y`, `date`, `leadtime` (optional).
+        The input raster dataset. Must have dimensions 'x', 'y', and 'date',
+        with an optional fourth dimension (e.g., 'band' or 'leadtime').
     gdf : geopandas.GeoDataFrame
         A GeoDataFrame containing the administrative boundaries.
     adm_level : int
@@ -65,7 +77,8 @@ def fast_zonal_stats_runner(
         logger = logging.getLogger(__name__)
         logger.addHandler(logging.NullHandler())
 
-    # TODO: Pre-compute and save
+    fourth_dim = validate_dimensions(ds)
+
     # Rasterize the adm bounds
     src_transform = ds.rio.transform()
     src_width = ds.rio.width
@@ -77,14 +90,14 @@ def fast_zonal_stats_runner(
     n_adms = len(adm_ids)
 
     outputs = []
-    # TODO: Can this be vectorized further?
     for date in ds.date.values:
         logger.debug(f"Calculating for {date}...")
         ds_sel = ds.sel(date=date)
-        if "leadtime" in ds_sel.dims:
-            for lt in ds_sel.leadtime.values:
-                ds__ = ds_sel.sel(leadtime=lt)
-                # Some leadtime/date combos are invalid and so don't have any data
+
+        if fourth_dim:  # 4D case
+            for val in ds_sel[fourth_dim].values:
+                ds__ = ds_sel.sel({fourth_dim: val})
+                # Skip if all values are NaN
                 if bool(np.all(np.isnan(ds__.values))):
                     continue
                 results = fast_zonal_stats(
@@ -92,12 +105,14 @@ def fast_zonal_stats_runner(
                 )
                 for i, result in enumerate(results):
                     result["valid_date"] = date
-                    result["issued_date"] = add_months_to_date(date, -lt)
+                    # Special handling for leadtime dimension
+                    if fourth_dim == "leadtime":
+                        result["issued_date"] = add_months_to_date(date, -val)
                     result["pcode"] = adm_ids[i]
                     result["adm_level"] = adm_level
-                    result["leadtime"] = lt
+                    result[fourth_dim] = val  # Store the fourth dimension value
                 outputs.extend(results)
-        else:
+        else:  # 3D case
             results = fast_zonal_stats(
                 ds_sel.values, admin_raster, n_adms, stats=stats, rast_fill=rast_fill
             )
@@ -215,7 +230,8 @@ def upsample_raster(ds, resampled_resolution=UPSAMPLED_RESOLUTION, logger=None):
     Parameters
     ----------
     ds : xarray.Dataset
-        The raster data set to upsample. Must not have >4 dimensions.
+        The raster data set to upsample. Must have dimensions 'x', 'y', and 'date',
+        with an optional fourth dimension (e.g., 'band' or 'leadtime').
     resampled_resolution : float, optional
         The desired resolution for the upsampled raster.
 
@@ -227,6 +243,8 @@ def upsample_raster(ds, resampled_resolution=UPSAMPLED_RESOLUTION, logger=None):
     if logger is None:
         logger = logging.getLogger(__name__)
         logger.addHandler(logging.NullHandler())
+
+    fourth_dim = validate_dimensions(ds)
 
     # Assuming square resolution
     input_resolution = ds.rio.resolution()[0]
@@ -249,45 +267,29 @@ def upsample_raster(ds, resampled_resolution=UPSAMPLED_RESOLUTION, logger=None):
         )
         ds = ds.rio.write_crs("EPSG:4326")
 
-    # Forecast data will have 4 dims, since we have a leadtime
-    nd = len(list(ds.dims))
-    if nd == 4:
+    if fourth_dim:  # 4D case
         resampled_arrays = []
-
-        # TODO: fix the rioxarray.exceptions.NoDataInBounds: Unable to determine bounds from coordinates. here
-        if 'band' in ds.dims:
-            for band in ds.band.values:
-                ds_ = ds.sel(band=band)
-                ds_ = ds_.rio.reproject(
-                    ds_.rio.crs,
-                    shape=(new_height, new_width),
-                    resampling=Resampling.nearest,
-                    nodata=np.nan,
-                )
-                ds_ = ds_.expand_dims(["band"])
-                resampled_arrays.append(ds_)
-        else:
-            for lt in ds.leadtime.values:
-                ds_ = ds.sel(leadtime=lt)
-                ds_ = ds_.rio.reproject(
-                    ds_.rio.crs,
-                    shape=(new_height, new_width),
-                    resampling=Resampling.nearest,
-                    nodata=np.nan,
-                )
-                ds_ = ds_.expand_dims(["leadtime"])
-                resampled_arrays.append(ds_)
+        
+        for val in ds[fourth_dim].values:
+            ds_ = ds.sel({fourth_dim: val})
+            ds_ = ds_.rio.reproject(
+                ds_.rio.crs,
+                shape=(new_height, new_width),
+                resampling=Resampling.nearest,
+                nodata=np.nan,
+            )
+            # Expand along the fourth dimension
+            ds_ = ds_.expand_dims([fourth_dim])
+            resampled_arrays.append(ds_)
 
         ds_resampled = xr.combine_by_coords(resampled_arrays, combine_attrs="drop")
-    elif (nd == 2) or (nd == 3):
+    else:  # 3D case (x, y, date)
         ds_resampled = ds.rio.reproject(
             ds.rio.crs,
             shape=(new_height, new_width),
             resampling=Resampling.nearest,
             nodata=np.nan,
         )
-    else:
-        raise Exception("Input Dataset must have 2, 3, or 4 dimensions.")
 
     return ds_resampled
 

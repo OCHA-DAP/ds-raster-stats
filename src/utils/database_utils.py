@@ -35,7 +35,7 @@ def db_engine_url(mode):
     return DATABASES[mode]
 
 
-def create_dataset_table(dataset, engine, is_forecast=False, extra_dims=[]):
+def create_dataset_table(dataset, engine, is_forecast=False, extra_dims={}):
     """
     Create a table for storing dataset statistics in the database.
 
@@ -48,16 +48,16 @@ def create_dataset_table(dataset, engine, is_forecast=False, extra_dims=[]):
     is_forecast : Bool
         Whether or not the dataset is a forecast. Will include `leadtime` and
         `issued_date` columns if so.
-    extra_dims : List
-        A list of the names of any extra dimensions that need to be added to the
-        dataset table.
+    extra_dims : dict
+        Dictionary where the keys are names of any extra dimensions that need to be added to the
+        dataset table and the values are the type.
 
     Returns
     -------
     None
     """
     if extra_dims is None:
-        extra_dims = []
+        extra_dims = {}
     metadata = MetaData()
     columns = [
         Column("iso3", CHAR(3)),
@@ -77,8 +77,7 @@ def create_dataset_table(dataset, engine, is_forecast=False, extra_dims=[]):
     if is_forecast:
         columns.insert(3, Column("issued_date", Date))
     for idx, dim in enumerate(extra_dims):
-        # TODO: Support non-integer columns
-        columns.insert(idx + 4, Column(dim, Integer))
+        columns.insert(idx + 4, Column(dim, extra_dims[dim]))
         unique_constraint_columns.append(dim)
 
     Table(

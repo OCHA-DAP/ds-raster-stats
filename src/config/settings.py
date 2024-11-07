@@ -3,6 +3,7 @@ from datetime import date, timedelta
 
 import yaml
 from dotenv import load_dotenv
+from sqlalchemy import Integer, VARCHAR
 
 from src.utils.general_utils import get_most_recent_date
 
@@ -25,6 +26,19 @@ def load_pipeline_config(pipeline_name):
         config = yaml.safe_load(config_file)
     return config
 
+ # TODO shift this to some utils?
+def parse_extra_dims(extra_dims):
+
+    parsed_extra_dims = {}
+    for extra_dim in extra_dims:
+        dim = next(iter(extra_dim))
+        if extra_dim[dim] == 'str':
+            parsed_extra_dims[dim] = VARCHAR
+        else:
+            parsed_extra_dims[dim] = Integer
+
+    return parsed_extra_dims
+
 
 def parse_pipeline_config(dataset, test, update, mode):
     config = load_pipeline_config(dataset)
@@ -37,7 +51,7 @@ def parse_pipeline_config(dataset, test, update, mode):
         end_date = config["end_date"]
         sel_iso3s = None
     forecast = config["forecast"]
-    extra_dims = config.get("extra_dims", [])
+    extra_dims = parse_extra_dims(config.get("extra_dims"))
     if not end_date:
         end_date = date.today() - timedelta(days=1)
     if update:

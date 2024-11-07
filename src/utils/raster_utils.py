@@ -279,7 +279,11 @@ def upsample_raster(ds, resampled_resolution=UPSAMPLED_RESOLUTION, logger=None):
                 nodata=np.nan,
             )
             # Expand along the fourth dimension
-            ds_ = ds_.expand_dims([fourth_dim])
+            if fourth_dim == "band":
+                # Falls under different bands, use the long_name instead of integer value
+                ds_ = ds_.expand_dims({'band': [ds_.long_name[val-1]]})
+            else:
+                ds_ = ds_.expand_dims([fourth_dim])
             resampled_arrays.append(ds_)
 
         ds_resampled = xr.combine_by_coords(resampled_arrays, combine_attrs="drop")

@@ -1,5 +1,5 @@
 blob_prefix: floodscan/daily/v5/processed/aer_area_300s_
-start_date: 2023-01-01
+start_date: 1998-01-12
 end_date: Null
 forecast: False
 extra_dims:

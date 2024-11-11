@@ -45,7 +45,7 @@ def setup_logger(name, level=logging.INFO):
     return logger
 
 
-def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
+def process_chunk(start, end, dataset, mode, df_iso3s, engine_url, chunksize):
     process_name = current_process().name
     logger = setup_logger(f"{process_name}: {dataset}_{start}")
     logger.info(f"Starting processing for {dataset} from {start} to {end}")
@@ -100,7 +100,7 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
                         con=engine,
                         if_exists="append",
                         index=False,
-                        chunksize=1000,
+                        chunksize=chunksize,
                         method=postgres_upsert,
                     )
                 except Exception as e:
@@ -151,7 +151,7 @@ if __name__ == "__main__":
         )
 
         process_args = [
-            (start, end, dataset, args.mode, df_iso3s, engine_url)
+            (start, end, dataset, args.mode, df_iso3s, engine_url, args.chunksize)
             for start, end in date_ranges
         ]
 
@@ -160,6 +160,6 @@ if __name__ == "__main__":
 
     else:
         logger.info("Processing entire date range in a single chunk")
-        process_chunk(start, end, dataset, args.mode, df_iso3s, engine_url)
+        process_chunk(start, end, dataset, args.mode, df_iso3s, engine_url, args.chunksize)
 
     logger.info("Done calculating and saving stats.")

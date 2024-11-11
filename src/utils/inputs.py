@@ -36,4 +36,10 @@ def cli_args():
         help="Update the iso3 and polygon metadata tables.",
         action="store_true",
     )
+    parser.add_argument(
+        "--chunksize",
+        help="Limit the SQL insert batches to an specific chunksize.",
+        type=int,
+        default=100000,
+    )
     return parser.parse_args()

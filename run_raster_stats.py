@@ -100,6 +100,7 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
                         con=engine,
                         if_exists="append",
                         index=False,
+                        chunksize=1000,
                         method=postgres_upsert,
                     )
                 except Exception as e:

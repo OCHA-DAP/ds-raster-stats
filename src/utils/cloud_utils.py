@@ -42,9 +42,9 @@ def get_container_client(mode, container_name):
     )
     TODO add back
     """
-    blob_sas = os.getenv(f"DSCI_AZ_SAS_DEV")
+    blob_sas = os.getenv(f"DSCI_AZ_SAS_PROD")
     blob_url = (
-            f"https://imb0chd0dev.blob.core.windows.net/"
+            f"https://imb0chd0prod.blob.core.windows.net/"
             + container_name  # noqa
             + "?"  # noqa
             + blob_sas  # noqa
@@ -74,5 +74,5 @@ def get_cog_url(mode, cog_name):
         return "test_outputs/" + cog_name
     #TODO add back blob_sas = os.getenv(f"DSCI_AZ_SAS_{mode.upper()}")
     #return f"https://imb0chd0{mode}.blob.core.windows.net/raster/{cog_name}?{blob_sas}"
-    blob_sas = os.getenv(f"DSCI_AZ_SAS_DEV")
-    return f"https://imb0chd0dev.blob.core.windows.net/raster/{cog_name}?{blob_sas}"
+    blob_sas = os.getenv(f"DSCI_AZ_SAS_PROD")
+    return f"https://imb0chd0prod.blob.core.windows.net/raster/{cog_name}?{blob_sas}"

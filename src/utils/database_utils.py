@@ -133,6 +133,7 @@ def create_iso3_table(engine):
         Column("max_adm_level", Integer),
         Column("stats_last_updated", Date),
         Column("shp_url", String),
+        Column("floodscan", Boolean),
     )
     metadata.create_all(engine)
 

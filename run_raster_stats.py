@@ -57,6 +57,12 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url):
         for _, row in df_iso3s.iterrows():
             iso3 = row["iso3"]
             max_adm = row["max_adm_level"]
+
+            # Coverage check for specific datasets
+            if dataset in df_iso3s.keys() :
+                if not row[dataset]:
+                    logger.info(f"Skipping {iso3}...")
+                    continue
             logger.info(f"Processing data for {iso3}...")
 
             with tempfile.TemporaryDirectory() as td:

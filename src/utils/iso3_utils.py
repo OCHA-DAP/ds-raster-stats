@@ -178,6 +178,10 @@ def create_iso3_df(engine):
         )
         & (df_hrp["endDate"] >= current_date)  # noqa
     ]
+
+    # TODO add info on how to retrieve this file
+    floodscan_iso3_coverage = pd.read_csv("data/floodscan_iso3s.csv")['iso3'].tolist()
+
     iso3_codes = set()
     for locations in df_active_hrp["locations"]:
         iso3_codes.update(locations.split("|"))
@@ -186,6 +190,7 @@ def create_iso3_df(engine):
     df["has_active_hrp"] = df["iso_3"].isin(iso3_codes)
     df["max_adm_level"] = df.apply(determine_max_adm_level, axis=1)
     df["stats_last_updated"] = None
+    df["floodscan"] = df["iso_3"].isin(floodscan_iso3_coverage)
 
     # TODO: This list seems to have some inconsistencies when compared against the
     # contents of all polygons

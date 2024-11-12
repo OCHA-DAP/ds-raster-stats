@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 import yaml
 from dotenv import load_dotenv
-from sqlalchemy import Integer, VARCHAR
+from sqlalchemy import VARCHAR, Integer
 
 from src.utils.general_utils import get_most_recent_date
 
@@ -26,13 +26,13 @@ def load_pipeline_config(pipeline_name):
         config = yaml.safe_load(config_file)
     return config
 
- # TODO shift this to some utils?
-def parse_extra_dims(extra_dims):
 
+# TODO shift this to some utils?
+def parse_extra_dims(extra_dims):
     parsed_extra_dims = {}
     for extra_dim in extra_dims:
         dim = next(iter(extra_dim))
-        if extra_dim[dim] == 'str':
+        if extra_dim[dim] == "str":
             parsed_extra_dims[dim] = VARCHAR
         else:
             parsed_extra_dims[dim] = Integer

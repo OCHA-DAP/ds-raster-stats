@@ -59,7 +59,7 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url, chunksize):
             max_adm = row["max_adm_level"]
 
             # Coverage check for specific datasets
-            if dataset in df_iso3s.keys() :
+            if dataset in df_iso3s.keys():
                 if not row[dataset]:
                     logger.info(f"Skipping {iso3}...")
                     continue
@@ -160,6 +160,8 @@ if __name__ == "__main__":
 
     else:
         logger.info("Processing entire date range in a single chunk")
-        process_chunk(start, end, dataset, args.mode, df_iso3s, engine_url, args.chunksize)
+        process_chunk(
+            start, end, dataset, args.mode, df_iso3s, engine_url, args.chunksize
+        )
 
     logger.info("Done calculating and saving stats.")

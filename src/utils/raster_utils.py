@@ -281,11 +281,10 @@ def upsample_raster(ds, resampled_resolution=UPSAMPLED_RESOLUTION, logger=None):
             # Expand along the fourth dimension
             if fourth_dim == "band":
                 # Falls under different bands, use the long_name instead of integer value
-                #ds_ = ds_.expand_dims({'band': [ds_.long_name[val-1]]})
-                if int(ds_['band']) ==1 :
-                    ds_ = ds_.expand_dims({'band': ['SFED']})
+                if int(ds_["band"]) == 1:
+                    ds_ = ds_.expand_dims({"band": ["SFED"]})
                 else:
-                    ds_ = ds_.expand_dims({'band': ['MFED']})
+                    ds_ = ds_.expand_dims({"band": ["MFED"]})
             else:
                 ds_ = ds_.expand_dims([fourth_dim])
             resampled_arrays.append(ds_)

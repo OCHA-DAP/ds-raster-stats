@@ -180,7 +180,7 @@ def create_iso3_df(engine):
     ]
 
     # TODO add info on how to retrieve this file
-    floodscan_iso3_coverage = pd.read_csv("data/floodscan_iso3s.csv")['iso3'].tolist()
+    floodscan_iso3_coverage = pd.read_csv("data/floodscan_iso3s.csv")["iso3"].tolist()
 
     iso3_codes = set()
     for locations in df_active_hrp["locations"]:

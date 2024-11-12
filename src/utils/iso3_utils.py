@@ -8,6 +8,7 @@ import pandas as pd
 import requests
 from sqlalchemy import text
 
+from src.config.settings import load_pipeline_config
 from src.utils.cloud_utils import get_container_client
 from src.utils.database_utils import create_iso3_table
 
@@ -144,6 +145,19 @@ def determine_max_adm_level(row):
         return min(1, row["src_lvl"])
 
 
+def load_coverage():
+    pipelines = ["seas5", "era5", "imerg", "floodscan"]
+    coverage = {}
+
+    for dataset in pipelines:
+        config = load_pipeline_config(dataset)
+        if "coverage" in config:
+            dataset_coverage = config["coverage"]
+            coverage[dataset] = dataset_coverage
+
+    return coverage
+
+
 def create_iso3_df(engine):
     """
     Create and populate an ISO3 table in the database with country information.
@@ -178,9 +192,7 @@ def create_iso3_df(engine):
         )
         & (df_hrp["endDate"] >= current_date)  # noqa
     ]
-
-    # TODO add info on how to retrieve this file
-    floodscan_iso3_coverage = pd.read_csv("data/floodscan_iso3s.csv")["iso3"].tolist()
+    dataset_coverage = load_coverage()
 
     iso3_codes = set()
     for locations in df_active_hrp["locations"]:
@@ -190,7 +202,9 @@ def create_iso3_df(engine):
     df["has_active_hrp"] = df["iso_3"].isin(iso3_codes)
     df["max_adm_level"] = df.apply(determine_max_adm_level, axis=1)
     df["stats_last_updated"] = None
-    df["floodscan"] = df["iso_3"].isin(floodscan_iso3_coverage)
+
+    for dataset in dataset_coverage:
+        df[dataset] = df["iso_3"].isin(dataset_coverage[dataset])
 
     # TODO: This list seems to have some inconsistencies when compared against the
     # contents of all polygons

@@ -16,6 +16,8 @@ jupyter:
 
 This notebook investigates the source of some grid misalignment identified during preparation of the source raster data. We're looking at a sample SEAS5 COG and demonstrating how the order of clipping and resampling operations can impact the output raster stats.
 
+Update: After further investigation, see [this comment](https://github.com/OCHA-DAP/ds-raster-stats/pull/13#issuecomment-2463353673) for a potential solution.
+
 ```python
 from src.utils.raster_utils import upsample_raster
 from src.utils.cog_utils import get_cog_url

@@ -288,6 +288,19 @@ def dataset_with_leadtime(dataset_with_time):
     return ds
 
 
+def test_basic_upsampling(simple_dataset):
+    """Test basic upsampling of a 2D dataset."""
+    target_res = 0.5  # Upsample from 1.0 to 0.5 degrees
+    result = upsample_raster(simple_dataset, resampled_resolution=target_res)
+
+    # Check output resolution
+    assert result.rio.resolution()[0] == target_res
+
+    # Check output dimensions doubled (since resolution halved)
+    assert result.rio.width == simple_dataset.rio.width * 2
+    assert result.rio.height == simple_dataset.rio.height * 2
+
+
 def test_upsampling_with_time(dataset_with_time):
     """Test upsampling of a 3D dataset with time dimension."""
     target_res = 0.5

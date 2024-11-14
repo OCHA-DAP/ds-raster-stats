@@ -269,7 +269,7 @@ def upsample_raster(ds, resampled_resolution=UPSAMPLED_RESOLUTION, logger=None):
 
     if fourth_dim:  # 4D case
         resampled_arrays = []
-        
+
         for val in ds[fourth_dim].values:
             ds_ = ds.sel({fourth_dim: val})
             ds_ = ds_.rio.reproject(

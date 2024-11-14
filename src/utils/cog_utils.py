@@ -115,7 +115,7 @@ def process_floodscan(cog_name, mode):
 
     year_valid = da_in.attrs["year_valid"]
     month_valid = str(da_in.attrs["month_valid"]).zfill(2)
-    date_valid = cog_name[-13:-11]  # TODO: Change once attr is updated correctly
+    date_valid = str(da_in.attrs["date_valid"]).zfill(2)
     date_in = f"{year_valid}-{month_valid}-{date_valid}"
 
     da_in = da_in.squeeze(drop=True)
@@ -173,8 +173,7 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
     cogs_list = [
         x.name
         for x in container_client.list_blobs(name_starts_with=prefix)
-        if (parse_date(x.name) >= start_date)
-        & (parse_date(x.name) <= end_date)  # noqa
+        if (parse_date(x.name) >= start_date) & (parse_date(x.name) <= end_date)  # noqa
     ]
 
     if len(cogs_list) == 0:

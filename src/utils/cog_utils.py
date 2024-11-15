@@ -109,6 +109,23 @@ def process_seas5(cog_name, mode):
     return da_in
 
 
+def process_floodscan(cog_name, mode):
+    cog_url = get_cog_url(mode, cog_name)
+    da_in = rxr.open_rasterio(cog_url, chunks="auto")
+
+    year_valid = da_in.attrs["year_valid"]
+    month_valid = str(da_in.attrs["month_valid"]).zfill(2)
+    date_valid = str(da_in.attrs["date_valid"]).zfill(2)
+    date_in = f"{year_valid}-{month_valid}-{date_valid}"
+
+    da_in = da_in.squeeze(drop=True)
+    da_in["date"] = date_in
+    da_in = da_in.expand_dims(["date"])
+
+    da_in = da_in.persist()
+    return da_in
+
+
 def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
     """
     Stack Cloud Optimized GeoTIFFs (COGs) for a specified date range into an xarray Dataset.
@@ -124,7 +141,7 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
     end_date : str or datetime-like
         The end date of the date range for stacking the COGs. This can be a string or a datetime object.
     dataset : str, optional
-        The name of the dataset to retrieve COGs from. Options include "era5", "imerg", and "seas5".
+        The name of the dataset to retrieve COGs from. Options include "floodscan", "era5", "imerg", and "seas5".
         Default is "era5".
     mode : str, optional
         The environment mode to use when accessing the cloud storage container. May be "dev", "prod", or "local".
@@ -149,13 +166,16 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
         config = load_pipeline_config(dataset)
         prefix = config["blob_prefix"]
     except Exception:
-        logger.error("Input `dataset` must be one of `era5`, `seas5`, or `imerg`.")
+        logger.error(
+            "Input `dataset` must be one of `floodscan`, `era5`, `seas5`, or `imerg`."
+        )
 
     cogs_list = [
         x.name
         for x in container_client.list_blobs(name_starts_with=prefix)
         if (parse_date(x.name) >= start_date) & (parse_date(x.name) <= end_date)  # noqa
     ]
+
     if len(cogs_list) == 0:
         raise Exception("No COGs found to process")
 
@@ -171,6 +191,8 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
             da_in = process_seas5(cog, mode)
         elif dataset == "imerg":
             da_in = process_imerg(cog, mode)
+        elif dataset == "floodscan":
+            da_in = process_floodscan(cog, mode)
         das.append(da_in)
 
     # Note that we're dropping all attributes here

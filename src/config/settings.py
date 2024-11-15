@@ -4,7 +4,7 @@ from datetime import date, timedelta
 import yaml
 from dotenv import load_dotenv
 
-from src.utils.general_utils import get_most_recent_date
+from src.utils.general_utils import get_most_recent_date, parse_extra_dims
 
 load_dotenv()
 
@@ -37,10 +37,11 @@ def parse_pipeline_config(dataset, test, update, mode):
         end_date = config["end_date"]
         sel_iso3s = None
     forecast = config["forecast"]
+    extra_dims = parse_extra_dims(config.get("extra_dims"))
     if not end_date:
         end_date = date.today() - timedelta(days=1)
     if update:
         last_update = get_most_recent_date(mode, config["blob_prefix"])
         start_date = last_update
         end_date = last_update
-    return start_date, end_date, forecast, sel_iso3s
+    return start_date, end_date, forecast, sel_iso3s, extra_dims

@@ -35,7 +35,7 @@ def db_engine_url(mode):
     return DATABASES[mode]
 
 
-def create_dataset_table(dataset, engine, is_forecast=False):
+def create_dataset_table(dataset, engine, is_forecast=False, extra_dims={}):
     """
     Create a table for storing dataset statistics in the database.
 
@@ -48,11 +48,16 @@ def create_dataset_table(dataset, engine, is_forecast=False):
     is_forecast : Bool
         Whether or not the dataset is a forecast. Will include `leadtime` and
         `issued_date` columns if so.
+    extra_dims : dict
+        Dictionary where the keys are names of any extra dimensions that need to be added to the
+        dataset table and the values are the type.
 
     Returns
     -------
     None
     """
+    if extra_dims is None:
+        extra_dims = {}
     metadata = MetaData()
     columns = [
         Column("iso3", CHAR(3)),
@@ -71,8 +76,9 @@ def create_dataset_table(dataset, engine, is_forecast=False):
     unique_constraint_columns = ["valid_date", "pcode"]
     if is_forecast:
         columns.insert(3, Column("issued_date", Date))
-        columns.insert(4, Column("leadtime", Integer))
-        unique_constraint_columns.append("leadtime")
+    for idx, dim in enumerate(extra_dims):
+        columns.insert(idx + 4, Column(dim, extra_dims[dim]))
+        unique_constraint_columns.append(dim)
 
     Table(
         f"{dataset}",
@@ -127,6 +133,7 @@ def create_iso3_table(engine):
         Column("max_adm_level", Integer),
         Column("stats_last_updated", Date),
         Column("shp_url", String),
+        Column("floodscan", Boolean),
     )
     metadata.create_all(engine)
 

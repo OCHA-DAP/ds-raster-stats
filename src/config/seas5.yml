@@ -2,7 +2,9 @@ blob_prefix: seas5/monthly/processed/precip_em_i
 start_date: 1981-01-01
 end_date: Null
 forecast: True
+extra_dims:
+  - leadtime : int
 test:
   start_date: 2024-01-01
-  end_date: 2024-10-01
+  end_date: 2024-02-01
   iso3s: ["AFG"]

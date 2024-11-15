@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 from dateutil.relativedelta import relativedelta
+from sqlalchemy import VARCHAR, Integer
 
 from src.utils.cloud_utils import get_container_client
 
@@ -110,3 +111,15 @@ def parse_date(filename):
     """
     res = re.search("([0-9]{4}-[0-9]{2}-[0-9]{2})", filename)
     return pd.to_datetime(res[0])
+
+
+def parse_extra_dims(extra_dims):
+    parsed_extra_dims = {}
+    for extra_dim in extra_dims:
+        dim = next(iter(extra_dim))
+        if extra_dim[dim] == "str":
+            parsed_extra_dims[dim] = VARCHAR
+        else:
+            parsed_extra_dims[dim] = Integer
+
+    return parsed_extra_dims

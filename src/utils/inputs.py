@@ -9,7 +9,7 @@ def cli_args():
     parser.add_argument(
         "dataset",
         help="Dataset for which to calculate raster stats",
-        choices=["seas5", "era5", "imerg"],
+        choices=["seas5", "era5", "imerg", "floodscan"],
         default=None,
         nargs="?",
     )
@@ -35,5 +35,11 @@ def cli_args():
         "--update-metadata",
         help="Update the iso3 and polygon metadata tables.",
         action="store_true",
+    )
+    parser.add_argument(
+        "--chunksize",
+        help="Limit the SQL insert batches to an specific chunksize.",
+        type=int,
+        default=100000,
     )
     return parser.parse_args()

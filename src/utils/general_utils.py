@@ -113,13 +113,16 @@ def parse_date(filename):
     return pd.to_datetime(res[0])
 
 
-def parse_extra_dims(extra_dims):
+def parse_extra_dims(config):
     parsed_extra_dims = {}
-    for extra_dim in extra_dims:
-        dim = next(iter(extra_dim))
-        if extra_dim[dim] == "str":
-            parsed_extra_dims[dim] = VARCHAR
-        else:
-            parsed_extra_dims[dim] = Integer
+
+    if "extra_dims" in config.keys():
+        extra_dims = config.get("extra_dims")
+        for extra_dim in extra_dims:
+            dim = next(iter(extra_dim))
+            if extra_dim[dim] == "str":
+                parsed_extra_dims[dim] = VARCHAR
+            else:
+                parsed_extra_dims[dim] = Integer
 
     return parsed_extra_dims

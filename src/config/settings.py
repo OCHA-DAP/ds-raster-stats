@@ -37,7 +37,7 @@ def parse_pipeline_config(dataset, test, update, mode):
         end_date = config["end_date"]
         sel_iso3s = None
     forecast = config["forecast"]
-    extra_dims = parse_extra_dims(config.get("extra_dims"))
+    extra_dims = parse_extra_dims(config)
     if not end_date:
         end_date = date.today() - timedelta(days=1)
     if update:

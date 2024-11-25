@@ -34,6 +34,7 @@ source venv/bin/activate
 ```
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
+pip install -e .
 ```
 
 3. Create a local `.env` file with the following environment variables:

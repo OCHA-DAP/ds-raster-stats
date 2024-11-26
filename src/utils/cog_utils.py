@@ -126,7 +126,7 @@ def process_floodscan(cog_name, mode):
     return da_in
 
 
-def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
+def stack_cogs(start_date, end_date, dataset, mode="dev"):
     """
     Stack Cloud Optimized GeoTIFFs (COGs) for a specified date range into an xarray Dataset.
 
@@ -173,11 +173,14 @@ def stack_cogs(start_date, end_date, dataset="era5", mode="dev"):
     cogs_list = [
         x.name
         for x in container_client.list_blobs(name_starts_with=prefix)
-        if (parse_date(x.name) >= start_date) & (parse_date(x.name) <= end_date)  # noqa
+        if (parse_date(x.name) >= start_date)
+        & (parse_date(x.name) <= end_date)  # noqa
     ]
 
     if len(cogs_list) == 0:
-        raise Exception("No COGs found to process")
+        raise Exception(
+            f"No COGs found to process: {start_date} to {end_date}"
+        )
 
     das = []
 

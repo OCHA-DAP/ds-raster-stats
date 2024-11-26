@@ -5,7 +5,7 @@ forecast: False
 extra_dims:
   - band : str
 test:
-  start_date: 2023-12-01
-  end_date: 2024-01-31
-  iso3s: ["ETH"]
+  start_date: 1981-01-01
+  end_date: Null
+  iso3s: ["BDI", "NGA", "TCD"]
 coverage: ["DZA", "AGO", "BEN", "BWA", "BFA", "BDI", "CPV", "CMR", "CAF", "TCD", "COM", "COG", "CIV", "CAP", "DJI", "EGY", "GNQ", "ERI", "SWZ", "ETH", "GAB", "GMB", "GHA", "GIN", "GNB", "KEN", "LS0", "LBR", "LBY", "MDG", "MWI", "MLI", "MRT", "MUS", "MAR", "MOZ", "NAM", "NER", "NGA", "RWA", "STP", "SEN", "SYC", "SLE", "SOM", "ZAF", "SSD", "SDN", "TGO", "TUN", "UGA", "TZA", "ZMB", "ZWE"]

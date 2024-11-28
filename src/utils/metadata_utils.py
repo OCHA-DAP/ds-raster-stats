@@ -7,13 +7,18 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rioxarray as rxr
+from rioxarray.exceptions import NoDataInBounds
 
 from src.config.settings import LOG_LEVEL, load_pipeline_config
 from src.utils.cloud_utils import get_container_client
 from src.utils.cog_utils import get_cog_url
 from src.utils.database_utils import create_polygon_table, postgres_upsert
 from src.utils.iso3_utils import get_iso3_data, load_shp_from_azure
-from src.utils.raster_utils import fast_zonal_stats, prep_raster, rasterize_admin
+from src.utils.raster_utils import (
+    fast_zonal_stats,
+    prep_raster,
+    rasterize_admin,
+)
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
@@ -57,12 +62,16 @@ def get_single_cog(dataset, mode):
     container_client = get_container_client(mode, "raster")
     config = load_pipeline_config(dataset)
     prefix = config["blob_prefix"]
-    cogs_list = [x.name for x in container_client.list_blobs(name_starts_with=prefix)]
+    cogs_list = [
+        x.name for x in container_client.list_blobs(name_starts_with=prefix)
+    ]
     cog_url = get_cog_url(mode, cogs_list[0])
     return rxr.open_rasterio(cog_url, chunks="auto")
 
 
-def process_polygon_metadata(engine, mode, upsampled_resolution, sel_iso3s=None):
+def process_polygon_metadata(
+    engine, mode, upsampled_resolution, sel_iso3s=None
+):
     """
     Process and store polygon metadata for all administrative levels and datasets.
 
@@ -97,28 +106,46 @@ def process_polygon_metadata(engine, mode, upsampled_resolution, sel_iso3s=None)
                     for dataset in datasets:
                         da = get_single_cog(dataset, mode)
                         input_resolution = da.rio.resolution()
-                        gdf_adm0 = gpd.read_file(f"{td}/{iso3.lower()}_adm0.shp")
+                        gdf_adm0 = gpd.read_file(
+                            f"{td}/{iso3.lower()}_adm0.shp"
+                        )
                         # We want all values to be unique, so that we can count the total
                         # number of unique cells from the raw source that contribute to the stats
                         da.values = np.arange(da.size).reshape(da.shape)
                         da = da.astype(np.float32)
+                        # Dummy `date` dimension to pass `validate_dims`
+                        da = da.expand_dims({"date": 1})
+
+                        try:
+                            da_clipped = prep_raster(da, gdf_adm0)
+                        except NoDataInBounds:
+                            logger.error(
+                                f"{dataset} has no coverage at adm level {i}"
+                            )
+                            continue
 
                         da_clipped = prep_raster(da, gdf_adm0, logger=logger)
                         output_resolution = da_clipped.rio.resolution()
-                        upscale_factor = input_resolution[0] / output_resolution[0]
+                        upscale_factor = (
+                            input_resolution[0] / output_resolution[0]
+                        )
 
                         src_transform = da_clipped.rio.transform()
                         src_width = da_clipped.rio.width
                         src_height = da_clipped.rio.height
 
                         admin_raster = rasterize_admin(
-                            gdf, src_width, src_height, src_transform, all_touched=False
+                            gdf,
+                            src_width,
+                            src_height,
+                            src_transform,
+                            all_touched=False,
                         )
                         adm_ids = gdf[f"ADM{i}_PCODE"]
                         n_adms = len(adm_ids)
 
                         results = fast_zonal_stats(
-                            da_clipped.values[0],
+                            da_clipped.values[0][0],
                             admin_raster,
                             n_adms,
                             stats=["count", "unique"],

@@ -1,7 +1,6 @@
 import logging
 
 import coloredlogs
-import pandas as pd
 import rioxarray as rxr
 import tqdm
 import xarray as xr
@@ -126,7 +125,7 @@ def process_floodscan(cog_name, mode):
     return da_in
 
 
-def stack_cogs(start_date, end_date, dataset, mode="dev"):
+def stack_cogs(dates, dataset, mode="dev"):
     """
     Stack Cloud Optimized GeoTIFFs (COGs) for a specified date range into an xarray Dataset.
 
@@ -142,7 +141,6 @@ def stack_cogs(start_date, end_date, dataset, mode="dev"):
         The end date of the date range for stacking the COGs. This can be a string or a datetime object.
     dataset : str, optional
         The name of the dataset to retrieve COGs from. Options include "floodscan", "era5", "imerg", and "seas5".
-        Default is "era5".
     mode : str, optional
         The environment mode to use when accessing the cloud storage container. May be "dev", "prod", or "local".
 
@@ -158,8 +156,6 @@ def stack_cogs(start_date, end_date, dataset, mode="dev"):
         )
         mode = "dev"
 
-    start_date = pd.to_datetime(start_date)
-    end_date = pd.to_datetime(end_date)
     container_client = get_container_client(mode, "raster")
 
     try:
@@ -173,14 +169,17 @@ def stack_cogs(start_date, end_date, dataset, mode="dev"):
     cogs_list = [
         x.name
         for x in container_client.list_blobs(name_starts_with=prefix)
-        if (parse_date(x.name) >= start_date)
-        & (parse_date(x.name) <= end_date)  # noqa
+        if (parse_date(x.name) in (dates))
     ]
 
+    logger.debug(f"Processing {len(cogs_list)} cog(s):")
+    for cog in cogs_list:
+        logger.debug(f" - {cog}")
+
+    if len(cogs_list) != len(dates):
+        logger.warning("Not all COGs available, given input dates")
     if len(cogs_list) == 0:
-        raise Exception(
-            f"No COGs found to process: {start_date} to {end_date}"
-        )
+        raise Exception(f"No COGs found to process for dates: {dates}")
 
     das = []
 

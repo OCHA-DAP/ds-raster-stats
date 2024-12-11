@@ -42,4 +42,9 @@ def cli_args():
         type=int,
         default=100000,
     )
+    parser.add_argument(
+        "--backfill",
+        action="store_true",
+        help="Whether to check and backfill for any missing dates",
+    )
     return parser.parse_args()

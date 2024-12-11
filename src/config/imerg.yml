@@ -1,6 +1,7 @@
 blob_prefix: imerg/daily/late/v7/processed/imerg-daily-late-
 start_date: 2000-06-01
 end_date: Null
+frequency: D
 forecast: False
 test:
   start_date: 2000-06-01

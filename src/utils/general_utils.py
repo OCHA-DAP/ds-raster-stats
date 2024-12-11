@@ -1,5 +1,6 @@
 import re
 from datetime import datetime, timedelta
+from typing import List
 
 import pandas as pd
 from dateutil.relativedelta import relativedelta
@@ -31,7 +32,9 @@ def split_date_range(start_date, end_date):
     date_ranges = []
     while start < end:
         year_end = min(datetime(start.year, 12, 31), end)
-        date_ranges.append((start.strftime("%Y-%m-%d"), year_end.strftime("%Y-%m-%d")))
+        date_ranges.append(
+            (start.strftime("%Y-%m-%d"), year_end.strftime("%Y-%m-%d"))
+        )
         start = year_end + timedelta(days=1)
 
     return date_ranges
@@ -59,7 +62,9 @@ def add_months_to_date(date_string, months):
         result_date = start_date + relativedelta(months=months)
         return result_date.strftime("%Y-%m-%d")
     except ValueError as e:
-        raise ValueError("Invalid date format. Please use 'YYYY-MM-DD'.") from e
+        raise ValueError(
+            "Invalid date format. Please use 'YYYY-MM-DD'."
+        ) from e
 
 
 # TODO: Might not scale well as we get more files in the blob
@@ -126,3 +131,78 @@ def parse_extra_dims(config):
                 parsed_extra_dims[dim] = Integer
 
     return parsed_extra_dims
+
+
+def get_expected_dates(
+    start_date: str, end_date: str, frequency: str
+) -> pd.DatetimeIndex:
+    """
+    Generate a complete list of expected dates between start and end dates.
+
+    Parameters
+    ----------
+    start_date : str
+        Start date in YYYY-MM-DD format
+    end_date : str
+        End date in YYYY-MM-DD format
+    frequency : str
+        Frequency of dates, either 'D' for daily or 'M' for monthly
+
+    Returns
+    -------
+    pd.DatetimeIndex
+        Complete list of expected dates
+    """
+    start = pd.to_datetime(start_date)
+    end = pd.to_datetime(end_date)
+
+    if frequency == "M":
+        # For monthly data, always use first day of month
+        dates = pd.date_range(
+            start=start.replace(day=1), end=end.replace(day=1), freq="MS"
+        )
+    elif frequency == "D":
+        dates = pd.date_range(start=start, end=end, freq="D")
+    else:
+        raise ValueError("Frequency must be either 'D' or 'M'")
+
+    return dates
+
+
+def get_missing_dates(
+    engine, dataset: str, start_date: str, end_date: str, frequency: str
+) -> List[datetime]:
+    """
+    Find missing dates in the database by comparing against expected dates.
+
+    Parameters
+    ----------
+    engine : sqlalchemy.engine.Engine
+        Database connection engine
+    dataset : str
+        Name of the dataset table in database
+    start_date : str
+        Start date in YYYY-MM-DD format
+    end_date : str
+        End date in YYYY-MM-DD format
+    frequency : str
+        Frequency of dates, either 'D' for daily or 'M' for monthly
+
+    Returns
+    -------
+    List[datetime]
+        List of missing dates that need to be processed
+    """
+    # Get all expected dates
+    expected_dates = get_expected_dates(start_date, end_date, frequency)
+
+    # Query existing dates from database
+    query = f"SELECT DISTINCT valid_date FROM {dataset} ORDER BY valid_date"
+    existing_dates = pd.read_sql_query(query, engine)
+    existing_dates["valid_date"] = pd.to_datetime(existing_dates["valid_date"])
+
+    # Find missing dates
+    missing_dates = expected_dates[
+        ~expected_dates.isin(existing_dates["valid_date"])
+    ]
+    return missing_dates.tolist()

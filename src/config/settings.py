@@ -26,6 +26,7 @@ DATABASES = {
     "prod": f"postgresql+psycopg2://chdadmin:{AZURE_DB_PW_PROD}@chd-rasterstats-prod.postgres.database.azure.com/postgres",  # noqa
 }
 
+
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
@@ -40,31 +41,63 @@ def load_pipeline_config(pipeline_name):
 
 
 def config_pipeline(dataset, test, update, mode, backfill, engine):
+    """
+    Configure pipeline parameters based on dataset configuration and runtime flags.
+    Also logs an overall summary of the pipeline run.
+
+    Parameters
+    ----------
+    dataset : str
+        Name of the dataset to process
+    test : bool
+        If True, use test configuration parameters
+    update : bool
+        If True, start from most recent date
+    mode : str
+        Pipeline execution mode
+    backfill : bool
+        If True, include missing dates in processing
+    engine : SQLEngine
+        Database connection for retrieving missing dates
+
+    Returns
+    -------
+    dict
+        Dictionary containing
+            dates : list of list of datetime.date
+                Chunked list of dates to process
+            forecast : dict
+                Forecast configuration parameters
+            sel_iso3s : list or None
+                Selected ISO3 country codes, if any
+            extra_dims : dict
+                Additional dimension parameters
+    """
     config = load_pipeline_config(dataset)
-    if test:
-        start_date = config["test"]["start_date"]
-        end_date = config["test"]["end_date"]
-        sel_iso3s = config["test"]["iso3s"]
-    else:
-        start_date = config["start_date"]
-        end_date = config["end_date"]
-        sel_iso3s = None
+    config_section = config["test"] if test else config
 
-    forecast = config["forecast"]
-    extra_dims = parse_extra_dims(config)
+    output_config = {}
+    output_config["forecast"] = config["forecast"]
+    output_config["extra_dims"] = parse_extra_dims(config)
+    output_config["sel_iso3s"] = config_section.get("iso3s")
 
+    start_date = config_section["start_date"]
+    end_date = config_section.get("end_date")
     frequency = config["frequency"]
+
+    # Now work on getting the dates to process
     if not end_date:
         end_date = date.today() - timedelta(days=1)
-
     missing_dates = None
     if backfill:
         missing_dates = get_missing_dates(
-            engine, dataset, start_date, end_date, frequency
+            engine,
+            dataset,
+            start_date,
+            end_date,
+            frequency,
+            config["forecast"],
         )
-        logger.info(f"Filling in {len(missing_dates)} missing dates:")
-        for date_ in missing_dates:
-            logger.info(f" - {date_.strftime('%Y-%m-%d')}")
 
     # TODO: Updating by getting the most recent COG is a bit of a shortcut...
     if update:
@@ -74,7 +107,36 @@ def config_pipeline(dataset, test, update, mode, backfill, engine):
     dates = generate_date_series(
         start_date, end_date, frequency, missing_dates
     )
-    return dates, forecast, sel_iso3s, extra_dims, frequency
+    output_config["date_chunks"] = dates
+
+    # Configuration report
+    logger.info("=" * 50)
+    logger.info("Pipeline Configuration Summary:")
+    logger.info("=" * 50)
+    logger.info(f"Dataset: {dataset.upper()}")
+    logger.info(f"Mode: {mode}")
+    if update:
+        logger.info(
+            f"Run: Updating latest stats -- {start_date.strftime('%Y-%m-%d')}"
+        )
+    else:
+        logger.info(
+            f"Run: Archival update from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+        )
+    logger.info(f"Total Date Chunks: {len(dates)}")
+    logger.info(f"Total Dates: {sum(len(chunk) for chunk in dates)}")
+    logger.info(f"Checked for missing dates: {backfill}")
+    if backfill:
+        logger.info(f"{len(missing_dates)} missing dates found")
+        for date_ in missing_dates:
+            logger.info(f" - {date_.strftime('%Y-%m-%d')}")
+    if output_config["sel_iso3s"]:
+        sel_iso3s = output_config["sel_iso3s"]
+        logger.info(f"Filtering for ISO3 codes: {sel_iso3s}")
+
+    logger.info("=" * 50)
+
+    return output_config
 
 
 def generate_date_series(
@@ -97,8 +159,12 @@ def generate_date_series(
     if not end_date:
         dates = [start_date]
     else:
-        dates = pd.date_range(
-            start_date, end_date, freq="MS" if frequency == "M" else frequency
+        dates = list(
+            pd.date_range(
+                start_date,
+                end_date,
+                freq="MS" if frequency == "M" else frequency,
+            )
         )
     if missing_dates:
         dates.extend(missing_dates)

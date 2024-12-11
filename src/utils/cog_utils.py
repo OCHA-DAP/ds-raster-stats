@@ -5,12 +5,12 @@ import rioxarray as rxr
 import tqdm
 import xarray as xr
 
-from src.config.settings import load_pipeline_config
+from src.config.settings import LOG_LEVEL, load_pipeline_config
 from src.utils.cloud_utils import get_cog_url, get_container_client
 from src.utils.general_utils import parse_date
 
 logger = logging.getLogger(__name__)
-coloredlogs.install(level="DEBUG", logger=logger)
+coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
 
 # TODO: Update now that IMERG data has the right .attrs metadata
@@ -130,15 +130,13 @@ def stack_cogs(dates, dataset, mode="dev"):
     Stack Cloud Optimized GeoTIFFs (COGs) for a specified date range into an xarray Dataset.
 
     This function retrieves and stacks COGs from a cloud storage container for a given dataset and
-    date range, and returns the stacked data as an `xarray.Dataset`. The data is accessed remotely
+    list of dates, and returns the stacked data as an `xarray.Dataset`. The data is accessed remotely
     and processed into a single `Dataset` with the dimension `date` as the stacking dimension.
 
     Parameters
     ----------
-    start_date : str or datetime-like
-        The start date of the date range for stacking the COGs. This can be a string or a datetime object.
-    end_date : str or datetime-like
-        The end date of the date range for stacking the COGs. This can be a string or a datetime object.
+    dates : list
+        The list of dates for which we want to load in COGs
     dataset : str, optional
         The name of the dataset to retrieve COGs from. Options include "floodscan", "era5", "imerg", and "seas5".
     mode : str, optional

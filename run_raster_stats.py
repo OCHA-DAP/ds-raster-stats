@@ -153,16 +153,10 @@ if __name__ == "__main__":
         sys.exit(0)
 
     dataset = args.dataset
-    logger.info(f"Updating data for {dataset}...")
+    logger.info("Determining pipeline configuration...")
 
     create_qa_table(engine)
-    (
-        date_chunks,
-        is_forecast,
-        sel_iso3s,
-        extra_dims,
-        frequency,
-    ) = config_pipeline(
+    config = config_pipeline(
         dataset,
         args.test,
         args.update_stats,
@@ -170,8 +164,11 @@ if __name__ == "__main__":
         args.backfill,
         engine,
     )
-    create_dataset_table(dataset, engine, is_forecast, extra_dims)
-    df_iso3s = get_iso3_data(sel_iso3s, engine)
+    create_dataset_table(
+        dataset, engine, config["forecast"], config["extra_dims"]
+    )
+    df_iso3s = get_iso3_data(config["sel_iso3s"], engine)
+    date_chunks = config["date_chunks"]
 
     NUM_PROCESSES = 2
     logger.info(

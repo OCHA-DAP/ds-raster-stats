@@ -170,7 +170,12 @@ def get_expected_dates(
 
 
 def get_missing_dates(
-    engine, dataset: str, start_date: str, end_date: str, frequency: str
+    engine,
+    dataset: str,
+    start_date: str,
+    end_date: str,
+    frequency: str,
+    forecast: bool,
 ) -> List[datetime]:
     """
     Find missing dates in the database by comparing against expected dates.
@@ -187,6 +192,8 @@ def get_missing_dates(
         End date in YYYY-MM-DD format
     frequency : str
         Frequency of dates, either 'D' for daily or 'M' for monthly
+    forecast : bool
+        Whether or not the dataset is a forecast
 
     Returns
     -------
@@ -196,13 +203,17 @@ def get_missing_dates(
     # Get all expected dates
     expected_dates = get_expected_dates(start_date, end_date, frequency)
 
+    date_column = "issued_date" if forecast else "valid_date"
+
     # Query existing dates from database
-    query = f"SELECT DISTINCT valid_date FROM {dataset} ORDER BY valid_date"
+    query = (
+        f"SELECT DISTINCT {date_column} FROM {dataset} ORDER BY {date_column}"
+    )
     existing_dates = pd.read_sql_query(query, engine)
-    existing_dates["valid_date"] = pd.to_datetime(existing_dates["valid_date"])
+    existing_dates[date_column] = pd.to_datetime(existing_dates[date_column])
 
     # Find missing dates
     missing_dates = expected_dates[
-        ~expected_dates.isin(existing_dates["valid_date"])
+        ~expected_dates.isin(existing_dates[date_column])
     ]
     return missing_dates.tolist()

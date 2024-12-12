@@ -28,7 +28,7 @@ def cli_args():
     )
     parser.add_argument(
         "--update-stats",
-        help="""Calculates stats based on recently updated data""",
+        help="""Calculate stats against the latest COG for a given dataset.""",
         action="store_true",
     )
     parser.add_argument(

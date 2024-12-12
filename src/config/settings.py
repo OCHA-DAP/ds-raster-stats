@@ -142,19 +142,26 @@ def config_pipeline(dataset, test, update, mode, backfill, engine):
 def generate_date_series(
     start_date, end_date, frequency="D", missing_dates=None, chunk_size=100
 ):
-    """
-    Generate a sorted list of dates between start and end dates, incorporating missing dates,
-    partitioned into chunks of specified size.
+    """Generate a sorted list of dates partitioned into chunks.
 
-    Parameters:
-    start_date (str or datetime): Start date in 'YYYY-MM-DD' format if string
-    end_date (str or datetime): End date in 'YYYY-MM-DD' format if string
-    frequency (str): 'D' for daily or 'M' for monthly
-    missing_dates (list): Optional list of dates to include, in 'YYYY-MM-DD' format if strings
-    chunk_size (int): Maximum number of dates per partition
+    Parameters
+    ----------
+    start_date : str or datetime
+        Start date in 'YYYY-MM-DD' format if string
+    end_date : str or datetime
+        End date in 'YYYY-MM-DD' format if string, or None for single date
+    frequency : str, default='D'
+        Date frequency, either 'D' for daily or 'M' for monthly
+    missing_dates : list, optional
+        Additional dates to include in the series
+    chunk_size : int, default=100
+        Maximum number of dates per chunk
 
-    Returns:
-    list of lists: List of date chunks, where each chunk is a list of datetime.date objects
+    Returns
+    -------
+    list of list of datetime.date
+        List of date chunks, where each chunk contains up to chunk_size dates,
+        sorted in ascending order with duplicates removed
     """
     if not end_date:
         dates = [start_date]

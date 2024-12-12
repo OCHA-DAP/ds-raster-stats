@@ -16,6 +16,9 @@ options:
   -h, --help            show this help message and exit
   --mode {local,dev,prod}, -m {local,dev,prod}
                         Run the pipeline in 'local', 'dev', or 'prod' mode.
+  --update-stats        Calculate stats against the latest COG for a given dataset.
+  --backfill            Whether to check and backfill for any missing dates.
+  --update-metadata     Update the iso3 and polygon metadata tables.
   --test                Processes a smaller subset of the source data. Use to test the pipeline.
 ```
 

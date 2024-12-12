@@ -1,6 +1,7 @@
 blob_prefix: floodscan/daily/v5/processed/aer_area_300s_
 start_date: 1998-01-12
 end_date: Null
+frequency: D
 forecast: False
 extra_dims:
   - band : str

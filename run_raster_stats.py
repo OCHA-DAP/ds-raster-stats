@@ -9,7 +9,11 @@ import geopandas as gpd
 import pandas as pd
 from sqlalchemy import create_engine
 
-from src.config.settings import LOG_LEVEL, UPSAMPLED_RESOLUTION, parse_pipeline_config
+from src.config.settings import (
+    LOG_LEVEL,
+    UPSAMPLED_RESOLUTION,
+    config_pipeline,
+)
 from src.utils.cog_utils import stack_cogs
 from src.utils.database_utils import (
     create_dataset_table,
@@ -18,9 +22,12 @@ from src.utils.database_utils import (
     insert_qa_table,
     postgres_upsert,
 )
-from src.utils.general_utils import split_date_range
 from src.utils.inputs import cli_args
-from src.utils.iso3_utils import create_iso3_df, get_iso3_data, load_shp_from_azure
+from src.utils.iso3_utils import (
+    create_iso3_df,
+    get_iso3_data,
+    load_shp_from_azure,
+)
 from src.utils.metadata_utils import process_polygon_metadata
 from src.utils.raster_utils import fast_zonal_stats_runner, prep_raster
 
@@ -45,13 +52,18 @@ def setup_logger(name, level=logging.INFO):
     return logger
 
 
-def process_chunk(start, end, dataset, mode, df_iso3s, engine_url, chunksize):
+def process_chunk(dates, dataset, mode, df_iso3s, engine_url, chunksize):
     process_name = current_process().name
-    logger = setup_logger(f"{process_name}: {dataset}_{start}")
-    logger.info(f"Starting processing for {dataset} from {start} to {end}")
+    logger = setup_logger(f"{process_name}: {dataset}_{dates[0]}")
+    logger.info(
+        f"""
+        Starting processing for {len(dates)} dates for {dataset}
+        between {dates[0].strftime('%Y-%m-%d')} to {dates[-1].strftime('%Y-%m-%d')}
+        """
+    )
 
     engine = create_engine(engine_url)
-    ds = stack_cogs(start, end, dataset, mode)
+    ds = stack_cogs(dates, dataset, mode)
 
     try:
         for _, row in df_iso3s.iterrows():
@@ -73,13 +85,17 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url, chunksize):
                 except Exception as e:
                     logger.error(f"Error preparing raster for {iso3}: {e}")
                     stack_trace = traceback.format_exc()
-                    insert_qa_table(iso3, None, dataset, e, stack_trace, engine)
+                    insert_qa_table(
+                        iso3, None, dataset, e, stack_trace, engine
+                    )
                     continue
 
                 try:
                     all_results = []
                     for adm_level in range(max_adm + 1):
-                        gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{adm_level}.shp")
+                        gdf = gpd.read_file(
+                            f"{td}/{iso3.lower()}_adm{adm_level}.shp"
+                        )
                         logger.debug(f"Computing stats for adm{adm_level}...")
                         df_results = fast_zonal_stats_runner(
                             ds_clipped,
@@ -94,7 +110,9 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url, chunksize):
                         if df_results is not None:
                             all_results.append(df_results)
                     df_all_results = pd.concat(all_results, ignore_index=True)
-                    logger.debug(f"Writing {len(df_all_results)} rows to database...")
+                    logger.debug(
+                        f"Writing {len(df_all_results)} rows to database..."
+                    )
                     df_all_results.to_sql(
                         f"{dataset}",
                         con=engine,
@@ -106,7 +124,9 @@ def process_chunk(start, end, dataset, mode, df_iso3s, engine_url, chunksize):
                 except Exception as e:
                     logger.error(f"Error calculating stats for {iso3}: {e}")
                     stack_trace = traceback.format_exc()
-                    insert_qa_table(iso3, adm_level, dataset, e, stack_trace, engine)
+                    insert_qa_table(
+                        iso3, adm_level, dataset, e, stack_trace, engine
+                    )
                     continue
             # Clear memory
             del ds_clipped
@@ -133,35 +153,34 @@ if __name__ == "__main__":
         sys.exit(0)
 
     dataset = args.dataset
-    logger.info(f"Updating data for {dataset}...")
+    logger.info("Determining pipeline configuration...")
 
     create_qa_table(engine)
-    start, end, is_forecast, sel_iso3s, extra_dims = parse_pipeline_config(
-        dataset, args.test, args.update_stats, args.mode
+    config = config_pipeline(
+        dataset,
+        args.test,
+        args.update_stats,
+        args.mode,
+        args.backfill,
+        engine,
     )
-    create_dataset_table(dataset, engine, is_forecast, extra_dims)
+    create_dataset_table(
+        dataset, engine, config["forecast"], config["extra_dims"]
+    )
+    df_iso3s = get_iso3_data(config["sel_iso3s"], engine)
+    date_chunks = config["date_chunks"]
 
-    df_iso3s = get_iso3_data(sel_iso3s, engine)
-    date_ranges = split_date_range(start, end)
+    NUM_PROCESSES = 2
+    logger.info(
+        f"Processing {len(date_chunks)} date chunks with {NUM_PROCESSES} processes"
+    )
 
-    if len(date_ranges) > 1:
-        num_processes = 2
-        logger.info(
-            f"Processing {len(date_ranges)} chunks with {num_processes} processes"
-        )
+    process_args = [
+        (dates, dataset, args.mode, df_iso3s, engine_url, args.chunksize)
+        for dates in date_chunks
+    ]
 
-        process_args = [
-            (start, end, dataset, args.mode, df_iso3s, engine_url, args.chunksize)
-            for start, end in date_ranges
-        ]
-
-        with Pool(num_processes) as pool:
-            pool.starmap(process_chunk, process_args)
-
-    else:
-        logger.info("Processing entire date range in a single chunk")
-        process_chunk(
-            start, end, dataset, args.mode, df_iso3s, engine_url, args.chunksize
-        )
+    with Pool(NUM_PROCESSES) as pool:
+        pool.starmap(process_chunk, process_args)
 
     logger.info("Done calculating and saving stats.")

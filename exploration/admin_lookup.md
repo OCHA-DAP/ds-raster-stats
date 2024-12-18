@@ -7,7 +7,7 @@ jupyter:
       format_version: '1.3'
       jupytext_version: 1.16.3
   kernelspec:
-    display_name: venv
+    display_name: Python 3 (ipykernel)
     language: python
     name: python3
 ---
@@ -19,7 +19,7 @@ This notebook processes our saved Fieldmaps CODs to create a lookup table matchi
 We want an output table with the following columns:
 
 ```python
-DEFAULT_COLS = ["ISO3", "ADM0_PCODE", "ADM0_NAME",  "ADM1_PCODE", "ADM1_NAME", "ADM2_PCODE", "ADM2_NAME", "NAME_LANGUAGE"]
+DEFAULT_COLS = ["ISO3", "ADM0_PCODE", "ADM0_NAME",  "ADM1_PCODE", "ADM1_NAME", "ADM2_PCODE", "ADM2_NAME", "NAME_LANGUAGE", "ADM_LEVEL"]
 ```
 
 ```python
@@ -68,6 +68,7 @@ with tempfile.TemporaryDirectory() as temp_dir:
         gdf = gdf.rename(columns=dict(zip(name_columns, new_columns)))
         gdf["NAME_LANGUAGE"] = language_code
         gdf["ISO3"] = iso3
+        gdf["ADM_LEVEL"] = max_adm_level
 
         # Keep only relevant columns
         matching_cols = [col for col in gdf.columns if col in DEFAULT_COLS]

@@ -52,31 +52,28 @@ df_iso3s = get_iso3_data(iso3_codes=None, engine=engine)
 dfs = []
 
 with tempfile.TemporaryDirectory() as temp_dir:
-    for _, row in df_iso3s[:5].iterrows():
+    for _, row in df_iso3s.iterrows():
         iso3 = row["iso3"]
         max_adm_level = row["max_adm_level"]
         load_shp_from_azure(iso3, temp_dir, MODE)
+        gdf = gpd.read_file(f"{temp_dir}/{iso3.lower()}_adm{max_adm_level}.shp")
 
-        name_columns = []
-        for admin_level in range(max_adm_level + 1):
-            gdf = gpd.read_file(f"{temp_dir}/{iso3.lower()}_adm{admin_level}.shp")
+        # Get name column and its language code
+        name_column = select_name_column(gdf, max_adm_level)
+        language_code = name_column[-2:]
+        name_columns = [f"ADM{i}_{language_code}" for i in range(0, max_adm_level + 1)]
 
-            # Get name column and its language code
-            name_column = select_name_column(gdf, admin_level)
-            language_code = name_column[-2:]
-            name_columns.append(name_column)
+        # Standardize column names and add language info
+        new_columns = [x.replace(f"_{language_code}", "_NAME") for x in name_columns]
+        gdf = gdf.rename(columns=dict(zip(name_columns, new_columns)))
+        gdf["NAME_LANGUAGE"] = language_code
+        gdf["ISO3"] = iso3
 
-            # Standardize column names and add language info
-            new_columns = [x.replace(f"_{language_code}", "_NAME") for x in name_columns]
-            gdf = gdf.rename(columns=dict(zip(name_columns, new_columns)))
-            gdf["NAME_LANGUAGE"] = language_code
-            gdf["ISO3"] = iso3
+        # Keep only relevant columns
+        matching_cols = [col for col in gdf.columns if col in DEFAULT_COLS]
+        dfs.append(gdf[matching_cols])
 
-            # Keep only relevant columns
-            matching_cols = [col for col in gdf.columns if col in DEFAULT_COLS]
-            dfs.append(gdf[matching_cols])
-
-df_all = pd.concat(dfs)
+df_all = pd.concat(dfs, ignore_index=True)
 ```
 
 Now writing this to Azure...

@@ -28,7 +28,7 @@ def cli_args():
     )
     parser.add_argument(
         "--update-stats",
-        help="""Calculates stats based on recently updated data""",
+        help="""Calculate stats against the latest COG for a given dataset.""",
         action="store_true",
     )
     parser.add_argument(
@@ -41,5 +41,10 @@ def cli_args():
         help="Limit the SQL insert batches to an specific chunksize.",
         type=int,
         default=100000,
+    )
+    parser.add_argument(
+        "--backfill",
+        action="store_true",
+        help="Whether to check and backfill for any missing dates",
     )
     return parser.parse_args()

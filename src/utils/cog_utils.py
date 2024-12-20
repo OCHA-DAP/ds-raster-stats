@@ -1,17 +1,16 @@
 import logging
 
 import coloredlogs
-import pandas as pd
 import rioxarray as rxr
 import tqdm
 import xarray as xr
 
-from src.config.settings import load_pipeline_config
+from src.config.settings import LOG_LEVEL, load_pipeline_config
 from src.utils.cloud_utils import get_cog_url, get_container_client
 from src.utils.general_utils import parse_date
 
 logger = logging.getLogger(__name__)
-coloredlogs.install(level="DEBUG", logger=logger)
+coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
 
 # TODO: Update now that IMERG data has the right .attrs metadata
@@ -126,23 +125,20 @@ def process_floodscan(cog_name, mode):
     return da_in
 
 
-def stack_cogs(start_date, end_date, dataset, mode="dev"):
+def stack_cogs(dates, dataset, mode="dev"):
     """
     Stack Cloud Optimized GeoTIFFs (COGs) for a specified date range into an xarray Dataset.
 
     This function retrieves and stacks COGs from a cloud storage container for a given dataset and
-    date range, and returns the stacked data as an `xarray.Dataset`. The data is accessed remotely
+    list of dates, and returns the stacked data as an `xarray.Dataset`. The data is accessed remotely
     and processed into a single `Dataset` with the dimension `date` as the stacking dimension.
 
     Parameters
     ----------
-    start_date : str or datetime-like
-        The start date of the date range for stacking the COGs. This can be a string or a datetime object.
-    end_date : str or datetime-like
-        The end date of the date range for stacking the COGs. This can be a string or a datetime object.
+    dates : list
+        The list of dates for which we want to load in COGs
     dataset : str, optional
         The name of the dataset to retrieve COGs from. Options include "floodscan", "era5", "imerg", and "seas5".
-        Default is "era5".
     mode : str, optional
         The environment mode to use when accessing the cloud storage container. May be "dev", "prod", or "local".
 
@@ -158,8 +154,6 @@ def stack_cogs(start_date, end_date, dataset, mode="dev"):
         )
         mode = "dev"
 
-    start_date = pd.to_datetime(start_date)
-    end_date = pd.to_datetime(end_date)
     container_client = get_container_client(mode, "raster")
 
     try:
@@ -173,14 +167,17 @@ def stack_cogs(start_date, end_date, dataset, mode="dev"):
     cogs_list = [
         x.name
         for x in container_client.list_blobs(name_starts_with=prefix)
-        if (parse_date(x.name) >= start_date)
-        & (parse_date(x.name) <= end_date)  # noqa
+        if (parse_date(x.name) in (dates))
     ]
 
+    logger.debug(f"Processing {len(cogs_list)} cog(s):")
+    for cog in cogs_list:
+        logger.debug(f" - {cog}")
+
+    if len(cogs_list) != len(dates):
+        logger.warning("Not all COGs available, given input dates")
     if len(cogs_list) == 0:
-        raise Exception(
-            f"No COGs found to process: {start_date} to {end_date}"
-        )
+        raise Exception(f"No COGs found to process for dates: {dates}")
 
     das = []
 

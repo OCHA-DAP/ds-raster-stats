@@ -24,6 +24,21 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
 
+def check_coverage(row, dataset):
+    """
+    Given an input row from the iso3 table and a dataset name,
+    returns whether or not there should be stats coverage.
+    Assumes that no dataset column present means that there's
+    full coverage.
+
+    """
+    try:
+        coverage = row[dataset]
+    except KeyError:
+        coverage = True
+    return coverage
+
+
 def get_available_datasets():
     """
     Get list of available datasets from config directory.
@@ -69,6 +84,7 @@ def get_single_cog(dataset, mode):
     return rxr.open_rasterio(cog_url, chunks="auto")
 
 
+# TODO: This could really use some refactoring...
 def process_polygon_metadata(
     engine, mode, upsampled_resolution, sel_iso3s=None
 ):
@@ -104,64 +120,72 @@ def process_polygon_metadata(
                 for i in range(0, max_adm + 1):
                     gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm{i}.shp")
                     for dataset in datasets:
-                        da = get_single_cog(dataset, mode)
-                        input_resolution = da.rio.resolution()
-                        gdf_adm0 = gpd.read_file(
-                            f"{td}/{iso3.lower()}_adm0.shp"
-                        )
-                        # We want all values to be unique, so that we can count the total
-                        # number of unique cells from the raw source that contribute to the stats
-                        da.values = np.arange(da.size).reshape(da.shape)
-                        da = da.astype(np.float32)
-                        # Dummy `date` dimension to pass `validate_dims`
-                        da = da.expand_dims({"date": 1})
-
-                        try:
-                            da_clipped = prep_raster(da, gdf_adm0)
-                        except NoDataInBounds:
-                            logger.error(
-                                f"{dataset} has no coverage at adm level {i}"
+                        coverage = check_coverage(row, dataset)
+                        if coverage:
+                            da = get_single_cog(dataset, mode)
+                            input_resolution = da.rio.resolution()
+                            gdf_adm0 = gpd.read_file(
+                                f"{td}/{iso3.lower()}_adm0.shp"
                             )
-                            continue
+                            # We want all values to be unique, so that we can count the total
+                            # number of unique cells from the raw source that contribute to the stats
+                            da.values = np.arange(da.size).reshape(da.shape)
+                            da = da.astype(np.float32)
+                            # Dummy `date` dimension to pass `validate_dims`
+                            da = da.expand_dims({"date": 1})
 
-                        da_clipped = prep_raster(da, gdf_adm0, logger=logger)
-                        output_resolution = da_clipped.rio.resolution()
-                        upscale_factor = (
-                            input_resolution[0] / output_resolution[0]
-                        )
+                            try:
+                                da_clipped = prep_raster(da, gdf_adm0)
+                            except NoDataInBounds:
+                                logger.error(
+                                    f"{dataset} has no coverage at adm level {i}"
+                                )
+                                continue
 
-                        src_transform = da_clipped.rio.transform()
-                        src_width = da_clipped.rio.width
-                        src_height = da_clipped.rio.height
+                            da_clipped = prep_raster(
+                                da, gdf_adm0, logger=logger
+                            )
+                            output_resolution = da_clipped.rio.resolution()
+                            upscale_factor = (
+                                input_resolution[0] / output_resolution[0]
+                            )
 
-                        admin_raster = rasterize_admin(
-                            gdf,
-                            src_width,
-                            src_height,
-                            src_transform,
-                            all_touched=False,
-                        )
-                        adm_ids = gdf[f"ADM{i}_PCODE"]
-                        n_adms = len(adm_ids)
+                            src_transform = da_clipped.rio.transform()
+                            src_width = da_clipped.rio.width
+                            src_height = da_clipped.rio.height
 
-                        results = fast_zonal_stats(
-                            da_clipped.values[0][0],
-                            admin_raster,
-                            n_adms,
-                            stats=["count", "unique"],
-                            rast_fill=np.nan,
-                        )
-                        df_results = pd.DataFrame.from_dict(results)
-                        df_results[f"{dataset}_frac_raw_pixels"] = df_results[
-                            "count"
-                        ] / (upscale_factor**2)
-                        df_results = df_results.rename(
-                            columns={
-                                "unique": f"{dataset}_n_intersect_raw_pixels",
-                                "count": f"{dataset}_n_upsampled_pixels",
-                            }
-                        )
-                        gdf = gdf.join(df_results)
+                            admin_raster = rasterize_admin(
+                                gdf,
+                                src_width,
+                                src_height,
+                                src_transform,
+                                all_touched=False,
+                            )
+                            adm_ids = gdf[f"ADM{i}_PCODE"]
+                            n_adms = len(adm_ids)
+
+                            results = fast_zonal_stats(
+                                da_clipped.values[0][0],
+                                admin_raster,
+                                n_adms,
+                                stats=["count", "unique"],
+                                rast_fill=np.nan,
+                            )
+                            df_results = pd.DataFrame.from_dict(results)
+                            df_results[
+                                f"{dataset}_frac_raw_pixels"
+                            ] = df_results["count"] / (upscale_factor**2)
+                            df_results = df_results.rename(
+                                columns={
+                                    "unique": f"{dataset}_n_intersect_raw_pixels",
+                                    "count": f"{dataset}_n_upsampled_pixels",
+                                }
+                            )
+                            gdf = gdf.join(df_results)
+                        else:
+                            logger.info(
+                                f"Skipping calculation for {dataset} for {iso3}"
+                            )
 
                     gdf = gdf.to_crs("ESRI:54009")
                     gdf["area"] = gdf.geometry.area / 1_000_000

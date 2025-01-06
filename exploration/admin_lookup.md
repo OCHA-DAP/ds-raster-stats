@@ -71,7 +71,7 @@ with tempfile.TemporaryDirectory() as temp_dir:
             gdf = gdf.rename(columns=dict(zip(name_columns, new_columns)))
             gdf["NAME_LANGUAGE"] = language_code
             gdf["ISO3"] = iso3
-            gdf["ADM_LEVEL"] = max_adm_level
+            gdf["ADM_LEVEL"] = admin_level
 
             # Keep only relevant columns
             matching_cols = [col for col in gdf.columns if col in DEFAULT_COLS]

@@ -83,8 +83,9 @@ def parse_date(filename):
     """
     Parses the date based on a COG filename.
     """
-    res = re.search("([0-9]{4}-[0-9]{2}-[0-9]{2})", filename)
-    return pd.to_datetime(res[0])
+    # res = re.search("([0-9]{4}[0-9]{2}[0-9]{2})", filename)
+    res = re.search(r"/(\d{8})_", filename).group(1)
+    return pd.to_datetime(res)
 
 
 def parse_extra_dims(config):

@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 import coloredlogs
 import rioxarray as rxr
@@ -125,6 +126,20 @@ def process_floodscan(cog_name, mode):
     return da_in
 
 
+def process_baseline(cog_name, mode):
+    cog_url = get_cog_url(mode, cog_name)
+    da_in = rxr.open_rasterio(cog_url, chunks="auto")
+
+    da_in = da_in.sel(band=2)
+    date_in = cog_name[13:21]
+    date_in = datetime.strptime(date_in, "%Y%m%d").strftime("%Y-%m-%d")
+    da_in["date"] = date_in
+    da_in = da_in.expand_dims(["date"])
+
+    da_in = da_in.persist()
+    return da_in
+
+
 def stack_cogs(dates, dataset, mode="dev"):
     """
     Stack Cloud Optimized GeoTIFFs (COGs) for a specified date range into an xarray Dataset.
@@ -193,6 +208,8 @@ def stack_cogs(dates, dataset, mode="dev"):
             da_in = process_imerg(cog, mode)
         elif dataset == "floodscan":
             da_in = process_floodscan(cog, mode)
+        elif dataset == "baseline":
+            da_in = process_baseline(cog, mode)
         das.append(da_in)
 
     # Note that we're dropping all attributes here

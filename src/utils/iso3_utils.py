@@ -146,7 +146,7 @@ def determine_max_adm_level(row):
 
 
 def load_coverage():
-    pipelines = ["seas5", "era5", "imerg", "floodscan"]
+    pipelines = ["seas5", "era5", "imerg", "floodscan", "baseline"]
     coverage = {}
 
     for dataset in pipelines:

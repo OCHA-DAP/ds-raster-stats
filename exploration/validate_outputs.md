@@ -7,7 +7,7 @@ jupyter:
       format_version: '1.3'
       jupytext_version: 1.16.3
   kernelspec:
-    display_name: venv
+    display_name: Python 3 (ipykernel)
     language: python
     name: python3
 ---
@@ -34,8 +34,8 @@ import rioxarray as rxr
 import numpy as np
 
 # os.chdir("..")
-from src.utils.cloud_utils import get_cog_url
-from src.utils.raster_utils import upsample_raster, prep_raster
+# from src.utils.cloud_utils import get_cog_url
+# from src.utils.raster_utils import upsample_raster, prep_raster
 
 load_dotenv()
 ```
@@ -85,7 +85,8 @@ with engine.connect() as con:
     df_db = pd.read_sql_query(query, con)
 df_db.rename(columns={"pcode": f"ADM{adm_level}_PCODE"}, inplace=True)
 df_db.columns = [
-    f"{col}_db" if col != f"ADM{adm_level}_PCODE" else col for col in df_db.columns
+    f"{col}_db" if col != f"ADM{adm_level}_PCODE" else col
+    for col in df_db.columns
 ]
 ```
 

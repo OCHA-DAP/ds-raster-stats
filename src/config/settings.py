@@ -18,12 +18,14 @@ load_dotenv()
 
 UPSAMPLED_RESOLUTION = 0.05
 LOG_LEVEL = "DEBUG"
-AZURE_DB_PW_DEV = os.getenv("AZURE_DB_PW_DEV")
-AZURE_DB_PW_PROD = os.getenv("AZURE_DB_PW_PROD")
+AZURE_DB_UID_DEV = os.getenv("DSCI_AZ_DB_DEV_UID_WRITE")
+AZURE_DB_UID_PROD = os.getenv("DSCI_AZ_DB_PROD_UID_WRITE")
+AZURE_DB_PW_DEV = os.getenv("DSCI_AZ_DB_DEV_PW_WRITE")
+AZURE_DB_PW_PROD = os.getenv("DSCI_AZ_DB_PROD_PW_WRITE")
 DATABASES = {
     "local": "sqlite:///chd-rasterstats-local.db",
-    "dev": f"postgresql+psycopg2://chdadmin:{AZURE_DB_PW_DEV}@chd-rasterstats-dev.postgres.database.azure.com/postgres",  # noqa
-    "prod": f"postgresql+psycopg2://chdadmin:{AZURE_DB_PW_PROD}@chd-rasterstats-prod.postgres.database.azure.com/postgres",  # noqa
+    "dev": f"postgresql+psycopg2://{AZURE_DB_UID_DEV}:{AZURE_DB_PW_DEV}@chd-rasterstats-dev.postgres.database.azure.com/postgres",  # noqa
+    "prod": f"postgresql+psycopg2://{AZURE_DB_UID_PROD}:{AZURE_DB_PW_PROD}@chd-rasterstats-prod.postgres.database.azure.com/postgres",  # noqa
 }
 
 

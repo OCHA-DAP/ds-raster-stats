@@ -25,7 +25,7 @@ def get_container_client(mode, container_name):
         A `ContainerClient` object that can be used to interact with the specified Azure Blob Storage container
 
     """
-    blob_sas = os.getenv(f"DSCI_AZ_BLOB_{mode.upper()}_SAS_WRITE")
+    blob_sas = os.getenv(f"DSCI_AZ_BLOB_{mode.upper()}_SAS")
     blob_url = (
         f"https://imb0chd0{mode}.blob.core.windows.net/"
         + container_name  # noqa

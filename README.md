@@ -7,10 +7,10 @@ This repo contains code to calculate raster (or zonal) statistics from internal 
 This pipeline can be run from the command line by calling `python run_raster_stats.py` with appropriate input args:
 
 ```
-usage: run_raster_stats.py [-h] [--mode {local,dev,prod}] [--test] {seas5,era5,imerg}
+usage: run_raster_stats.py [-h] [--mode {local,dev,prod}] [--test] {seas5,era5,imerg,floodscan}
 
 positional arguments:
-  {seas5,era5,imerg}    Dataset for which to calculate raster stats
+  {seas5,era5,imerg,floodscan}    Dataset for which to calculate raster stats
 
 options:
   -h, --help            show this help message and exit

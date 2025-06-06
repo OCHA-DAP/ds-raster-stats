@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -13,6 +15,7 @@ from src.utils.raster_utils import (
     fast_zonal_stats_runner,
     rasterize_admin,
     upsample_raster,
+    validate_stats,
 )
 
 
@@ -55,25 +58,160 @@ def sample_transform():
     return from_bounds(0, 0, 3, 3, 3, 3)
 
 
-def test_fast_zonal_stats(sample_raster, sample_admin_raster, dropped_admin_raster):
-    stats = ["mean", "max", "min", "median", "sum", "std", "count"]
-    result = fast_zonal_stats(sample_raster, sample_admin_raster, stats=stats)
+def test_fast_zonal_stats(
+    sample_raster, sample_admin_raster, dropped_admin_raster
+):
+    result = fast_zonal_stats(sample_raster, sample_admin_raster)
     assert len(result) == 3, "Incorrect number of zones"
     assert result[0]["mean"] == pytest.approx(8.0), "Incorrect mean for zone 1"
     assert result[1]["max"] == 4, "Incorrect max for zone 2"
     assert result[2]["min"] == 3, "Incorrect min for zone 3"
-    assert result[0]["median"] == pytest.approx(8.0), "Incorrect median for zone 1"
+    assert result[0]["median"] == pytest.approx(
+        8.0
+    ), "Incorrect median for zone 1"
     assert result[1]["sum"] == 7, "Incorrect sum for zone 2"
-    assert result[2]["std"] == pytest.approx(1.247219), "Incorrect std for zone 3"
+    assert result[2]["std"] == pytest.approx(
+        1.247219
+    ), "Incorrect std for zone 3"
     assert result[0]["count"] == 3, "Incorrect count for zone 1"
 
-    result_dropped = fast_zonal_stats(sample_raster, dropped_admin_raster, stats=stats)
+    result_dropped = fast_zonal_stats(sample_raster, dropped_admin_raster)
     assert len(result_dropped) == 6, "Incorrect number of zones"
     # Same as before for the '0' region
-    assert result_dropped[0]["mean"] == pytest.approx(8.0), "Incorrect mean for zone 1"
+    assert result_dropped[0]["mean"] == pytest.approx(
+        8.0
+    ), "Incorrect mean for zone 1"
     assert result_dropped[5]["median"] == 4, "Incorrect median for zone 5"
     assert result_dropped[4]["count"] == 0, "Incorrect count for zone 4"
     assert np.isnan(result_dropped[3]["mean"]), "Incorrect mean for sone 3"
+
+
+@pytest.mark.parametrize(
+    "stats",
+    [
+        {
+            "mean": 0.0,
+            "max": 0.0,
+            "min": 1.0,
+            "median": 0.0,
+            "sum": 0.0,
+            "std": 0.0,
+            "count": 0.0,
+            "adm_level": 0,
+            "valid_date": datetime.strptime("2021-01-01", "%Y-%m-%d"),
+        },
+        {
+            "mean": 1.0,
+            "max": 0.0,
+            "min": 0.0,
+            "median": 0.0,
+            "sum": 0.0,
+            "std": 0.0,
+            "count": 0.0,
+            "adm_level": 1,
+            "valid_date": datetime.strptime("2021-01-01", "%Y-%m-%d"),
+        },
+        {
+            "mean": 0.0,
+            "max": 0.0,
+            "min": 0.0,
+            "median": 1.0,
+            "sum": 0.0,
+            "std": 0.0,
+            "count": 0.0,
+            "adm_level": 2,
+            "valid_date": datetime.strptime("2021-01-01", "%Y-%m-%d"),
+        },
+        {
+            "mean": 0.0,
+            "max": 0.0,
+            "min": 0.0,
+            "median": 0.0,
+            "sum": 0.0,
+            "std": -1.0,
+            "count": 0.0,
+            "adm_level": 3,
+            "valid_date": datetime.strptime("2021-01-01", "%Y-%m-%d"),
+        },
+        {
+            "mean": 0.0,
+            "max": 0.0,
+            "min": 0.0,
+            "median": 0.0,
+            "sum": 0.0,
+            "std": 0.0,
+            "count": -1.0,
+            "adm_level": 4,
+            "valid_date": datetime.strptime("2021-01-01", "%Y-%m-%d"),
+        },
+        {
+            "mean": 0.0,
+            "max": 0.0,
+            "min": 0.0,
+            "median": 0.0,
+            "sum": 0.0,
+            "std": 0.0,
+            "count": 0.0,
+            "adm_level": -1,
+            "valid_date": datetime.strptime("2021-01-01", "%Y-%m-%d"),
+        },
+        {
+            "mean": 0.0,
+            "max": 0.0,
+            "min": 0.0,
+            "median": 0.0,
+            "sum": 0.0,
+            "std": 0.0,
+            "count": 0.0,
+            "adm_level": 0,
+            "leadtime": 7,
+            "issued_date": datetime.strptime("2021-01-01", "%Y-%m-%d"),
+            "valid_date": datetime.strptime("2021-01-01", "%Y-%m-%d"),
+        },
+        {
+            "mean": 0.0,
+            "max": 0.0,
+            "min": 0.0,
+            "median": 0.0,
+            "sum": 0.0,
+            "std": 0.0,
+            "count": 0.0,
+            "adm_level": 0,
+            "leadtime": 1,
+            "issued_date": datetime.strptime("2021-01-01", "%Y-%m-%d"),
+            "valid_date": datetime.strptime("2050-01-01", "%Y-%m-%d"),
+        },
+        {
+            "mean": 0.0,
+            "max": 0.0,
+            "min": 0.0,
+            "median": 0.0,
+            "sum": 0.0,
+            "std": 0.0,
+            "count": 0.0,
+            "adm_level": 0,
+            "leadtime": 2,
+            "issued_date": datetime.strptime("2022-01-01", "%Y-%m-%d"),
+            "valid_date": datetime.strptime("2021-01-01", "%Y-%m-%d"),
+        },
+        {
+            "mean": 0.0,
+            "max": 0.0,
+            "min": 0.0,
+            "median": 0.0,
+            "sum": 0.0,
+            "std": 0.0,
+            "count": 0.0,
+            "adm_level": 0,
+            "leadtime": 6,
+            "issued_date": datetime.strptime("2021-01-01", "%Y-%m-%d"),
+            "valid_date": datetime.strptime("2021-03-01", "%Y-%m-%d"),
+        },
+    ],
+)
+def test_validate_stats(stats):
+    with pytest.raises(ValueError, match=r"Validation error:"):
+        validate_stats("FRA", stats)
 
 
 @pytest.fixture
@@ -81,7 +219,12 @@ def sample_xarray_dataarray_with_date():
     data = np.array(
         [
             [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]],
-            [[17, 18, 19, 20], [21, 22, 23, 24], [25, 26, 27, 28], [29, 30, 31, 32]],
+            [
+                [17, 18, 19, 20],
+                [21, 22, 23, 24],
+                [25, 26, 27, 28],
+                [29, 30, 31, 32],
+            ],
         ]
     )
     da = xr.DataArray(
@@ -101,7 +244,14 @@ def sample_xarray_dataarray_with_date():
 def sample_gdf_with_pcode():
     geometries = [
         Polygon(
-            [(-1, -1), (-0.5, -0.8), (0, -0.5), (-0.2, 0), (-0.8, 0.2), (-1, 0.5)]
+            [
+                (-1, -1),
+                (-0.5, -0.8),
+                (0, -0.5),
+                (-0.2, 0),
+                (-0.8, 0.2),
+                (-1, 0.5),
+            ]
         ),  # Left region
         Polygon([(-0.2, 0.2), (0.2, 0.5), (0, 1), (-0.5, 0.8)]),  # Top region
         Polygon(
@@ -113,7 +263,9 @@ def sample_gdf_with_pcode():
     )
 
 
-def test_rasterize_admin(sample_gdf_with_pcode, sample_xarray_dataarray_with_date):
+def test_rasterize_admin(
+    sample_gdf_with_pcode, sample_xarray_dataarray_with_date
+):
     da = sample_xarray_dataarray_with_date
     gdf = sample_gdf_with_pcode
     src_transform = da.rio.transform()
@@ -183,7 +335,14 @@ def test_fast_zonal_stats_runner(
 def sample_gdf_with_pcode_na_last():
     geometries = [
         Polygon(
-            [(-1, -1), (-0.5, -0.8), (0, -0.5), (-0.2, 0), (-0.8, 0.2), (-1, 0.5)]
+            [
+                (-1, -1),
+                (-0.5, -0.8),
+                (0, -0.5),
+                (-0.2, 0),
+                (-0.8, 0.2),
+                (-1, 0.5),
+            ]
         ),  # Left region
         Polygon(
             [(0.2, -1), (1, -0.8), (0.8, 0), (1, 0.5), (0.5, 0.8), (0, 0.2)]
@@ -291,7 +450,9 @@ def dataset_with_leadtime(dataset_with_time):
 def test_basic_upsampling(dataset_with_time):
     """Test basic upsampling of a 2D dataset."""
     target_res = 0.5  # Upsample from 1.0 to 0.5 degrees
-    result = upsample_raster(dataset_with_time, resampled_resolution=target_res)
+    result = upsample_raster(
+        dataset_with_time, resampled_resolution=target_res
+    )
 
     # Check output resolution
     assert result.rio.resolution()[0] == target_res
@@ -304,7 +465,9 @@ def test_basic_upsampling(dataset_with_time):
 def test_upsampling_with_time(dataset_with_time):
     """Test upsampling of a 3D dataset with time dimension."""
     target_res = 0.5
-    result = upsample_raster(dataset_with_time, resampled_resolution=target_res)
+    result = upsample_raster(
+        dataset_with_time, resampled_resolution=target_res
+    )
 
     # Check time dimension preserved
     assert "date" in result.dims
@@ -319,7 +482,9 @@ def test_upsampling_with_time(dataset_with_time):
 def test_upsampling_with_leadtime(dataset_with_leadtime):
     """Test upsampling of a 4D dataset with time and leadtime dimensions."""
     target_res = 0.5
-    result = upsample_raster(dataset_with_leadtime, resampled_resolution=target_res)
+    result = upsample_raster(
+        dataset_with_leadtime, resampled_resolution=target_res
+    )
 
     # Check temporal dimensions preserved
     assert "date" in result.dims

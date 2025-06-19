@@ -48,57 +48,30 @@ def validate_stats(iso3, stats):
             valid_date = pd.to_datetime(stats["valid_date"]).to_pydatetime()
 
     # All tables
-    # TODO: check this is correct for np.nan values
-    if np.isnan(stats["min"]) or np.isnan(stats["max"]):
-        logger.debug("Min and/or max is np.nan")
-    else:
-        if not (stats["min"] <= stats["max"]):
-            raise ValueError(
-                f"Validation error: min {stats['min']} is not <= max {stats['max']} "
-            )
-
-        if np.isnan(stats["mean"]):
-            logger.debug("Mean is np.nan")
-        else:
-            if not (stats["min"] <= stats["mean"] <= stats["max"]):
-                raise ValueError(
-                    f"Validation error: mean {stats['mean']} is not between min {stats['min']} and max {stats['max']} "
-                )
-
-        if np.isnan(stats["median"]):
-            logger.debug("Median is np.nan")
-        else:
-            if not (stats["min"] <= stats["median"] <= stats["max"]):
-                raise ValueError(
-                    f"Validation error: median {stats['median']} is not between min {stats['min']} & max {stats['max']}"
-                )
-
-    if np.isnan(stats["std"]):
-        logger.debug("Std is np.nan")
-    else:
-        if not stats["std"] >= 0:
-            raise ValueError(
-                f"Validation error: std {stats['std']} is not >= 0"
-            )
-
-    if np.isnan(stats["count"]):
-        logger.debug("Count is np.nan")
-    else:
-        if not stats["count"] >= 0:
-            raise ValueError(
-                f"Validation error: count {stats['count']} is not >= 0"
-            )
-
-    if not (0 <= stats["adm_level"] <= 4):
+    if not (stats["min"] <= stats["max"]):
+        raise ValueError(
+            f"Validation error: min {stats['min']} is not <= max {stats['max']} "
+        )
+    elif not (stats["min"] <= stats["mean"] <= stats["max"]):
+        raise ValueError(
+            f"Validation error: mean {stats['mean']} is not between min {stats['min']} and max {stats['max']} "
+        )
+    elif not (stats["min"] <= stats["median"] <= stats["max"]):
+        raise ValueError(
+            f"Validation error: median {stats['median']} is not between min {stats['min']} & max {stats['max']}"
+        )
+    elif not stats["std"] >= 0:
+        raise ValueError(f"Validation error: std {stats['std']} is not >= 0")
+    elif not stats["count"] >= 0:
+        raise ValueError(
+            f"Validation error: count {stats['count']} is not >= 0"
+        )
+    elif not (0 <= stats["adm_level"] <= 4):
         raise ValueError(
             f"Validation error: adm_level {stats['adm_level']} is not between 0 and 4"
         )
     elif not pattern.search(iso3):
         raise ValueError(f"Validation error: iso3 {iso3} is not valid")
-    elif not valid_date <= datetime.datetime.now():
-        raise ValueError(
-            f"Validation error: valid_date {stats['valid_date']} is not <= current date"
-        )
 
     # Forecast tables
     if "issued_date" in stats:
@@ -122,6 +95,12 @@ def validate_stats(iso3, stats):
                     f"Validation error: leadtime {leadtime} should match the diff between issued_date {issued_date} and"
                     f" valid_date {valid_date}"
                 )
+    else:
+        # Observational tables
+        if not valid_date <= datetime.datetime.now():
+            raise ValueError(
+                f"Validation error: valid_date {stats['valid_date']} is not <= current date"
+            )
 
     return stats
 

@@ -48,25 +48,44 @@ def validate_stats(iso3, stats):
             valid_date = pd.to_datetime(stats["valid_date"]).to_pydatetime()
 
     # All tables
-    if not (stats["min"] <= stats["max"]):
-        raise ValueError(
-            f"Validation error: min {stats['min']} is not <= max {stats['max']} "
-        )
-    elif not (stats["min"] <= stats["mean"] <= stats["max"]):
-        raise ValueError(
-            f"Validation error: mean {stats['mean']} is not between min {stats['min']} and max {stats['max']} "
-        )
-    elif not (stats["min"] <= stats["median"] <= stats["max"]):
-        raise ValueError(
-            f"Validation error: median {stats['median']} is not between min {stats['min']} & max {stats['max']}"
-        )
-    elif not stats["std"] >= 0:
-        raise ValueError(f"Validation error: std {stats['std']} is not >= 0")
-    elif not stats["count"] >= 0:
+    if np.isnan(stats["min"]) or np.isnan(stats["max"]):
+        logger.debug("Min and/or max is np.nan")
+    else:
+        if not (stats["min"] <= stats["max"]):
+            raise ValueError(
+                f"Validation error: min {stats['min']} is not <= max {stats['max']} "
+            )
+
+        if np.isnan(stats["mean"]):
+            logger.debug("Mean is np.nan")
+        else:
+            if not (stats["min"] <= stats["mean"] <= stats["max"]):
+                raise ValueError(
+                    f"Validation error: mean {stats['mean']} is not between min {stats['min']} and max {stats['max']} "
+                )
+
+        if np.isnan(stats["median"]):
+            logger.debug("Median is np.nan")
+        else:
+            if not (stats["min"] <= stats["median"] <= stats["max"]):
+                raise ValueError(
+                    f"Validation error: median {stats['median']} is not between min {stats['min']} & max {stats['max']}"
+                )
+
+    if np.isnan(stats["std"]):
+        logger.debug("Std is np.nan")
+    else:
+        if not stats["std"] >= 0:
+            raise ValueError(
+                f"Validation error: std {stats['std']} is not >= 0"
+            )
+
+    if not stats["count"] >= 0:
         raise ValueError(
             f"Validation error: count {stats['count']} is not >= 0"
         )
-    elif not (0 <= stats["adm_level"] <= 4):
+
+    if not (0 <= stats["adm_level"] <= 4):
         raise ValueError(
             f"Validation error: adm_level {stats['adm_level']} is not between 0 and 4"
         )

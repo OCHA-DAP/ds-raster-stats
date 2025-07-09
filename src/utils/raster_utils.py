@@ -20,10 +20,14 @@ def validate_dimensions(ds):
     required_dims = {"x", "y", "date"}
     missing_dims = required_dims - set(ds.dims)
     if missing_dims:
-        raise ValueError(f"Dataset missing required dimensions: {missing_dims}")
+        raise ValueError(
+            f"Dataset missing required dimensions: {missing_dims}"
+        )
     # Get the fourth dimension if it exists (not x, y, or date)
     dims = list(ds.dims)
-    fourth_dim = next((dim for dim in dims if dim not in {"x", "y", "date"}), None)
+    fourth_dim = next(
+        (dim for dim in dims if dim not in {"x", "y", "date"}), None
+    )
     return fourth_dim
 
 
@@ -101,7 +105,11 @@ def fast_zonal_stats_runner(
                 if bool(np.all(np.isnan(ds__.values))):
                     continue
                 results = fast_zonal_stats(
-                    ds__.values, admin_raster, n_adms, stats=stats, rast_fill=rast_fill
+                    ds__.values,
+                    admin_raster,
+                    n_adms,
+                    stats=stats,
+                    rast_fill=rast_fill,
                 )
                 for i, result in enumerate(results):
                     result["valid_date"] = date
@@ -110,11 +118,17 @@ def fast_zonal_stats_runner(
                         result["issued_date"] = add_months_to_date(date, -val)
                     result["pcode"] = adm_ids[i]
                     result["adm_level"] = adm_level
-                    result[fourth_dim] = val  # Store the fourth dimension value
+                    result[
+                        fourth_dim
+                    ] = val  # Store the fourth dimension value
                 outputs.extend(results)
         else:  # 3D case
             results = fast_zonal_stats(
-                ds_sel.values, admin_raster, n_adms, stats=stats, rast_fill=rast_fill
+                ds_sel.values,
+                admin_raster,
+                n_adms,
+                stats=stats,
+                rast_fill=rast_fill,
             )
             for i, result in enumerate(results):
                 result["valid_date"] = date
@@ -126,7 +140,9 @@ def fast_zonal_stats_runner(
     df_stats["iso3"] = iso3
 
     if save_to_database and engine and dataset:
-        logger.warning(f"In raster utils, writing {len(df_stats)} rows to database...")
+        logger.warning(
+            f"In raster utils, writing {len(df_stats)} rows to database..."
+        )
         df_stats.to_sql(
             dataset,
             con=engine,
@@ -222,7 +238,9 @@ def fast_zonal_stats(
     return feature_stats
 
 
-def upsample_raster(ds, resampled_resolution=UPSAMPLED_RESOLUTION, logger=None):
+def upsample_raster(
+    ds, resampled_resolution=UPSAMPLED_RESOLUTION, logger=None
+):
     """
     Upsample a raster to a higher resolution using nearest neighbor resampling,
     via the `Resampling.nearest` method from `rasterio`.
@@ -289,7 +307,9 @@ def upsample_raster(ds, resampled_resolution=UPSAMPLED_RESOLUTION, logger=None):
                 ds_ = ds_.expand_dims([fourth_dim])
             resampled_arrays.append(ds_)
 
-        ds_resampled = xr.combine_by_coords(resampled_arrays, combine_attrs="drop")
+        ds_resampled = xr.combine_by_coords(
+            resampled_arrays, combine_attrs="drop"
+        )
     else:  # 3D case (x, y, date)
         ds_resampled = ds.rio.reproject(
             ds.rio.crs,
@@ -337,7 +357,12 @@ def prep_raster(ds, gdf_adm, logger=None):
 
 
 def rasterize_admin(
-    gdf, src_width, src_height, src_transform, rast_fill=np.nan, all_touched=False
+    gdf,
+    src_width,
+    src_height,
+    src_transform,
+    rast_fill=np.nan,
+    all_touched=False,
 ):
     """
     Rasterize a GeoDataFrame of administrative boundaries.
@@ -365,9 +390,12 @@ def rasterize_admin(
         that matches the index location in the input gdf. If `all_touched=True`, then some admin regions
         may not be present in the output raster (if they do not have overlap with any pixel centroids)
     """
-    gdf["geometry"] = gdf["geometry"].simplify(tolerance=0.001, preserve_topology=True)
+    gdf["geometry"] = gdf["geometry"].simplify(
+        tolerance=0.001, preserve_topology=True
+    )
     geometries = [
-        (geom, value) for geom, value in zip(gdf.geometry, gdf.reset_index()["index"])
+        (geom, value)
+        for geom, value in zip(gdf.geometry, gdf.reset_index()["index"])
     ]
     admin_raster = rasterize(
         shapes=geometries,

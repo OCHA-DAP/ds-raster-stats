@@ -62,3 +62,7 @@ You can run all hooks against all your files using
 
 ```
 pre-commit run --all-files
+```
+
+### Table constraints
+The table constraints are added automatically to new tables when they are created, however if an existing table needs to be updated then the scripts available in `tables_constraints.sql` can be run in order to have the constraints added. For dev and production this update requires permission to update table as admin.

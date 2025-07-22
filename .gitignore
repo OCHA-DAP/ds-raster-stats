@@ -16,7 +16,6 @@ test_outputs/*
 */tmp/*
 *.db
 *.db-journal
-*.sql
 
 data/*
 

@@ -1,10 +1,13 @@
+import datetime
 import logging
+import re
 import warnings
 
 import coloredlogs
 import numpy as np
 import pandas as pd
 import xarray as xr
+from dateutil.relativedelta import relativedelta
 from rasterio.enums import Resampling
 from rasterio.features import rasterize
 
@@ -20,11 +23,105 @@ def validate_dimensions(ds):
     required_dims = {"x", "y", "date"}
     missing_dims = required_dims - set(ds.dims)
     if missing_dims:
-        raise ValueError(f"Dataset missing required dimensions: {missing_dims}")
+        raise ValueError(
+            f"Dataset missing required dimensions: {missing_dims}"
+        )
     # Get the fourth dimension if it exists (not x, y, or date)
     dims = list(ds.dims)
-    fourth_dim = next((dim for dim in dims if dim not in {"x", "y", "date"}), None)
+    fourth_dim = next(
+        (dim for dim in dims if dim not in {"x", "y", "date"}), None
+    )
     return fourth_dim
+
+
+def validate_stats(iso3, stats):
+    logger.debug("Validating rows...")
+
+    pattern = re.compile("^[A-Z]{3}$")
+
+    if "valid_date" in stats:
+        if type(stats["valid_date"]) == np.str_:
+            valid_date = datetime.datetime.strptime(
+                stats["valid_date"], "%Y-%m-%d"
+            )
+        else:
+            valid_date = pd.to_datetime(stats["valid_date"]).to_pydatetime()
+
+    # All tables
+    if np.isnan(stats["min"]) or np.isnan(stats["max"]):
+        logger.debug("Min and/or max is np.nan")
+    else:
+        if not (stats["min"] <= stats["max"]):
+            raise ValueError(
+                f"Validation error: min {stats['min']} is not <= max {stats['max']} "
+            )
+
+        if np.isnan(stats["mean"]):
+            logger.debug("Mean is np.nan")
+        else:
+            if not (stats["min"] <= stats["mean"] <= stats["max"]):
+                raise ValueError(
+                    f"Validation error: mean {stats['mean']} is not between min {stats['min']} and max {stats['max']} "
+                )
+
+        if np.isnan(stats["median"]):
+            logger.debug("Median is np.nan")
+        else:
+            if not (stats["min"] <= stats["median"] <= stats["max"]):
+                raise ValueError(
+                    f"Validation error: median {stats['median']} is not between min {stats['min']} & max {stats['max']}"
+                )
+
+    if np.isnan(stats["std"]):
+        logger.debug("Std is np.nan")
+    else:
+        if not stats["std"] >= 0:
+            raise ValueError(
+                f"Validation error: std {stats['std']} is not >= 0"
+            )
+
+    if not stats["count"] >= 0:
+        raise ValueError(
+            f"Validation error: count {stats['count']} is not >= 0"
+        )
+
+    if not (0 <= stats["adm_level"] <= 4):
+        raise ValueError(
+            f"Validation error: adm_level {stats['adm_level']} is not between 0 and 4"
+        )
+    elif not pattern.search(iso3):
+        raise ValueError(f"Validation error: iso3 {iso3} is not valid")
+
+    # Forecast tables
+    if "issued_date" in stats:
+        issued_date = stats["issued_date"]
+        if type(issued_date) != datetime.datetime:
+            issued_date = datetime.datetime.strptime(
+                stats["issued_date"], "%Y-%m-%d"
+            )
+        if not valid_date >= issued_date:
+            raise ValueError(
+                f"Validation error: issued_date {issued_date} is not <= valid_date {valid_date}"
+            )
+        elif "leadtime" in stats:
+            leadtime = int(stats["leadtime"])
+            if not (0 <= leadtime <= 6):
+                raise ValueError(
+                    f"Validation error: leadtime {stats['leadtime']} is not between 0 and 6"
+                )
+            elif leadtime != relativedelta(issued_date, valid_date).months:
+                raise ValueError(
+                    f"Validation error: leadtime {leadtime} should match the diff between issued_date {issued_date} and"
+                    f" valid_date {valid_date}"
+                )
+    else:
+        # Observational tables
+        if not valid_date <= datetime.datetime.now():
+            raise ValueError(
+                f"Validation error: valid_date {stats['valid_date']} is not <= current date"
+            )
+
+    return stats
 
 
 def fast_zonal_stats_runner(
@@ -101,7 +198,11 @@ def fast_zonal_stats_runner(
                 if bool(np.all(np.isnan(ds__.values))):
                     continue
                 results = fast_zonal_stats(
-                    ds__.values, admin_raster, n_adms, stats=stats, rast_fill=rast_fill
+                    ds__.values,
+                    admin_raster,
+                    n_adms,
+                    stats=stats,
+                    rast_fill=rast_fill,
                 )
                 for i, result in enumerate(results):
                     result["valid_date"] = date
@@ -110,23 +211,33 @@ def fast_zonal_stats_runner(
                         result["issued_date"] = add_months_to_date(date, -val)
                     result["pcode"] = adm_ids[i]
                     result["adm_level"] = adm_level
-                    result[fourth_dim] = val  # Store the fourth dimension value
+                    result[
+                        fourth_dim
+                    ] = val  # Store the fourth dimension value
+                    validate_stats(iso3, result)
                 outputs.extend(results)
         else:  # 3D case
             results = fast_zonal_stats(
-                ds_sel.values, admin_raster, n_adms, stats=stats, rast_fill=rast_fill
+                ds_sel.values,
+                admin_raster,
+                n_adms,
+                stats=stats,
+                rast_fill=rast_fill,
             )
             for i, result in enumerate(results):
                 result["valid_date"] = date
                 result["pcode"] = adm_ids[i]
                 result["adm_level"] = adm_level
+                validate_stats(iso3, result)
             outputs.extend(results)
 
     df_stats = pd.DataFrame(outputs)
     df_stats["iso3"] = iso3
 
     if save_to_database and engine and dataset:
-        logger.warning(f"In raster utils, writing {len(df_stats)} rows to database...")
+        logger.warning(
+            f"In raster utils, writing {len(df_stats)} rows to database..."
+        )
         df_stats.to_sql(
             dataset,
             con=engine,
@@ -222,7 +333,9 @@ def fast_zonal_stats(
     return feature_stats
 
 
-def upsample_raster(ds, resampled_resolution=UPSAMPLED_RESOLUTION, logger=None):
+def upsample_raster(
+    ds, resampled_resolution=UPSAMPLED_RESOLUTION, logger=None
+):
     """
     Upsample a raster to a higher resolution using nearest neighbor resampling,
     via the `Resampling.nearest` method from `rasterio`.
@@ -289,7 +402,9 @@ def upsample_raster(ds, resampled_resolution=UPSAMPLED_RESOLUTION, logger=None):
                 ds_ = ds_.expand_dims([fourth_dim])
             resampled_arrays.append(ds_)
 
-        ds_resampled = xr.combine_by_coords(resampled_arrays, combine_attrs="drop")
+        ds_resampled = xr.combine_by_coords(
+            resampled_arrays, combine_attrs="drop"
+        )
     else:  # 3D case (x, y, date)
         ds_resampled = ds.rio.reproject(
             ds.rio.crs,
@@ -337,7 +452,12 @@ def prep_raster(ds, gdf_adm, logger=None):
 
 
 def rasterize_admin(
-    gdf, src_width, src_height, src_transform, rast_fill=np.nan, all_touched=False
+    gdf,
+    src_width,
+    src_height,
+    src_transform,
+    rast_fill=np.nan,
+    all_touched=False,
 ):
     """
     Rasterize a GeoDataFrame of administrative boundaries.
@@ -365,9 +485,12 @@ def rasterize_admin(
         that matches the index location in the input gdf. If `all_touched=True`, then some admin regions
         may not be present in the output raster (if they do not have overlap with any pixel centroids)
     """
-    gdf["geometry"] = gdf["geometry"].simplify(tolerance=0.001, preserve_topology=True)
+    gdf["geometry"] = gdf["geometry"].simplify(
+        tolerance=0.001, preserve_topology=True
+    )
     geometries = [
-        (geom, value) for geom, value in zip(gdf.geometry, gdf.reset_index()["index"])
+        (geom, value)
+        for geom, value in zip(gdf.geometry, gdf.reset_index()["index"])
     ]
     admin_raster = rasterize(
         shapes=geometries,

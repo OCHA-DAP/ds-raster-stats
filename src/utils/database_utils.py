@@ -4,6 +4,7 @@ from sqlalchemy import (
     CHAR,
     REAL,
     Boolean,
+    CheckConstraint,
     Column,
     Date,
     Integer,
@@ -74,8 +75,42 @@ def create_dataset_table(dataset, engine, is_forecast=False, extra_dims={}):
     ]
 
     unique_constraint_columns = ["valid_date", "pcode"]
+    table_args = [
+        UniqueConstraint(
+            *unique_constraint_columns,
+            name=f"{dataset}_valid_date_leadtime_pcode_key",
+            postgresql_nulls_not_distinct=True,
+        ),
+        CheckConstraint("min <= max", name="check_min_max"),
+        CheckConstraint("mean between min AND max", name="check_mean"),
+        CheckConstraint("median between min AND max", name="check_median"),
+        CheckConstraint("std >= 0", name="check_std"),
+        CheckConstraint("count >= 0", name="check_count"),
+        CheckConstraint("adm_level between 0 AND 4", name="check_adm_level"),
+        CheckConstraint("iso3 ~ '^[A-Z]{3}$'", name="check_iso3"),
+    ]
+
+    forecast_tables_constraints = [
+        CheckConstraint(
+            "leadtime between 0 AND 6", name="check_leadtime_betwen_0_6"
+        ),
+        CheckConstraint("valid_date >= issued_date", name="check_valid_date"),
+        CheckConstraint(
+            "leadtime = EXTRACT(YEAR FROM AGE(valid_date, issued_date)) "
+            "* 12 +EXTRACT(MONTH FROM AGE(valid_date, issued_date))",
+            name="check_leadtime_equals_months_diff",
+        ),
+    ]
+    observational_tables_constraints = CheckConstraint(
+        "valid_date <= CURRENT_DATE", name="check_valid_date"
+    )
+
     if is_forecast:
         columns.insert(3, Column("issued_date", Date))
+        table_args = table_args + forecast_tables_constraints
+    else:
+        table_args.append(observational_tables_constraints)
+
     for idx, dim in enumerate(extra_dims):
         columns.insert(idx + 4, Column(dim, extra_dims[dim]))
         unique_constraint_columns.append(dim)
@@ -84,11 +119,7 @@ def create_dataset_table(dataset, engine, is_forecast=False, extra_dims={}):
         f"{dataset}",
         metadata,
         *columns,
-        UniqueConstraint(
-            *unique_constraint_columns,
-            name=f"{dataset}_valid_date_leadtime_pcode_key",
-            postgresql_nulls_not_distinct=True,
-        ),
+        *table_args,
     )
 
     metadata.create_all(engine)

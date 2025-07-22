@@ -109,7 +109,7 @@ def validate_stats(iso3, stats):
                 raise ValueError(
                     f"Validation error: leadtime {stats['leadtime']} is not between 0 and 6"
                 )
-            elif leadtime != relativedelta(issued_date, valid_date).months:
+            elif leadtime != relativedelta(valid_date, issued_date).months:
                 raise ValueError(
                     f"Validation error: leadtime {leadtime} should match the diff between issued_date {issued_date} and"
                     f" valid_date {valid_date}"

@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
 
-# TODO: Update now that IMERG data has the right .attrs metadata
 def process_imerg(cog_name, mode):
     """
     Processes an IMERG Cloud Optimized GeoTIFF (COG) file
@@ -32,13 +31,16 @@ def process_imerg(cog_name, mode):
         A data array with the contents of the IMERG COG file, with an additional 'date' dimension
         based on the filename. The data array is persisted in memory for efficient access.
     """
-    cog_url = get_cog_url(mode, cog_name)
-    da_in = rxr.open_rasterio(cog_url, chunks="auto")
+    da_in = get_cog_da(cog_name, mode)
+
+    year_valid = da_in.attrs["year_valid"]
+    month_valid = str(da_in.attrs["month_valid"]).zfill(2)
+    date_in = f"{year_valid}-{month_valid}-01"
 
     da_in = da_in.squeeze(drop=True)
-    date_in = cog_name[-14:-4]
     da_in["date"] = date_in
     da_in = da_in.expand_dims(["date"])
+
     da_in = da_in.persist()
     return da_in
 
@@ -61,8 +63,7 @@ def process_era5(cog_name, mode):
         A data array with the contents of the ERA5 COG file, with an additional 'date' dimension
         based on the filename. The data array is persisted in memory for efficient access.
     """
-    cog_url = get_cog_url(mode, cog_name)
-    da_in = rxr.open_rasterio(cog_url, chunks="auto")
+    da_in = get_cog_da(cog_name, mode)
 
     year_valid = da_in.attrs["year_valid"]
     month_valid = str(da_in.attrs["month_valid"]).zfill(2)
@@ -94,8 +95,7 @@ def process_seas5(cog_name, mode):
         A data array with the contents of the SEAS5 COG file, with an additional 'date' dimension
         based on the filename. The data array is persisted in memory for efficient access.
     """
-    cog_url = get_cog_url(mode, cog_name)
-    da_in = rxr.open_rasterio(cog_url, chunks="auto")
+    da_in = get_cog_da(cog_name, mode)
 
     year_valid = da_in.attrs["year_valid"]
     month_valid = str(da_in.attrs["month_valid"]).zfill(2)
@@ -108,9 +108,14 @@ def process_seas5(cog_name, mode):
     return da_in
 
 
-def process_floodscan(cog_name, mode):
+def get_cog_da(cog_name, mode):
     cog_url = get_cog_url(mode, cog_name)
     da_in = rxr.open_rasterio(cog_url, chunks="auto")
+    return da_in
+
+
+def process_floodscan(cog_name, mode):
+    da_in = get_cog_da(cog_name, mode)
 
     year_valid = da_in.attrs["year_valid"]
     month_valid = str(da_in.attrs["month_valid"]).zfill(2)

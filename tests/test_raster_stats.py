@@ -525,8 +525,14 @@ def test_process_era5_raises_error(attrs, date, error_message):
 @pytest.mark.parametrize(
     "attrs, date",
     [
-        ({"year_valid": 2020, "month_valid": 2}, "2020-01-01"),
-        ({"year_valid": 2020, "month_valid": 12}, "2020-01-01"),
+        (
+            {"year_valid": 2020, "month_valid": 2, "date_valid": 1},
+            "2020-01-01",
+        ),
+        (
+            {"year_valid": 2020, "month_valid": 12, "date_valid": 1},
+            "2020-01-01",
+        ),
     ],
 )
 def test_process_imerg_valid(attrs, date, simple_gdf_with_one_pcode):
@@ -537,6 +543,7 @@ def test_process_imerg_valid(attrs, date, simple_gdf_with_one_pcode):
         da_in = process_imerg("cog_url", "local")
         assert pd.to_datetime(da_in.date)[0].year == da.attrs["year_valid"]
         assert pd.to_datetime(da_in.date)[0].month == da.attrs["month_valid"]
+        assert pd.to_datetime(da_in.date)[0].day == da.attrs["date_valid"]
 
         result = fast_zonal_stats_runner(
             ds=da_in,

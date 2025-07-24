@@ -35,7 +35,8 @@ def process_imerg(cog_name, mode):
 
     year_valid = da_in.attrs["year_valid"]
     month_valid = str(da_in.attrs["month_valid"]).zfill(2)
-    date_in = f"{year_valid}-{month_valid}-01"
+    date_valid = str(da_in.attrs["date_valid"]).zfill(2)
+    date_in = f"{year_valid}-{month_valid}-{date_valid}"
 
     da_in = da_in.squeeze(drop=True)
     da_in["date"] = date_in

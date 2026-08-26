@@ -114,7 +114,9 @@ for dataset, ranges in [
 ]:
     stacking[dataset] = {}
     for mode, dates in ranges.items():
-        cog_utils.ThreadPoolExecutor = SerialTPE if mode == "serial" else real_tpe
+        cog_utils.ThreadPoolExecutor = (
+            SerialTPE if mode == "serial" else real_tpe
+        )
         t0 = time.perf_counter()
         ds_tmp = stack_cogs(list(dates), dataset, "prod")
         dt = time.perf_counter() - t0

@@ -487,17 +487,21 @@ def validate_stats_df(df, forecast):
             errors.append(f"{message} ({int(mask.sum())} rows)")
 
     has_minmax = df["min"].notna() & df["max"].notna()
+    # Small relative tolerance: the weighted mean of a constant-valued
+    # admin can differ from min == max by float rounding (well below
+    # the REAL precision the DB stores and checks against)
+    tol = 1e-9 * (df["min"].abs() + df["max"].abs()) + 1e-12
     check(has_minmax & (df["min"] > df["max"]), "min > max")
     check(
         has_minmax
         & df["mean"].notna()
-        & ~df["mean"].between(df["min"], df["max"]),
+        & ~df["mean"].between(df["min"] - tol, df["max"] + tol),
         "mean outside [min, max]",
     )
     check(
         has_minmax
         & df["median"].notna()
-        & ~df["median"].between(df["min"], df["max"]),
+        & ~df["median"].between(df["min"] - tol, df["max"] + tol),
         "median outside [min, max]",
     )
     check(df["std"].notna() & (df["std"] < 0), "std < 0")

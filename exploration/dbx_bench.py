@@ -30,9 +30,9 @@ except NameError:
     _root = os.getcwd()
 sys.path.insert(0, _root)
 
-# The DBR runtime's bundled affine 2.4.x wins over the job-library pin and
-# breaks rasterio transforms (cached_property on a __slots__ namedtuple).
-# Force the fix before anything imports affine transitively.
+# affine >=2.4 uses cached_property on a __slots__ namedtuple, which
+# breaks under Python 3.10 (works on 3.12+). Force the last pre-2.4
+# release before anything imports affine transitively.
 import subprocess  # noqa: E402
 
 subprocess.run(
@@ -43,7 +43,7 @@ subprocess.run(
         "install",
         "--force-reinstall",
         "--no-deps",
-        "affine==3.0.0",
+        "affine==2.3.1",
     ],
     check=False,
     capture_output=True,

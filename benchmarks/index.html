@@ -331,10 +331,15 @@
     (0.07→12.0&nbsp;s) — consistent with their PHL polygon sweep having run
     on the upsampled 0.05° grid, where a large fixed per-date cost swamps
     the per-polygon term; the sweep configuration was never committed, so
-    this is a hypothesis. The fast→PR&nbsp;#49 gap is modest here (2–4×)
-    because these clips are tiny (≈2,500–3,200 native pixels); the gap grows
-    with pixels, slices, and admin count — see the pipeline-scale and
-    admin-scaling sections above.
+    this is a hypothesis. The fast→PR&nbsp;#49 gap is modest here (2–4×) for
+    a specific, measurable reason: faithful to the 2024 harness, both kernels
+    ran on the <em>native</em> grid — but the production legacy path first
+    upsamples to 0.05° (25× the pixels for ERA5). Rerunning the same ETH/PHL
+    data with the legacy method configured as production actually runs it
+    (upsample + stats on the inflated grid) widens the gap to
+    <strong>16–17×</strong> (ETH 0.7&nbsp;s vs 0.043&nbsp;s; PHL 0.5&nbsp;s
+    vs 0.030&nbsp;s at 125 dates). The gap grows further with slices and
+    admin count — see the pipeline-scale and admin-scaling sections above.
   </p>
 </figure>
 

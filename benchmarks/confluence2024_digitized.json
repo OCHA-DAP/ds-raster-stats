@@ -1,0 +1,9 @@
+{
+ "source": "Confluence 'Methodology' page (id 3818389505), screenshots 2024-09-11, read off charts (approx)",
+ "eth_dates": {"n": [5, 25, 50, 75, 100, 125],
+   "baseline": [0.5, 1.7, 2.7, 3.9, 5.5, 6.6],
+   "fast": [0.05, 0.25, 0.3, 0.55, 0.7, 0.75]},
+ "phl_dates": {"n": [5, 125], "baseline": [1.4, 35.3], "fast": [0.02, 0.2]},
+ "eth_polygons": {"n": [1, 92], "baseline": [0.25, 1.2], "fast": [0.02, 0.08]},
+ "phl_polygons": {"n": [1, 88], "baseline": [1.42, 1.65], "fast": [0.005, 0.02]}
+}

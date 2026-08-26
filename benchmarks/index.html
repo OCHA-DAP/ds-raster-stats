@@ -17,6 +17,7 @@
     --border: rgba(11,11,11,0.10);
     --series-new: #2a78d6;    /* categorical slot 1: the new method */
     --series-legacy: #eb6834; /* categorical slot 2: the legacy method */
+    --series-base: #1baf7a;   /* categorical slot 3: 2024 rasterstats baseline */
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) {
@@ -31,6 +32,7 @@
       --border: rgba(255,255,255,0.10);
       --series-new: #3987e5;
       --series-legacy: #d95926;
+      --series-base: #199e70;
     }
   }
   :root[data-theme="dark"] {
@@ -45,6 +47,7 @@
     --border: rgba(255,255,255,0.10);
     --series-new: #3987e5;
     --series-legacy: #d95926;
+    --series-base: #199e70;
   }
   * { box-sizing: border-box; }
   body {
@@ -271,6 +274,70 @@
   </p>
 </section>
 
+<figure id="fig-repro">
+  <h2>Reproducing the 2024 benchmark</h2>
+  <p class="caption">
+    The 2024 methodology work benchmarked baseline
+    <code>compute_zonal_statistics</code> (python-rasterstats per date) against
+    <code>fast_compute_zonal_statistics</code> (rasterize-once + numpy — today's
+    legacy method). This reruns the <em>original functions</em> from the
+    2024 <code>exact-extract</code> branch, same setup as far as it is
+    recoverable — ERA5 monthly at native 0.25°, ETH and PHL ADM2 CODs,
+    sweeps over N dates — with the PR&nbsp;#49 kernel as a third line.
+    Outputs of baseline and fast were verified identical before timing.
+    Log y-axis; seconds per run (mean of 10 iterations; 3 for the baseline).
+  </p>
+  <div class="legend">
+    <span class="key"><span class="linekey" style="background:var(--series-base)"></span>2024 baseline (rasterstats)</span>
+    <span class="key"><span class="linekey" style="background:var(--series-legacy)"></span>2024 fast (today's legacy)</span>
+    <span class="key"><span class="linekey" style="background:var(--series-new)"></span>PR #49 (weight matrix)</span>
+  </div>
+  <div id="chart-repro-eth"></div>
+  <div id="chart-repro-phl" style="margin-top:10px"></div>
+  <details><summary>Table view — dates sweep, and the 2024 originals</summary>
+    <table>
+      <thead><tr><th>Country · N dates</th><th>Baseline (s)</th><th>Fast (s)</th><th>PR #49 (s)</th><th>2024 chart: baseline / fast (s)</th></tr></thead>
+      <tbody>
+        <tr><td>ETH · 5</td><td>0.54</td><td>0.007</td><td>0.006</td><td>~0.5 / ~0.05</td></tr>
+        <tr><td>ETH · 125</td><td>10.56</td><td>0.178</td><td>0.042</td><td>~6.6 / ~0.75</td></tr>
+        <tr><td>PHL · 5</td><td>9.53</td><td>0.006</td><td>0.005</td><td>~1.4 / ~0.02</td></tr>
+        <tr><td>PHL · 125</td><td>59.04</td><td>0.138</td><td>0.076</td><td>~35.3 / ~0.2</td></tr>
+      </tbody>
+    </table>
+  </details>
+  <details><summary>Table view — polygons sweep (10 dates)</summary>
+    <table>
+      <thead><tr><th>Country · N polygons</th><th>Baseline (s)</th><th>Fast (s)</th><th>PR #49 (s)</th></tr></thead>
+      <tbody>
+        <tr><td>ETH · 1</td><td>0.045</td><td>0.013</td><td>0.0002</td></tr>
+        <tr><td>ETH · 25</td><td>0.316</td><td>0.008</td><td>0.0017</td></tr>
+        <tr><td>ETH · 92</td><td>0.931</td><td>0.013</td><td>0.0061</td></tr>
+        <tr><td>PHL · 1</td><td>0.069</td><td>0.008</td><td>0.0002</td></tr>
+        <tr><td>PHL · 25</td><td>5.495</td><td>0.008</td><td>0.0016</td></tr>
+        <tr><td>PHL · 88</td><td>11.971</td><td>0.015</td><td>0.0054</td></tr>
+      </tbody>
+    </table>
+  </details>
+  <p class="caption" style="margin-top:12px">
+    What reproduces: every 2024 shape and ordering — all methods linear in
+    dates, baseline linear in polygons and fast near-flat (ETH), and PHL's
+    baseline far slower than ETH's despite a smaller grid (its coastline
+    multipolygons dominate rasterstats' per-polygon cost). Absolute times
+    differ from the 2024 charts (different machine and library versions):
+    this run's baseline is slower and its fast is faster, so the
+    baseline→fast gap measures 59–428× here vs ~9–175× in 2024. One shape
+    did not reproduce: the 2024 PHL polygons chart was nearly flat
+    (1.42→1.65&nbsp;s over 1→88 polygons) where this run grows linearly
+    (0.07→12.0&nbsp;s) — consistent with their PHL polygon sweep having run
+    on the upsampled 0.05° grid, where a large fixed per-date cost swamps
+    the per-polygon term; the sweep configuration was never committed, so
+    this is a hypothesis. The fast→PR&nbsp;#49 gap is modest here (2–4×)
+    because these clips are tiny (≈2,500–3,200 native pixels); the gap grows
+    with pixels, slices, and admin count — see the pipeline-scale and
+    admin-scaling sections above.
+  </p>
+</figure>
+
 <section class="prose">
   <h2>Notes &amp; caveats</h2>
   <ul>
@@ -297,7 +364,14 @@
       issuances 2016-01…2024-04. "Warm" = weight matrices already on disk;
       "cold" includes the exactextract build.</li>
     <li>Raw results: <a href="bench_results.json">bench_results.json</a> ·
-      harness: <a href="bench_full.py">bench_full.py</a>.</li>
+      harness: <a href="bench_full.py">bench_full.py</a> · 2024 reproduction:
+      <a href="repro2024_results.json">repro2024_results.json</a>,
+      <a href="repro_bench.py">repro_bench.py</a>,
+      <a href="raster_utils_2024.py">raster_utils_2024.py</a> (verbatim from the
+      <a href="https://github.com/OCHA-DAP/ds-raster-stats/tree/exact-extract">exact-extract</a>
+      branch, minus repo-internal imports),
+      <a href="confluence2024_digitized.json">confluence2024_digitized.json</a>
+      (values read off the original charts).</li>
   </ul>
 </section>
 
@@ -527,6 +601,99 @@
       hit.addEventListener("blur", hideTip);
     });
   })();
+
+  // 2024 reproduction: linear-x (N dates), log-y (seconds), three series
+  function reproChart(containerId, title, data, yMinLog, yMaxLog, yTicks) {
+    var container = document.getElementById(containerId);
+    var W = 840, H = 280, padL = 64, padR = 150, padT = 26, padB = 36;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var x = function (n) { return padL + (n - 5) / (125 - 5) * plotW; };
+    var y = function (v) {
+      return padT + plotH -
+        (Math.log10(v) - yMinLog) / (yMaxLog - yMinLog) * plotH;
+    };
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, "class": "chart-svg",
+      role: "img", "aria-label": title + " — seconds vs N dates, log y, three methods" },
+      container);
+    var t = el("text", { x: padL, y: 14, "font-size": 12.5, "font-weight": 600,
+      fill: color("--text-primary") }, svg);
+    t.textContent = title;
+
+    yTicks.forEach(function (tk) {
+      el("line", { x1: padL, y1: y(tk), x2: W - padR, y2: y(tk),
+        stroke: color("--grid"), "stroke-width": 1 }, svg);
+      var lbl = el("text", { x: padL - 8, y: y(tk) + 4, "text-anchor": "end",
+        "font-size": 11, fill: color("--muted") }, svg);
+      lbl.textContent = tk >= 1 ? tk + " s" : tk + "";
+    });
+    [5, 25, 50, 75, 100, 125].forEach(function (n) {
+      var lbl = el("text", { x: x(n), y: H - padB + 18, "text-anchor": "middle",
+        "font-size": 11, fill: color("--muted") }, svg);
+      lbl.textContent = n;
+    });
+    var xl = el("text", { x: padL + plotW / 2, y: H - 2, "text-anchor": "middle",
+      "font-size": 11, fill: color("--muted") }, svg);
+    xl.textContent = "N dates";
+    el("line", { x1: padL, y1: padT + plotH, x2: W - padR, y2: padT + plotH,
+      stroke: color("--baseline"), "stroke-width": 1 }, svg);
+
+    var series = [
+      ["baseline", color("--series-base"), "baseline"],
+      ["fast", color("--series-legacy"), "2024 fast"],
+      ["nw", color("--series-new"), "PR #49"]
+    ];
+    series.forEach(function (s) {
+      var pts = data.n.map(function (n, i) {
+        return x(n) + "," + y(data[s[0]][i]);
+      });
+      el("polyline", { points: pts.join(" "), fill: "none", stroke: s[1],
+        "stroke-width": 2, "stroke-linejoin": "round",
+        "stroke-linecap": "round" }, svg);
+      data.n.forEach(function (n, i) {
+        el("circle", { cx: x(n), cy: y(data[s[0]][i]), r: 5, fill: s[1],
+          stroke: color("--surface-1"), "stroke-width": 2 }, svg);
+      });
+      var lastV = data[s[0]][data.n.length - 1];
+      var endLbl = el("text", { x: x(125) + 12, y: y(lastV) + 4,
+        "font-size": 12, fill: color("--text-secondary") }, svg);
+      endLbl.textContent = s[2] + " " +
+        (lastV >= 1 ? lastV.toFixed(1) : lastV.toFixed(3)) + " s";
+    });
+
+    data.n.forEach(function (n, i) {
+      var hit = el("rect", { x: x(n) - 30, y: padT, width: 60, height: plotH,
+        fill: "transparent", tabindex: 0 }, svg);
+      function fmt(v) { return (v >= 1 ? v.toFixed(2) : v.toFixed(3)) + " s"; }
+      function over(evt) {
+        showTip(evt, title + " — " + n + " dates", [
+          { color: color("--series-new"), value: fmt(data.nw[i]), label: "PR #49" },
+          { color: color("--series-legacy"), value: fmt(data.fast[i]), label: "2024 fast" },
+          { color: color("--series-base"), value: fmt(data.baseline[i]), label: "baseline" }
+        ]);
+      }
+      hit.addEventListener("pointermove", over);
+      hit.addEventListener("pointerleave", hideTip);
+      hit.addEventListener("focus", function () {
+        var r = hit.getBoundingClientRect();
+        over({ clientX: r.left + 30, clientY: r.top + 40 });
+      });
+      hit.addEventListener("blur", hideTip);
+    });
+  }
+
+  reproChart("chart-repro-eth", "Ethiopia (92 ADM2)", {
+    n: [5, 25, 50, 75, 100, 125],
+    baseline: [0.539, 2.191, 4.106, 6.266, 8.281, 10.558],
+    fast: [0.007, 0.032, 0.063, 0.097, 0.131, 0.178],
+    nw: [0.0057, 0.0081, 0.0105, 0.0128, 0.0159, 0.0418]
+  }, Math.log10(0.004), Math.log10(80), [0.01, 0.1, 1, 10]);
+
+  reproChart("chart-repro-phl", "Philippines (88 ADM2)", {
+    n: [5, 25, 50, 75, 100, 125],
+    baseline: [9.529, 19.005, 28.418, 39.761, 50.278, 59.038],
+    fast: [0.006, 0.055, 0.075, 0.127, 0.112, 0.138],
+    nw: [0.0051, 0.0063, 0.0078, 0.0098, 0.0096, 0.0762]
+  }, Math.log10(0.004), Math.log10(80), [0.01, 0.1, 1, 10]);
 })();
 </script>
 </body>

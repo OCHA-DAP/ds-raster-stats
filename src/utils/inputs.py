@@ -47,4 +47,11 @@ def cli_args():
         action="store_true",
         help="Whether to check and backfill for any missing dates",
     )
+    parser.add_argument(
+        "--num-processes",
+        help="""Number of worker processes. Defaults to the
+        NUM_PROCESSES env var, or 4.""",
+        type=int,
+        default=None,
+    )
     return parser.parse_args()

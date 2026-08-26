@@ -1,4 +1,5 @@
 import os
+import shutil
 import zipfile
 from datetime import datetime
 from io import StringIO
@@ -6,7 +7,7 @@ from io import StringIO
 import numpy as np
 import pandas as pd
 import requests
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 from src.config.settings import load_pipeline_config
 from src.utils.cloud_utils import get_container_client
@@ -63,6 +64,54 @@ def load_shp(shp_url, shp_dir, iso3):
         zip_ref.extractall(shp_dir)
 
 
+def load_shp_cached(iso3, mode, cache_dir=None):
+    """
+    Download and extract a country's zipped shapefile from Azure Blob
+    Storage into a per-run cache directory, reusing it if already
+    present. The extraction is atomic (extract to a temp dir, then
+    rename), so concurrent worker processes can share the cache safely.
+
+    Parameters
+    ----------
+    iso3 : str
+        A three-letter ISO code used to identify the shapefile.
+    mode : str
+        The current mode, determining which Azure storage container to
+        point to (dev or prod)
+    cache_dir : str, optional
+        Root of the boundary cache. Defaults to $BOUNDARY_CACHE_DIR or
+        `.cache/boundaries`.
+
+    Returns
+    -------
+    str
+        Directory containing the extracted shapefiles.
+    """
+    if cache_dir is None:
+        cache_dir = os.getenv(
+            "BOUNDARY_CACHE_DIR", os.path.join(".cache", "boundaries")
+        )
+    target_dir = os.path.join(cache_dir, mode, iso3.lower())
+    if os.path.isdir(target_dir):
+        return target_dir
+
+    os.makedirs(os.path.dirname(target_dir), exist_ok=True)
+    tmp_dir = f"{target_dir}.tmp{os.getpid()}"
+    os.makedirs(tmp_dir, exist_ok=True)
+    try:
+        load_shp_from_azure(iso3, tmp_dir, mode)
+        os.rename(tmp_dir, target_dir)
+    except OSError:
+        # Another worker finished extracting first
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        if not os.path.isdir(target_dir):
+            raise
+    except Exception:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise
+    return target_dir
+
+
 def load_shp_from_azure(iso3, shp_dir, mode):
     """
     Download and extract a zipped shapefile from Azure Blob Storage.
@@ -80,6 +129,9 @@ def load_shp_from_azure(iso3, shp_dir, mode):
     -------
     None
     """
+    # No data stored locally, so read from dev (as in stack_cogs)
+    if mode == "local":
+        mode = "dev"
     blob_name = f"{iso3.lower()}_shp.zip"
     container_client = get_container_client(mode, "polygon")
     blob_client = container_client.get_blob_client(blob_name)
@@ -110,15 +162,15 @@ def get_iso3_data(iso3_codes, engine):
 
     """
     if iso3_codes and len(iso3_codes) > 0:
-        if len(iso3_codes) == 1:
-            query = text("SELECT * FROM public.iso3 WHERE iso3 = :code")
-            params = {"code": iso3_codes[0]}
-        else:
-            query = text("SELECT * FROM public.iso3 WHERE iso3 = ANY(:codes)")
-            params = {"codes": iso3_codes}
+        # IN with an expanding bindparam works on both postgres and
+        # local sqlite (unlike ANY)
+        query = text("SELECT * FROM iso3 WHERE iso3 IN :codes").bindparams(
+            bindparam("codes", expanding=True)
+        )
+        params = {"codes": list(iso3_codes)}
         df = pd.read_sql_query(query, engine.connect(), params=params)
     else:
-        query = text("SELECT * FROM public.iso3")
+        query = text("SELECT * FROM iso3")
         df = pd.read_sql_query(query, engine.connect())
 
     return df

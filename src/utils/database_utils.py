@@ -14,6 +14,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from src.config.settings import DATABASES
 
@@ -74,7 +75,7 @@ def create_dataset_table(dataset, engine, is_forecast=False, extra_dims={}):
         Column("std", REAL),
     ]
 
-    unique_constraint_columns = ["valid_date", "pcode"]
+    unique_constraint_columns = ["valid_date", "pcode"] + list(extra_dims)
     table_args = [
         UniqueConstraint(
             *unique_constraint_columns,
@@ -87,20 +88,28 @@ def create_dataset_table(dataset, engine, is_forecast=False, extra_dims={}):
         CheckConstraint("std >= 0", name="check_std"),
         CheckConstraint("count >= 0", name="check_count"),
         CheckConstraint("adm_level between 0 AND 4", name="check_adm_level"),
-        CheckConstraint("iso3 ~ '^[A-Z]{3}$'", name="check_iso3"),
     ]
+    if engine.dialect.name == "postgresql":
+        # Regex match is postgres-only syntax; skip on local sqlite
+        table_args.append(
+            CheckConstraint("iso3 ~ '^[A-Z]{3}$'", name="check_iso3")
+        )
 
     forecast_tables_constraints = [
         CheckConstraint(
             "leadtime between 0 AND 6", name="check_leadtime_betwen_0_6"
         ),
         CheckConstraint("valid_date >= issued_date", name="check_valid_date"),
-        CheckConstraint(
-            "leadtime = EXTRACT(YEAR FROM AGE(valid_date, issued_date)) "
-            "* 12 +EXTRACT(MONTH FROM AGE(valid_date, issued_date))",
-            name="check_leadtime_equals_months_diff",
-        ),
     ]
+    if engine.dialect.name == "postgresql":
+        # EXTRACT/AGE are postgres-only syntax; skip on local sqlite
+        forecast_tables_constraints.append(
+            CheckConstraint(
+                "leadtime = EXTRACT(YEAR FROM AGE(valid_date, issued_date)) "
+                "* 12 +EXTRACT(MONTH FROM AGE(valid_date, issued_date))",
+                name="check_leadtime_equals_months_diff",
+            )
+        )
     observational_tables_constraints = CheckConstraint(
         "valid_date <= CURRENT_DATE", name="check_valid_date"
     )
@@ -113,7 +122,6 @@ def create_dataset_table(dataset, engine, is_forecast=False, extra_dims={}):
 
     for idx, dim in enumerate(extra_dims):
         columns.insert(idx + 4, Column(dim, extra_dims[dim]))
-        unique_constraint_columns.append(dim)
 
     Table(
         f"{dataset}",
@@ -284,10 +292,24 @@ def postgres_upsert(table, conn, keys, data_iter, constraint=None):
     if not constraint:
         constraint = f"{table.table.name}_valid_date_leadtime_pcode_key"
     data = [dict(zip(keys, row)) for row in data_iter]
-    insert_statement = insert(table.table).values(data)
-    upsert_statement = insert_statement.on_conflict_do_update(
-        constraint=constraint,
-        set_={c.key: c for c in insert_statement.excluded},
-    )
+    if conn.engine.dialect.name == "postgresql":
+        insert_statement = insert(table.table).values(data)
+        upsert_statement = insert_statement.on_conflict_do_update(
+            constraint=constraint,
+            set_={c.key: c for c in insert_statement.excluded},
+        )
+    else:
+        # sqlite (local mode) can't reference a constraint by name;
+        # use the unique-key columns instead (see create_dataset_table)
+        index_elements = [
+            col
+            for col in ["valid_date", "pcode", "leadtime", "band"]
+            if col in keys
+        ]
+        insert_statement = sqlite_insert(table.table).values(data)
+        upsert_statement = insert_statement.on_conflict_do_update(
+            index_elements=index_elements,
+            set_={c.key: c for c in insert_statement.excluded},
+        )
     conn.execute(upsert_statement)
     return

@@ -1,4 +1,5 @@
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 import coloredlogs
 import rioxarray as rxr
@@ -185,21 +186,21 @@ def stack_cogs(dates, dataset, mode="dev"):
     if len(cogs_list) == 0:
         raise Exception(f"No COGs found to process for dates: {dates}")
 
-    das = []
+    process_fn = {
+        "era5": process_era5,
+        "seas5": process_seas5,
+        "imerg": process_imerg,
+        "floodscan": process_floodscan,
+    }[dataset]
 
-    # Only show progress bar if running in interactive mode (ie. running locally)
-    cogs_list = tqdm.tqdm(cogs_list) if mode == "local" else cogs_list
-
-    for cog in cogs_list:
-        if dataset == "era5":
-            da_in = process_era5(cog, mode)
-        elif dataset == "seas5":
-            da_in = process_seas5(cog, mode)
-        elif dataset == "imerg":
-            da_in = process_imerg(cog, mode)
-        elif dataset == "floodscan":
-            da_in = process_floodscan(cog, mode)
-        das.append(da_in)
+    # Opening COGs is network-bound, so parallelize with threads
+    with ThreadPoolExecutor(max_workers=min(8, len(cogs_list))) as executor:
+        futures = executor.map(lambda cog: process_fn(cog, mode), cogs_list)
+        # Only show progress bar if running in interactive mode
+        # (ie. running locally)
+        if mode == "local":
+            futures = tqdm.tqdm(futures, total=len(cogs_list))
+        das = list(futures)
 
     # Note that we're dropping all attributes here
     ds = xr.combine_by_coords(das, combine_attrs="drop")

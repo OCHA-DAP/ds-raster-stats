@@ -59,6 +59,9 @@ def get_most_recent_date(mode, name_prefix):
         Names of all files that match the most recent date. Empty list if no
         matching files are found.
     """
+    # No data stored locally, so read from dev (as in stack_cogs)
+    if mode == "local":
+        mode = "dev"
     container_client = get_container_client(mode, "raster")
     blobs = container_client.list_blobs(name_starts_with=name_prefix)
     file_dates = {}

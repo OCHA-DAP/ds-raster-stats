@@ -11,6 +11,10 @@ __pycache__
 # Scratch files
 scratch/*
 
+# Boundary / weight-matrix caches
+.cache/
+.venv/
+
 # Outputs from running in 'test' mode
 test_outputs/*
 */tmp/*

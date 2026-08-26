@@ -1,5 +1,4 @@
 import logging
-from concurrent.futures import ThreadPoolExecutor
 
 import coloredlogs
 import rioxarray as rxr
@@ -193,14 +192,13 @@ def stack_cogs(dates, dataset, mode="dev"):
         "floodscan": process_floodscan,
     }[dataset]
 
-    # Opening COGs is network-bound, so parallelize with threads
-    with ThreadPoolExecutor(max_workers=min(8, len(cogs_list))) as executor:
-        futures = executor.map(lambda cog: process_fn(cog, mode), cogs_list)
-        # Only show progress bar if running in interactive mode
-        # (ie. running locally)
-        if mode == "local":
-            futures = tqdm.tqdm(futures, total=len(cogs_list))
-        das = list(futures)
+    # Opens are lazy (`chunks="auto"` reads metadata only), so the bulk
+    # transfer happens later, per country, in prep/clip. Threading these
+    # opens measured no gain on either a home connection or Azure-internal
+    # job compute, so they stay serial.
+    # Only show progress bar if running in interactive mode (ie. locally)
+    cogs_iter = tqdm.tqdm(cogs_list) if mode == "local" else cogs_list
+    das = [process_fn(cog, mode) for cog in cogs_iter]
 
     # Note that we're dropping all attributes here
     ds = xr.combine_by_coords(das, combine_attrs="drop")

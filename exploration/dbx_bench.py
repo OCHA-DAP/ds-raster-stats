@@ -30,30 +30,6 @@ except NameError:
     _root = os.getcwd()
 sys.path.insert(0, _root)
 
-# affine >=2.4 uses cached_property on a __slots__ namedtuple, which
-# breaks under Python 3.10 (works on 3.12+). Force the last pre-2.4
-# release before anything imports affine transitively.
-import subprocess  # noqa: E402
-
-subprocess.run(
-    [
-        sys.executable,
-        "-m",
-        "pip",
-        "install",
-        "--force-reinstall",
-        "--no-deps",
-        "affine==2.3.1",
-    ],
-    check=False,
-    capture_output=True,
-)
-import affine  # noqa: E402
-
-print(
-    f"[bench] affine {affine.__version__} from {affine.__file__}", flush=True
-)
-
 import geopandas as gpd  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
@@ -69,7 +45,6 @@ from src.utils.raster_utils import (  # noqa: E402
     prep_raster,
 )
 from src.utils.zonal_utils import (  # noqa: E402
-    build_weights,
     clip_raster,
     weighted_zonal_stats,
     zonal_stats_runner,

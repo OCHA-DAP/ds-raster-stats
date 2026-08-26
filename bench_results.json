@@ -1,0 +1,179 @@
+{
+ "machine": {
+  "platform": "macOS-14.5-arm64-arm-64bit",
+  "processor": "arm64",
+  "cpus": 10,
+  "python": "3.12.12"
+ },
+ "run_date": "2026-08-26",
+ "update_run": {
+  "BDI": {
+   "n_adm2": 119,
+   "legacy": {
+    "prep": 2.390642249956727,
+    "stats": 0.12543924991041422,
+    "rows": 966
+   },
+   "new_cold": {
+    "prep": 0.04683558316901326,
+    "stats": 0.2281694170087576,
+    "rows": 966
+   },
+   "new_warm": {
+    "prep": 0.01615274976938963,
+    "stats": 0.02941166702657938,
+    "rows": 966
+   }
+  },
+  "TCD": {
+   "n_adm2": 70,
+   "legacy": {
+    "prep": 0.0708899162709713,
+    "stats": 0.14447845797985792,
+    "rows": 658
+   },
+   "new_cold": {
+    "prep": 0.022369957994669676,
+    "stats": 0.06683204090222716,
+    "rows": 658
+   },
+   "new_warm": {
+    "prep": 0.01695049973204732,
+    "stats": 0.02308499999344349,
+    "rows": 658
+   }
+  },
+  "SSD": {
+   "n_adm2": 79,
+   "legacy": {
+    "prep": 0.07019041618332267,
+    "stats": 0.14126333314925432,
+    "rows": 637
+   },
+   "new_cold": {
+    "prep": 0.02613645838573575,
+    "stats": 0.13079075003042817,
+    "rows": 637
+   },
+   "new_warm": {
+    "prep": 0.02272462472319603,
+    "stats": 0.019543499685823917,
+    "rows": 637
+   }
+  },
+  "ETH": {
+   "n_adm2": 92,
+   "legacy": {
+    "prep": 0.07892762497067451,
+    "stats": 0.2724325000308454,
+    "rows": 742
+   },
+   "new_cold": {
+    "prep": 0.01858720788732171,
+    "stats": 0.31337441597133875,
+    "rows": 742
+   },
+   "new_warm": {
+    "prep": 0.017961457837373018,
+    "stats": 0.026772165670990944,
+    "rows": 742
+   }
+  },
+  "NGA": {
+   "n_adm2": 774,
+   "legacy": {
+    "prep": 0.062291708774864674,
+    "stats": 0.5023303339257836,
+    "rows": 5684
+   },
+   "new_cold": {
+    "prep": 0.019416708033531904,
+    "stats": 0.3706138329580426,
+    "rows": 5684
+   },
+   "new_warm": {
+    "prep": 0.016300957649946213,
+    "stats": 0.09901454206556082,
+    "rows": 5684
+   }
+  }
+ },
+ "archival_chunk": {
+  "stack_seconds": 64.1506764581427,
+  "BDI": {
+   "legacy": {
+    "prep": 125.66104995831847,
+    "stats": 4.2490941672585905,
+    "rows": 96600
+   },
+   "new_warm": {
+    "prep": 123.05595174990594,
+    "stats": 0.9646001253277063,
+    "rows": 96600
+   }
+  },
+  "TCD": {
+   "legacy": {
+    "prep": 124.77722120797262,
+    "stats": 9.084860834293067,
+    "rows": 65800
+   },
+   "new_warm": {
+    "prep": 127.25084900017828,
+    "stats": 1.3015209999866784,
+    "rows": 65800
+   }
+  },
+  "NGA": {
+   "legacy": {
+    "prep": 124.61028899997473,
+    "stats": 33.863034792244434,
+    "rows": 568400
+   },
+   "new_warm": {
+    "prep": 127.27903795801103,
+    "stats": 4.648687374778092,
+    "rows": 568400
+   }
+  }
+ },
+ "admin_scaling": {
+  "n_slices": 100,
+  "grid": "25x30 native (0.4deg), 8x upsample equivalent",
+  "timing": "best of 3 after warmup",
+  "rows": [
+   {
+    "n_adms": 10,
+    "legacy": 0.179,
+    "new": 0.0111
+   },
+   {
+    "n_adms": 100,
+    "legacy": 0.438,
+    "new": 0.0097
+   },
+   {
+    "n_adms": 774,
+    "legacy": 1.478,
+    "new": 0.0506
+   },
+   {
+    "n_adms": 3000,
+    "legacy": 4.412,
+    "new": 0.1929
+   }
+  ]
+ },
+ "stacking": {
+  "note": "fresh process per run; first (invalid) in-process run discarded (warm GDAL cache)",
+  "seas5_49cogs": {
+   "serial": 6.2,
+   "threaded": 6.1
+  },
+  "imerg_30cogs": {
+   "serial": 25.0,
+   "threaded": 26.5
+  },
+  "interpretation": "no measurable gain on a bandwidth-limited residential connection; latency-bound links (Azure-internal) expected to benefit"
+ }
+}

@@ -123,36 +123,40 @@
     legacy method (upsample to 0.05° + per-slice rasterized masks) vs
     <a href="https://github.com/OCHA-DAP/ds-raster-stats/pull/49">PR&nbsp;#49</a>
     (exactextract coverage-weight matrix, all slices at once) ·
-    real prod SEAS5 COGs + COD boundaries · 2026-08-26
+    real prod SEAS5 COGs + COD boundaries · measured on
+    <strong>Databricks job compute</strong> (the environment the pipeline
+    actually runs in) and on a laptop · 2026-08-26
   </p>
 </header>
 
 <div class="hero">
-  <div class="big">7.3×</div>
+  <div class="big">34×</div>
   <div class="expl">
-    faster stats compute on the largest real workload measured — Nigeria,
-    100 SEAS5 issuances × 7 leadtimes, ADM0–2 (812 units, 568k rows):
-    <strong>33.9&nbsp;s&nbsp;→&nbsp;4.6&nbsp;s</strong>. The raw kernel is
-    23–200× faster (more slices amortize better) and, unlike the legacy
-    method, near-flat in the number of admin units.
+    faster stats compute on the largest real workload measured, on the
+    production cluster — Nigeria, 100 SEAS5 issuances × 7 leadtimes, ADM0–2
+    (812 units, 568k rows): <strong>677&nbsp;s&nbsp;→&nbsp;20&nbsp;s</strong>.
+    Counting the shared data fetch, the whole per-country archival step goes
+    from <strong>12.4&nbsp;min to 1.4&nbsp;min</strong>. The gain is
+    <em>larger</em> on job compute than on a laptop (7.3× there), because the
+    legacy method's upsampled arrays punish the slower cluster node hardest.
   </div>
 </div>
 
 <div class="tiles">
   <div class="tile">
-    <div class="label">Admin-unit scaling</div>
-    <div class="value">flat</div>
-    <div class="note">legacy grows linearly; 23× faster at 3,000 units</div>
+    <div class="label">Update run (per country)</div>
+    <div class="value">9–13×</div>
+    <div class="note">1 issuance, ADM0–2, on job compute</div>
   </div>
   <div class="tile">
-    <div class="label">Weight matrix build (one-off)</div>
-    <div class="value">≤ 0.4 s</div>
-    <div class="note">per country, all levels; then cached on disk (ms to load)</div>
+    <div class="label">Admin-unit scaling</div>
+    <div class="value">flat</div>
+    <div class="note">legacy grows linearly; 11× faster at 3,000 units on job compute</div>
   </div>
   <div class="tile">
     <div class="label">Archival data fetch</div>
-    <div class="value">~125 s</div>
-    <div class="note">per country per 700-COG chunk — same in both methods; the remaining bottleneck</div>
+    <div class="value">~62 s</div>
+    <div class="note">per country per 700-COG chunk on Azure — identical in both methods, and now 94% of the new method's time</div>
   </div>
   <div class="tile">
     <div class="label">Accuracy</div>
@@ -166,8 +170,9 @@
   <p class="caption">
     100 SEAS5 issuances × 7 leadtimes (700 COG slices), admin levels 0–2,
     full pipeline stats path incl. weighted median and row validation.
-    Seconds of compute per country — excludes the ~125&nbsp;s/country remote
-    data fetch, which is identical in both methods (see notes).
+    Seconds of compute per country <strong>on Databricks job compute</strong>
+    — excludes the ~62&nbsp;s/country remote data fetch, which is identical in
+    both methods (see notes). Laptop figures are in the table view.
   </p>
   <div class="legend">
     <span class="key"><span class="swatch" style="background:var(--series-legacy)"></span>Legacy (upsample + per-slice masks)</span>
@@ -176,11 +181,11 @@
   <div id="chart-archival"></div>
   <details><summary>Table view</summary>
     <table>
-      <thead><tr><th>Country</th><th>ADM2 units</th><th>Rows written</th><th>Legacy (s)</th><th>PR #49 (s)</th><th>Speedup</th></tr></thead>
+      <thead><tr><th>Country</th><th>ADM2 units</th><th>Rows</th><th>DBX legacy (s)</th><th>DBX PR #49 (s)</th><th>DBX speedup</th><th>DBX end-to-end</th><th>Laptop speedup</th></tr></thead>
       <tbody>
-        <tr><td>Nigeria</td><td>774</td><td>568,400</td><td>33.9</td><td>4.6</td><td>7.3×</td></tr>
-        <tr><td>Chad</td><td>70</td><td>65,800</td><td>9.1</td><td>1.3</td><td>7.0×</td></tr>
-        <tr><td>Burundi</td><td>119</td><td>96,600</td><td>4.2</td><td>1.0</td><td>4.4×</td></tr>
+        <tr><td>Nigeria</td><td>774</td><td>568,400</td><td>677.4</td><td>19.9</td><td>34.1×</td><td>742 s → 83 s (8.9×)</td><td>7.3×</td></tr>
+        <tr><td>Chad</td><td>70</td><td>65,800</td><td>94.1</td><td>3.5</td><td>26.5×</td><td>159 s → 64 s (2.5×)</td><td>7.0×</td></tr>
+        <tr><td>Burundi</td><td>119</td><td>96,600</td><td>111.6</td><td>3.8</td><td>29.4×</td><td>174 s → 65 s (2.7×)</td><td>4.4×</td></tr>
       </tbody>
     </table>
   </details>
@@ -191,9 +196,13 @@
   <p class="caption">
     Core zonal kernel on a Nigeria-scale grid (25×30 native pixels at 0.4°,
     8× upsample equivalent), 100 slices, synthetic contiguous admin regions;
-    best of 3 runs after warm-up. Both axes log — the legacy cost climbs linearly with admin count while the
-    weight-matrix cost stays near-flat. This is what makes adding many more
-    (smaller) admin units cheap.
+    best of 3 runs after warm-up, on Databricks job compute. Both axes log —
+    the legacy cost climbs linearly with admin count while the weight-matrix
+    cost stays well below it at every size. This is what makes adding many
+    more (smaller) admin units cheap. Laptop figures are in the table view;
+    the ratio narrows at large admin counts on the cluster node (11× at
+    3,000 vs 23× on the laptop) because the sparse-matrix path is the more
+    memory-bandwidth-sensitive of the two.
   </p>
   <div class="legend">
     <span class="key"><span class="linekey" style="background:var(--series-legacy)"></span>Legacy</span>
@@ -202,12 +211,12 @@
   <div id="chart-scaling"></div>
   <details><summary>Table view</summary>
     <table>
-      <thead><tr><th>Admin units</th><th>Legacy (s / 100 slices)</th><th>PR #49 (s / 100 slices)</th><th>Speedup</th></tr></thead>
+      <thead><tr><th>Admin units</th><th>DBX legacy (s)</th><th>DBX PR #49 (s)</th><th>DBX speedup</th><th>Laptop legacy (s)</th><th>Laptop PR #49 (s)</th></tr></thead>
       <tbody>
-        <tr><td>10</td><td>0.179</td><td>0.011</td><td>16×</td></tr>
-        <tr><td>100</td><td>0.438</td><td>0.010</td><td>45×</td></tr>
-        <tr><td>774</td><td>1.478</td><td>0.051</td><td>29×</td></tr>
-        <tr><td>3,000</td><td>4.412</td><td>0.193</td><td>23×</td></tr>
+        <tr><td>10</td><td>0.528</td><td>0.013</td><td>42×</td><td>0.179</td><td>0.011</td></tr>
+        <tr><td>100</td><td>1.537</td><td>0.046</td><td>33×</td><td>0.438</td><td>0.010</td></tr>
+        <tr><td>774</td><td>3.906</td><td>0.305</td><td>13×</td><td>1.478</td><td>0.051</td></tr>
+        <tr><td>3,000</td><td>12.280</td><td>1.112</td><td>11×</td><td>4.412</td><td>0.193</td></tr>
       </tbody>
     </table>
   </details>
@@ -215,12 +224,13 @@
 
 <figure id="fig-update">
   <h2>Update run: stats compute per country</h2>
-  <p class="caption">
-    One SEAS5 issuance (7 leadtimes), admin levels 0–2, warm weight cache.
-    Compute is sub-second in both methods at this scale — production update
-    runs are dominated by boundary downloads, DB writes, and serial country
-    processing, which PR&nbsp;#49 addresses separately (per-run boundary
-    cache, configurable workers, country-splitting for single-chunk runs).
+    <p class="caption">
+    One SEAS5 issuance (7 leadtimes), admin levels 0–2, warm weight cache,
+    on Databricks job compute. Even at this small scale the method change is
+    worth 9–13× per country. The rest of a production update run is boundary
+    downloads, DB writes, and serial country processing, which PR&nbsp;#49
+    addresses separately (per-run boundary cache, configurable workers,
+    country-splitting for single-chunk runs).
   </p>
   <div class="legend">
     <span class="key"><span class="swatch" style="background:var(--series-legacy)"></span>Legacy</span>
@@ -229,13 +239,13 @@
   <div id="chart-update"></div>
   <details><summary>Table view (incl. cold-cache builds)</summary>
     <table>
-      <thead><tr><th>Country</th><th>ADM2 units</th><th>Legacy (s)</th><th>PR #49 warm (s)</th><th>PR #49 cold (s)</th></tr></thead>
+      <thead><tr><th>Country</th><th>ADM2 units</th><th>Legacy (s)</th><th>PR #49 warm (s)</th><th>PR #49 cold (s)</th><th>Speedup</th></tr></thead>
       <tbody>
-        <tr><td>Nigeria</td><td>774</td><td>0.50</td><td>0.10</td><td>0.37</td></tr>
-        <tr><td>Ethiopia</td><td>92</td><td>0.27</td><td>0.027</td><td>0.31</td></tr>
-        <tr><td>Chad</td><td>70</td><td>0.14</td><td>0.023</td><td>0.067</td></tr>
-        <tr><td>South Sudan</td><td>79</td><td>0.14</td><td>0.020</td><td>0.13</td></tr>
-        <tr><td>Burundi</td><td>119</td><td>0.13</td><td>0.029</td><td>0.23</td></tr>
+        <tr><td>Nigeria</td><td>774</td><td>7.73</td><td>0.60</td><td>1.63</td><td>12.9×</td></tr>
+        <tr><td>Burundi</td><td>119</td><td>2.64</td><td>0.21</td><td>0.63</td><td>12.6×</td></tr>
+        <tr><td>Ethiopia</td><td>92</td><td>2.06</td><td>0.19</td><td>1.06</td><td>10.7×</td></tr>
+        <tr><td>South Sudan</td><td>79</td><td>1.64</td><td>0.16</td><td>0.79</td><td>9.9×</td></tr>
+        <tr><td>Chad</td><td>70</td><td>1.68</td><td>0.18</td><td>0.43</td><td>9.3×</td></tr>
       </tbody>
     </table>
   </details>
@@ -347,29 +357,51 @@
   <h2>Notes &amp; caveats</h2>
   <ul>
     <li><strong>What's excluded:</strong> DB writes (identical code path in
-      both methods) and COG stack setup (~64&nbsp;s for the 700-COG chunk,
-      shared). Charts show the per-country stats path only.</li>
+      both methods) and COG stack setup (46&nbsp;s on job compute for the
+      700-COG chunk, shared). Charts show the per-country stats path only.</li>
     <li><strong>The archival bottleneck is now I/O, not compute.</strong>
       Each country's clip pulls windows from all 700 remote COGs
-      (~125&nbsp;s/country on this connection) because the SEAS5 stack is
-      lazy — unlike the other datasets, it is never persisted at stack time.
-      Persisting the chunk stack once is the obvious follow-up; the DB write
-      path (COPY-staging upsert) is the other.</li>
-    <li><strong>Threaded COG opens showed no gain here</strong> (SEAS5
-      49 COGs: 6.2&nbsp;s serial vs 6.1&nbsp;s threaded; IMERG 30 COGs:
-      25.0&nbsp;s vs 26.5&nbsp;s) — this residential connection is
-      bandwidth-limited, so parallel requests can't help. On Azure-internal
-      networking, where per-request latency dominates, threading is expected
-      to help; treat that claim as unverified until measured on Databricks.</li>
-    <li><strong>Machine:</strong> Apple Silicon laptop (10 cores,
-      macOS&nbsp;14.5, Python&nbsp;3.12), single process. Absolute numbers will
-      differ on Databricks job compute; ratios are the meaningful result.</li>
+      (~62&nbsp;s/country on Azure, ~125&nbsp;s from a home connection)
+      because the SEAS5 stack is lazy — unlike the other datasets, it is
+      never persisted at stack time. After the method change this fetch is
+      <strong>94% of the new method's per-country time</strong> (Burundi:
+      61&nbsp;s fetch vs 3.8&nbsp;s stats), so persisting the chunk stack
+      once is now the single highest-value follow-up; the DB write path
+      (COPY-staging upsert) is the other.</li>
+    <li><strong>Threading the COG opens was measured, found useless, and
+      removed.</strong> No gain on a home connection (SEAS5 49 COGs:
+      6.2&nbsp;s serial vs 6.1&nbsp;s threaded) and none on Azure-internal
+      job compute either (SEAS5 7 issuances: 7.9&nbsp;s serial vs
+      8.2&nbsp;s threaded; IMERG: 0.79 vs 0.81&nbsp;s per COG). The reason
+      is structural rather than about the network: <code>open_rasterio(…,
+      chunks="auto")</code> only reads metadata, so the bulk transfer
+      happens later, per country, in the clip step. The PR reverted the
+      threading rather than ship unmeasured concurrency.</li>
+    <li><strong>Machines:</strong> Databricks job compute
+      (<code>Standard_DS4_v2</code>, 8 cores, Linux, Python&nbsp;3.10) — the
+      environment the pipeline actually runs in, and the headline numbers
+      here — and an Apple Silicon laptop (10 cores, macOS&nbsp;14.5,
+      Python&nbsp;3.12) for comparison. Both single-process. The cluster
+      node is ~3–20× slower in absolute terms and the legacy method degrades
+      furthest on it, which is why the same change is worth more in
+      production than on a laptop.</li>
+    <li><strong>An environment bug the cluster run surfaced:</strong>
+      <code>affine&nbsp;≥2.4</code> puts a <code>cached_property</code> on a
+      <code>__slots__</code> namedtuple, which raises on Python&nbsp;3.10
+      (the Databricks 14.3 runtime) whenever a rasterio transform is indexed
+      — harmless on 3.12. The PR pins <code>affine==2.3.1</code>. The same
+      run also caught a relative <code>.cache/</code> default that the
+      Databricks workspace filesystem rejects; caches now default under the
+      system temp dir.</li>
     <li><strong>Data:</strong> prod SEAS5 monthly precip COGs + Fieldmaps COD
       boundaries from the prod polygon container. Scenario B chunk:
       issuances 2016-01…2024-04. "Warm" = weight matrices already on disk;
       "cold" includes the exactextract build.</li>
-    <li>Raw results: <a href="bench_results.json">bench_results.json</a> ·
-      harness: <a href="bench_full.py">bench_full.py</a> · 2024 reproduction:
+    <li>Raw results:
+      <a href="dbx_results.json">dbx_results.json</a> (Databricks),
+      <a href="bench_results.json">bench_results.json</a> (laptop) ·
+      harnesses: <a href="dbx_bench.py">dbx_bench.py</a>,
+      <a href="bench_full.py">bench_full.py</a> · 2024 reproduction:
       <a href="repro2024_results.json">repro2024_results.json</a>,
       <a href="repro_bench.py">repro_bench.py</a>,
       <a href="raster_utils_2024.py">raster_utils_2024.py</a> (verbatim from the
@@ -508,28 +540,28 @@
   }
 
   groupedHBar("chart-archival", [
-    { label: "Nigeria", legacy: 33.9, nw: 4.6 },
-    { label: "Chad", legacy: 9.1, nw: 1.3 },
-    { label: "Burundi", legacy: 4.2, nw: 1.0 }
+    { label: "Nigeria", legacy: 677.4, nw: 19.9 },
+    { label: "Burundi", legacy: 111.6, nw: 3.8 },
+    { label: "Chad", legacy: 94.1, nw: 3.5 }
   ], {
-    max: 36, ticks: [0, 10, 20, 30], unit: "seconds",
+    max: 700, ticks: [0, 200, 400, 600], unit: "seconds",
     tickFmt: function (t) { return String(t); },
     valFmt: function (v) { return v.toFixed(1) + " s"; },
-    tipUnit: "700 slices, ADM0–2",
+    tipUnit: "700 slices, ADM0–2, job compute",
     aria: "Grouped bar chart: archival-chunk stats seconds per country, legacy vs PR 49"
   });
 
   groupedHBar("chart-update", [
-    { label: "Nigeria", legacy: 0.50, nw: 0.099 },
-    { label: "Ethiopia", legacy: 0.27, nw: 0.027 },
-    { label: "Chad", legacy: 0.14, nw: 0.023 },
-    { label: "South Sudan", legacy: 0.14, nw: 0.020 },
-    { label: "Burundi", legacy: 0.13, nw: 0.029 }
+    { label: "Nigeria", legacy: 7.73, nw: 0.60 },
+    { label: "Burundi", legacy: 2.64, nw: 0.21 },
+    { label: "Ethiopia", legacy: 2.06, nw: 0.19 },
+    { label: "Chad", legacy: 1.68, nw: 0.18 },
+    { label: "South Sudan", legacy: 1.64, nw: 0.16 }
   ], {
-    max: 0.55, ticks: [0, 0.1, 0.2, 0.3, 0.4, 0.5], unit: "seconds",
-    tickFmt: function (t) { return t.toFixed(1); },
-    valFmt: function (v) { return v < 0.1 ? v.toFixed(3) + " s" : v.toFixed(2) + " s"; },
-    tipUnit: "1 issuance, ADM0–2, warm cache",
+    max: 8, ticks: [0, 2, 4, 6, 8], unit: "seconds",
+    tickFmt: function (t) { return String(t); },
+    valFmt: function (v) { return v.toFixed(2) + " s"; },
+    tipUnit: "1 issuance, ADM0–2, warm cache, job compute",
     aria: "Grouped bar chart: update-run stats seconds per country, legacy vs PR 49"
   });
 
@@ -539,10 +571,10 @@
     var W = 840, H = 300, padL = 64, padR = 96, padT = 14, padB = 40;
     var plotW = W - padL - padR, plotH = H - padT - padB;
     var data = [
-      { n: 10, legacy: 0.179, nw: 0.0111 },
-      { n: 100, legacy: 0.438, nw: 0.0097 },
-      { n: 774, legacy: 1.478, nw: 0.0506 },
-      { n: 3000, legacy: 4.412, nw: 0.1929 }
+      { n: 10, legacy: 0.528, nw: 0.0126 },
+      { n: 100, legacy: 1.537, nw: 0.0460 },
+      { n: 774, legacy: 3.906, nw: 0.3046 },
+      { n: 3000, legacy: 12.280, nw: 1.1115 }
     ];
     var xMin = Math.log10(10), xMax = Math.log10(3000);
     var yMin = Math.log10(0.005), yMax = Math.log10(10);

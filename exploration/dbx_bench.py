@@ -22,7 +22,13 @@ import shutil
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# __file__ is undefined under Databricks spark_python_task; the git_source
+# checkout root is the working directory there
+try:
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+except NameError:
+    _root = os.getcwd()
+sys.path.insert(0, _root)
 
 import geopandas as gpd  # noqa: E402
 import numpy as np  # noqa: E402

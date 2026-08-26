@@ -55,9 +55,6 @@ def add_days_to_date(date_string, days):
     """
     try:
         start_date = datetime.strptime(date_string, "%Y-%m-%d").date()
-        print(
-            f"Start date {start_date} days {days} and days type {type(days)}"
-        )
         result_date = start_date + timedelta(days=int(days))
         return result_date.strftime("%Y-%m-%d")
     except ValueError as e:

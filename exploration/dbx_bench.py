@@ -30,6 +30,30 @@ except NameError:
     _root = os.getcwd()
 sys.path.insert(0, _root)
 
+# The DBR runtime's bundled affine 2.4.x wins over the job-library pin and
+# breaks rasterio transforms (cached_property on a __slots__ namedtuple).
+# Force the fix before anything imports affine transitively.
+import subprocess  # noqa: E402
+
+subprocess.run(
+    [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--force-reinstall",
+        "--no-deps",
+        "affine==3.0.0",
+    ],
+    check=False,
+    capture_output=True,
+)
+import affine  # noqa: E402
+
+print(
+    f"[bench] affine {affine.__version__} from {affine.__file__}", flush=True
+)
+
 import geopandas as gpd  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402

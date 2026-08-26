@@ -1,5 +1,6 @@
 import os
 import shutil
+import tempfile
 import zipfile
 from datetime import datetime
 from io import StringIO
@@ -80,7 +81,8 @@ def load_shp_cached(iso3, mode, cache_dir=None):
         point to (dev or prod)
     cache_dir : str, optional
         Root of the boundary cache. Defaults to $BOUNDARY_CACHE_DIR or
-        `.cache/boundaries`.
+        `raster-stats-cache/boundaries` under the system temp dir
+        (relative dot-dirs fail on Databricks' workspace filesystem).
 
     Returns
     -------
@@ -89,7 +91,10 @@ def load_shp_cached(iso3, mode, cache_dir=None):
     """
     if cache_dir is None:
         cache_dir = os.getenv(
-            "BOUNDARY_CACHE_DIR", os.path.join(".cache", "boundaries")
+            "BOUNDARY_CACHE_DIR",
+            os.path.join(
+                tempfile.gettempdir(), "raster-stats-cache", "boundaries"
+            ),
         )
     target_dir = os.path.join(cache_dir, mode, iso3.lower())
     if os.path.isdir(target_dir):

@@ -18,7 +18,7 @@ pixels for continuity with previously published values.
 This replaces the earlier approach of physically upsampling each
 raster to 0.05° and including whole upsampled pixels by centroid
 (still available in `src/utils/raster_utils.py`, and used by
-`--update-metadata`). The weight matrices are cached under `.cache/`
+`--update-metadata`). The weight matrices are cached under the system temp dir
 (configurable via `WEIGHTS_CACHE_DIR`) and are reused across date
 chunks, worker processes, and runs on the same machine.
 

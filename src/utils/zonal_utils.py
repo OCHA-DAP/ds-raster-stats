@@ -40,8 +40,11 @@ from src.utils.general_utils import add_months_to_date
 
 logger = logging.getLogger(__name__)
 
+# Default under the system temp dir: relative dot-dirs fail on Databricks
+# (the workspace FUSE filesystem rejects them with EINVAL)
 WEIGHTS_CACHE_DIR = os.getenv(
-    "WEIGHTS_CACHE_DIR", os.path.join(".cache", "weights")
+    "WEIGHTS_CACHE_DIR",
+    os.path.join(tempfile.gettempdir(), "raster-stats-cache", "weights"),
 )
 
 STATS = ["mean", "max", "min", "median", "sum", "std", "count"]

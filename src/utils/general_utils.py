@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 
 import pandas as pd
@@ -29,6 +29,36 @@ def add_months_to_date(date_string, months):
     try:
         start_date = datetime.strptime(date_string, "%Y-%m-%d").date()
         result_date = start_date + relativedelta(months=months)
+        return result_date.strftime("%Y-%m-%d")
+    except ValueError as e:
+        raise ValueError(
+            "Invalid date format. Please use 'YYYY-MM-DD'."
+        ) from e
+
+
+def add_days_to_date(date_string, days):
+    """
+    Add or subtract a number of days to/from a given date string.
+
+    Parameters
+    ----------
+    date_string : str
+        The input date in 'YYYY-MM-DD' format.
+    days : int
+        The number of days to add (positive) or subtract (negative).
+
+    Returns
+    -------
+    str
+        The resulting date after adding/subtracting days, in 'YYYY-MM-DD' format.
+
+    """
+    try:
+        start_date = datetime.strptime(date_string, "%Y-%m-%d").date()
+        print(
+            f"Start date {start_date} days {days} and days type {type(days)}"
+        )
+        result_date = start_date + timedelta(days=int(days))
         return result_date.strftime("%Y-%m-%d")
     except ValueError as e:
         raise ValueError(

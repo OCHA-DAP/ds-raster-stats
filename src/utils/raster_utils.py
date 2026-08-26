@@ -7,13 +7,12 @@ import coloredlogs
 import numpy as np
 import pandas as pd
 import xarray as xr
-from dateutil.relativedelta import relativedelta
 from rasterio.enums import Resampling
 from rasterio.features import rasterize
 
 from src.config.settings import LOG_LEVEL, UPSAMPLED_RESOLUTION
 from src.utils.database_utils import postgres_upsert
-from src.utils.general_utils import add_months_to_date
+from src.utils.general_utils import add_days_to_date, add_months_to_date
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
@@ -103,17 +102,20 @@ def validate_stats(iso3, stats):
             raise ValueError(
                 f"Validation error: issued_date {issued_date} is not <= valid_date {valid_date}"
             )
+        # TODO figure out better logic for leadtime in days and in months
         elif "leadtime" in stats:
             leadtime = int(stats["leadtime"])
-            if not (0 <= leadtime <= 6):
+            if not (0 <= leadtime <= 16):
                 raise ValueError(
-                    f"Validation error: leadtime {stats['leadtime']} is not between 0 and 6"
+                    f"Validation error: leadtime {stats['leadtime']} is not between 0 and 16"
                 )
-            elif leadtime != relativedelta(valid_date, issued_date).months:
-                raise ValueError(
-                    f"Validation error: leadtime {leadtime} should match the diff between issued_date {issued_date} and"
-                    f" valid_date {valid_date}"
-                )
+            # TODO: How to handle this from now on?
+            # elif leadtime != relativedelta(valid_date, issued_date).months:
+            #    raise ValueError(
+            #        f"Validation error: leadtime {leadtime} should match the diff between issued_date
+            #        {issued_date} and"
+            #        f" valid_date {valid_date}"
+            #    )
     else:
         # Observational tables
         if not valid_date <= datetime.datetime.now():
@@ -206,9 +208,16 @@ def fast_zonal_stats_runner(
                 )
                 for i, result in enumerate(results):
                     result["valid_date"] = date
-                    # Special handling for leadtime dimension
                     if fourth_dim == "leadtime":
-                        result["issued_date"] = add_months_to_date(date, -val)
+                        if dataset == "chirps":
+                            result["issued_date"] = add_days_to_date(
+                                date, -val
+                            )
+                        else:
+                            result["issued_date"] = add_months_to_date(
+                                date, -val
+                            )
+
                     result["pcode"] = adm_ids[i]
                     result["adm_level"] = adm_level
                     result[

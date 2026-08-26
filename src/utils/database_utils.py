@@ -92,7 +92,7 @@ def create_dataset_table(dataset, engine, is_forecast=False, extra_dims={}):
 
     forecast_tables_constraints = [
         CheckConstraint(
-            "leadtime between 0 AND 6", name="check_leadtime_betwen_0_6"
+            "leadtime between 0 AND 16", name="check_leadtime_betwen_0_16"
         ),
         CheckConstraint("valid_date >= issued_date", name="check_valid_date"),
         CheckConstraint(

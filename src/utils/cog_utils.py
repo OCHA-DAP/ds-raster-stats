@@ -1,9 +1,14 @@
 import logging
+import re
+from datetime import date, datetime
+from urllib.parse import urljoin
 
 import coloredlogs
+import requests
 import rioxarray as rxr
 import tqdm
 import xarray as xr
+from bs4 import BeautifulSoup
 
 from src.config.settings import LOG_LEVEL, load_pipeline_config
 from src.utils.cloud_utils import get_cog_url, get_container_client
@@ -109,8 +114,8 @@ def process_seas5(cog_name, mode):
     return da_in
 
 
-def get_cog_da(cog_name, mode):
-    cog_url = get_cog_url(mode, cog_name)
+def get_cog_da(cog_name, mode, test_path=None):
+    cog_url = get_cog_url(mode, cog_name, test_path)
     da_in = rxr.open_rasterio(cog_url, chunks="auto")
     return da_in
 
@@ -129,6 +134,102 @@ def process_floodscan(cog_name, mode):
 
     da_in = da_in.persist()
     return da_in
+
+
+def extract_date_and_leadtime_from(filepath):
+    match_base_date = re.search(r"(\d{4})/(\d{2})/(\d{2})/", filepath)
+    match_forecast_date_str = re.search(r"(\d{4}\.\d{2}\.\d{2})", filepath)[0]
+    base_date = date(*map(int, match_base_date.groups()))
+    valid_date = datetime.strptime(match_forecast_date_str, "%Y.%m.%d").date()
+    leadtime = (valid_date - base_date).days
+
+    return base_date, leadtime
+
+
+def process_chirps(cog_name, mode):
+    da_in = get_cog_da(
+        cog_name, mode, test_path="test_outputs/chirps/v3/15_day/global/data/"
+    )
+    cog_date, leadtime = extract_date_and_leadtime_from(
+        da_in.attrs["TIFFTAG_DOCUMENTNAME"]
+    )
+    year_valid = cog_date.year
+    month_valid = cog_date.month
+    day_valid = cog_date.day
+    date_in = f"{year_valid}-{month_valid}-{day_valid}"  # todo change this
+    date_in = (
+        f"{year_valid}-{str(month_valid).zfill(2)}-{str(day_valid).zfill(2)}"
+    )
+
+    da_in = da_in.squeeze(drop=True)
+    da_in["date"] = date_in
+    da_in["leadtime"] = leadtime
+    da_in = da_in.expand_dims(["date", "leadtime"])
+    return da_in
+
+
+def get_cog_url_for_dates(dataset, base_url, dates):
+    cogs_list = []
+
+    for cog_date in dates:
+        logger.info(f"Processing date {cog_date}:")
+        if dataset == "chirps":
+            date_url = base_url + (
+                f"/{cog_date.year}/"
+                f"{str(cog_date.month).zfill(2)}/"
+                f"{str(cog_date.day).zfill(2)}/"
+            )
+            date_urls = get_cog_list_from_url(date_url, date_url)
+            cogs_list.extend(date_urls)
+        else:
+            raise NotImplementedError("")
+
+    return cogs_list
+
+
+def get_cog_list_from_url(
+    base_url, current_url, visited=None, files_found=None
+):
+    files_found = [] if files_found is None else files_found
+    visited = set() if visited is None else visited
+
+    if current_url in visited:
+        return files_found
+    visited.add(current_url)
+
+    try:
+        response = requests.get(current_url)
+        if response.status_code != 200:
+            return
+    except requests.RequestException:
+        return
+
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    for node in soup.find_all("a"):
+        href = node.get("href")
+        if not href or href.startswith(("?", "#", "mailto:")):
+            continue
+
+        full_url = urljoin(current_url, href)
+
+        # Keep inside the base domain and path to avoid escaping the server
+        if not full_url.startswith(base_url):
+            continue
+
+        # Check if it is a directory (ends with '/') or a file
+        if href.endswith("/"):
+            get_cog_list_from_url(
+                current_url=full_url,
+                base_url=base_url,
+                visited=visited,
+                files_found=files_found,
+            )
+        else:
+            if full_url not in files_found:
+                files_found.append(full_url)
+
+    return files_found
 
 
 def stack_cogs(dates, dataset, mode="dev"):
@@ -161,27 +262,31 @@ def stack_cogs(dates, dataset, mode="dev"):
         mode = "dev"
 
     container_client = get_container_client(mode, "raster")
+    config = load_pipeline_config(dataset)
+    cogs_list = None
 
     try:
-        config = load_pipeline_config(dataset)
         prefix = config["blob_prefix"]
+        cogs_list = [
+            x.name
+            for x in container_client.list_blobs(name_starts_with=prefix)
+            if (parse_date(x.name) in (dates))
+        ]
+    except KeyError:
+        source = config["source_url"]
+        cogs_list = get_cog_url_for_dates(dataset, source, dates)
     except Exception:
         logger.error(
-            "Input `dataset` must be one of `floodscan`, `era5`, `seas5`, or `imerg`."
+            "Input `dataset` must be one of `floodscan`, `era5`, `seas5`, `imerg` or `chirps`."
         )
-
-    cogs_list = [
-        x.name
-        for x in container_client.list_blobs(name_starts_with=prefix)
-        if (parse_date(x.name) in (dates))
-    ]
 
     logger.debug(f"Processing {len(cogs_list)} cog(s):")
     for cog in cogs_list:
         logger.debug(f" - {cog}")
 
-    if len(cogs_list) != len(dates):
-        logger.warning("Not all COGs available, given input dates")
+    # TODO fix below
+    # if len(cogs_list) != len(dates):
+    #    logger.warning("Not all COGs available, given input dates")
     if len(cogs_list) == 0:
         raise Exception(f"No COGs found to process for dates: {dates}")
 
@@ -199,6 +304,8 @@ def stack_cogs(dates, dataset, mode="dev"):
             da_in = process_imerg(cog, mode)
         elif dataset == "floodscan":
             da_in = process_floodscan(cog, mode)
+        elif dataset == "chirps":
+            da_in = process_chirps(cog, mode)
         das.append(da_in)
 
     # Note that we're dropping all attributes here

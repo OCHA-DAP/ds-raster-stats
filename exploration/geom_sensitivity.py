@@ -57,7 +57,9 @@ from scipy import sparse  # noqa: E402
 
 from src.utils.iso3_utils import load_shp_cached  # noqa: E402
 
-OUT_DIR = os.environ.get("GEOM_OUT_DIR", "/tmp")
+OUT_DIR = os.environ.get(
+    "GEOM_OUT_DIR", "/dbfs/tmp" if os.path.isdir("/dbfs/tmp") else "/tmp"
+)
 UPSAMPLED = 0.05
 
 # native resolution and global grid origin per dataset. SEAS5/ERA5/IMERG

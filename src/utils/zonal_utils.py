@@ -285,6 +285,14 @@ def weighted_zonal_stats(values, W, scale):
             stds[a] = _weighted_std(vals, w, mean[a])
             medians[a] = _weighted_median(vals, w)
 
+    # An admin unit smaller than half a pixel-equivalent rounds to zero
+    # even though it has coverage and a valid mean. Keep the legacy
+    # invariant "a non-null mean implies count >= 1", so downstream
+    # `count > 0` filters don't silently drop the sub-pixel admin units
+    # that exact coverage fractions are meant to rescue.
+    counts = np.rint(w_count * scale).astype(int)
+    counts = np.where((w_count > 0) & (counts == 0), 1, counts)
+
     return {
         "mean": mean,
         "max": maxs,
@@ -292,7 +300,7 @@ def weighted_zonal_stats(values, W, scale):
         "median": medians,
         "sum": sums * scale,
         "std": stds,
-        "count": np.rint(w_count * scale).astype(int),
+        "count": counts,
     }
 
 

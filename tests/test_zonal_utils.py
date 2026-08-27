@@ -194,6 +194,25 @@ def test_runner_admin_without_coverage():
         assert np.isnan(out_row[col])
 
 
+def test_subpixel_admin_keeps_count_at_least_one():
+    """A polygon smaller than half a pixel still gets count >= 1, so a
+    non-null mean always implies count > 0 (what the legacy method did,
+    and what downstream `count > 0` filters assume)."""
+    data = np.full((1, 6, 6), 5.0)
+    da = make_da(data, coords={"date": ["2021-01-01"]})
+    # ~1/25th of one 1-degree pixel, well under the rounding threshold
+    # (the grid spans x -5..1, y -1..5)
+    tiny = box(-4.9, 0.1, -4.7, 0.3)
+    gdf = gpd.GeoDataFrame(
+        {"geometry": [tiny], "ADM2_PCODE": ["TINY"]}, crs="EPSG:4326"
+    )
+
+    result = zonal_stats_runner(ds=da, gdf=gdf, adm_level=2, iso3="TST")
+    row = result.iloc[0]
+    assert row["mean"] == pytest.approx(5.0)
+    assert row["count"] >= 1
+
+
 def test_clip_raster_renames_floodscan_bands():
     data = np.ones((1, 2, 6, 6))
     da = make_da(

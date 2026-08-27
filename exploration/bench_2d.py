@@ -89,9 +89,12 @@ def make_raster(n_slices):
     da = xr.DataArray(
         data,
         dims=["date", "y", "x"],
+        # daily and ending in the past: the legacy validator rejects a
+        # valid_date after today, and 700 monthly slices would run into
+        # the 2050s
         coords={
             "date": pd.date_range(
-                "2000-01-01", periods=n_slices, freq="MS"
+                end="2024-12-31", periods=n_slices, freq="D"
             ).strftime("%Y-%m-%d"),
             "x": X0 + RES * (np.arange(NX) + 0.5),
             "y": Y0 - RES * (np.arange(NY) + 0.5),

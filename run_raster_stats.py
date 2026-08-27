@@ -110,6 +110,17 @@ def process_chunk(dates, dataset, mode, df_iso3s, engine_url, chunksize):
                         if df_results is not None:
                             all_results.append(df_results)
                     df_all_results = pd.concat(all_results, ignore_index=True)
+
+                    if dataset == "chirps":
+                        n_before = len(df_all_results)
+                        df_all_results = df_all_results[
+                            df_all_results["mean"] != 0
+                        ]
+                        logger.debug(
+                            f"Dropped {n_before - len(df_all_results)} "
+                            "zero-precipitation row(s) for chirps..."
+                        )
+
                     logger.debug(
                         f"Writing {len(df_all_results)} rows to database..."
                     )

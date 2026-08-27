@@ -1,0 +1,80 @@
+{
+ "n_series": 5166,
+ "countries": [
+  "NER",
+  "TCD",
+  "ETH",
+  "SOM"
+ ],
+ "issued_months": [
+  3,
+  7
+ ],
+ "years": [
+  1981,
+  2024
+ ],
+ "median_n_years": 44.0,
+ "spearman": {
+  "min": 0.9827450980392157,
+  "p01": 0.9978270844646807,
+  "median": 0.9998590556730093,
+  "frac_above_0999": 0.975609756097561
+ },
+ "rank_movement": {
+  "frac_series_with_no_rank_change": 0.4529616724738676,
+  "median_years_moved": 2.0,
+  "median_max_shift": 1.0,
+  "p99_max_shift": 3.0
+ },
+ "activation_sets": {
+  "dry_1in3": {
+   "frac_identical": 0.9607046070460704,
+   "n_series_differing": 203,
+   "median_years_swapped_when_differing": 1.0,
+   "max_years_swapped": 3
+  },
+  "wet_1in3": {
+   "frac_identical": 0.9653503677893922,
+   "n_series_differing": 179,
+   "median_years_swapped_when_differing": 1.0,
+   "max_years_swapped": 1
+  },
+  "dry_1in4": {
+   "frac_identical": 0.9694154084397987,
+   "n_series_differing": 158,
+   "median_years_swapped_when_differing": 1.0,
+   "max_years_swapped": 3
+  },
+  "wet_1in4": {
+   "frac_identical": 0.9771583430120016,
+   "n_series_differing": 118,
+   "median_years_swapped_when_differing": 1.0,
+   "max_years_swapped": 1
+  },
+  "dry_1in5": {
+   "frac_identical": 0.9725125822686799,
+   "n_series_differing": 142,
+   "median_years_swapped_when_differing": 1.0,
+   "max_years_swapped": 2
+  },
+  "wet_1in5": {
+   "frac_identical": 0.9742547425474255,
+   "n_series_differing": 133,
+   "median_years_swapped_when_differing": 1.0,
+   "max_years_swapped": 2
+  },
+  "dry_1in10": {
+   "frac_identical": 0.9816105303910182,
+   "n_series_differing": 95,
+   "median_years_swapped_when_differing": 1.0,
+   "max_years_swapped": 2
+  },
+  "wet_1in10": {
+   "frac_identical": 0.9858691444057298,
+   "n_series_differing": 73,
+   "median_years_swapped_when_differing": 1.0,
+   "max_years_swapped": 1
+  }
+ }
+}

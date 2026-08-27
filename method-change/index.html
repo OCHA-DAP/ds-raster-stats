@@ -132,7 +132,10 @@
     carry <strong>no systematic bias</strong>, and concentrate in small
     polygons, which is exactly where the old whole-pixel approximation was
     documented to be weakest. 22 sub-pixel admin units that previously
-    returned nothing now return values; none lost values.
+    returned nothing now return values; none lost values. Crucially for
+    anticipatory action, the historical <em>ranking</em> barely moves —
+    median Spearman 0.99986, and Ethiopia's drought trigger activates in
+    exactly the same years.
   </div>
 </div>
 
@@ -153,9 +156,9 @@
     <div class="note">sub-pixel ADM2s in HTI, NGA, MOZ that were NULL under the old method</div>
   </div>
   <div class="tile">
-    <div class="label">Rows that lost a value</div>
+    <div class="label">Historical activations moved</div>
     <div class="value">0</div>
-    <div class="note">across all four datasets</div>
+    <div class="note">Ethiopia drought, 29 years, all three trigger variants — the only framework that re-ranks live</div>
   </div>
 </div>
 
@@ -236,6 +239,94 @@
     </table></div>
   </details>
 </figure>
+
+<figure id="fig-rank">
+  <h2>Does it reorder the historical record?</h2>
+  <p class="caption">
+    Anticipatory-action triggers are rank comparisons — "the driest 1-in-5
+    years" — so what matters is not how far a value moves but whether the
+    same years still land in the tail. For 5,166 SEAS5 series (admin unit ×
+    leadtime × issuance month, 44 years each, NER · TCD · ETH · SOM at every
+    admin level) this ranks the years under both methods and asks whether the
+    activating set is identical. Bars show the share of series where it is
+    <em>not</em> — lower is better, and rarer thresholds are more stable.
+  </p>
+  <div class="legend">
+    <span class="key"><span class="swatch" style="background:var(--s-seas5)"></span>driest-N years (drought triggers)</span>
+    <span class="key"><span class="swatch" style="background:var(--s-era5)"></span>wettest-N years (flood triggers)</span>
+  </div>
+  <div id="chart-rank"></div>
+  <details><summary>Table view</summary>
+    <div class="scroll"><table>
+      <thead><tr><th>Threshold</th><th>Identical set (dry)</th><th>Identical set (wet)</th><th>Max years swapped</th></tr></thead>
+      <tbody>
+        <tr><td>1-in-3</td><td>96.07%</td><td>96.54%</td><td>3</td></tr>
+        <tr><td>1-in-4</td><td>96.94%</td><td>97.72%</td><td>3</td></tr>
+        <tr><td>1-in-5</td><td>97.25%</td><td>97.43%</td><td>2</td></tr>
+        <tr><td>1-in-10</td><td>98.16%</td><td>98.59%</td><td>2</td></tr>
+      </tbody>
+    </table></div>
+  </details>
+  <p class="caption" style="margin-top:12px">
+    Rank correlation is near-perfect — median Spearman <strong>0.99986</strong>,
+    minimum 0.983, and 97.6% of series above 0.999. 45% of series show no rank
+    change whatsoever; where ranks do move, the median series has 2 of 44
+    years shifting by a single position. The residual 2–4% of series whose
+    tail membership changes are ones with near-ties at the threshold
+    boundary, where an arbitrarily small change decides the order.
+  </p>
+</figure>
+
+<section class="prose">
+  <h2>The framework test: Ethiopia drought, 29 years, zero flips</h2>
+  <p>
+    Of everything reading these tables, the
+    <a href="https://github.com/OCHA-DAP/ds-knowledge-base/blob/main/frameworks/eth-drought/2026-06-09.md">Ethiopia
+    drought framework</a> is the only one that <strong>re-ranks against the
+    historical record at monitoring time</strong> — every other consumer
+    compares against a threshold frozen into a stored number, so their
+    ranking cannot move at all. That makes Ethiopia the decisive test.
+  </p>
+  <p>
+    Replicating the deployed logic exactly (zonal mean × days-in-month,
+    summed across the season, ranked within each zone against the fixed
+    1997–2025 baseline, RP = 30 / rank, zones at RP ≥ 5 counted against the
+    threshold) and running it on both value sets gives an identical
+    activation history:
+  </p>
+  <div class="scroll"><table>
+    <thead><tr><th>Trigger</th><th>Activating years — legacy</th><th>Activating years — new</th><th>Flips</th></tr></thead>
+    <tbody>
+      <tr><td>MAM, Feb issue (≥15 of 62 zones)</td><td>2000, 2003, 2006, 2008, 2009, 2012, 2013, 2019, 2021, 2022</td><td>identical</td><td>0</td></tr>
+      <tr><td>JJAS, Apr issue (≥35 of 83)</td><td>1997, 2002, 2006, 2009, 2015, 2023</td><td>identical</td><td>0</td></tr>
+      <tr><td>JJAS, May issue (≥35 of 83)</td><td>1997, 2002, 2014, 2015, 2023</td><td>identical</td><td>0</td></tr>
+    </tbody>
+  </table></div>
+  <p style="margin-top:14px">
+    Only 6 zone-years in the whole record crossed the RP-5 boundary, and the
+    zone count never moved by more than one. The trigger is robust by
+    construction: it sums four monthly values, converts to a rank, and then
+    counts zones — a sub-percent value change has to survive all three stages
+    to alter anything.
+  </p>
+  <p>
+    <strong>One margin worth knowing about.</strong> JJAS 2009 on the April
+    issuance moves from 36 activating zones to exactly 35 — the threshold. It
+    still fires, because the rule is ≥ 35, but its margin goes from one zone
+    to zero. MAM 2022 sits at 16 against a threshold of 15 under both
+    methods. Those margins were always thin; the recomputation reveals them
+    rather than creates them, and the framework owners should see them before
+    the archive is rebuilt.
+  </p>
+  <p>
+    The pattern to carry forward: <strong>aggregation absorbs the
+    noise</strong>. A framework counting zones across 62–83 units is far more
+    robust than a trigger reading a single admin unit's rank would be. No
+    current framework does the latter against these tables — the two that are
+    rank-based at the pixel level (Chad and Burkina Faso drought) read raster
+    COGs directly and are untouched by this change.
+  </p>
+</section>
 
 <section class="prose">
   <h2>Why the coarse datasets agree best — the counter-intuitive bit</h2>
@@ -322,18 +413,23 @@
 </section>
 
 <section class="prose">
-  <h2>What this does <em>not</em> answer</h2>
+  <h2>What is still open</h2>
   <p>
-    Anticipatory-action triggers are threshold comparisons, so the question
-    that matters is not "how big is the average change" but "does any
-    historical activation move". A 0.20% shift is negligible against forecast
-    uncertainty, yet it can still flip a value sitting exactly on a
-    threshold. Before the archive is rebuilt on the new method, the
-    frameworks reading these tables should have their historical trigger
-    series recomputed under both methods and their activation dates
-    compared — the historical validation the team's
+    The rank check above covers the one framework that re-ranks live, and the
+    broad sweep covers four countries' worth of SEAS5 series. It does not
+    cover every consumer individually: the frameworks holding a
+    <em>frozen</em> numeric threshold (LAC Dry Corridor, Afghanistan, Burkina
+    Faso flooding, Haiti, Madagascar, Fiji) are unaffected in ranking terms
+    but will see their monitored value move by the amounts on this page, so
+    each should confirm its own margin against its own threshold. The two
+    thin Ethiopia margins named above deserve an explicit look from the
+    framework owners.
+  </p>
+  <p>
+    This is the historical validation the team's
     <a href="https://github.com/OCHA-DAP/ds-knowledge-base/blob/main/methods/trigger-design.md">trigger-design method</a>
-    requires for any change of this kind.
+    requires for a change of this kind; it should be repeated on any
+    framework added to these tables later.
   </p>
 </section>
 
@@ -357,8 +453,18 @@
       geometric effect — the difference depends on polygon-versus-pixel
       geometry, which does not vary with the date — but it does not sample
       seasonal variation in the fields themselves.</li>
-    <li>Raw output: <a href="value_comparison.json">value_comparison.json</a>
-      · script: <a href="compare_values.py">compare_values.py</a> ·
+    <li><strong>Ranking comparison:</strong> SEAS5 only, since it is the
+      dataset the rank-based frameworks use. The broad sweep covers NER, TCD,
+      ETH and SOM at every admin level, all 7 leadtimes, March and July
+      issuances, 1981–2024 (5,166 series, median 44 years each). The Ethiopia
+      check uses the framework's own 1997–2025 baseline and its own zone
+      lists pulled from the project blob.</li>
+    <li>Raw output: <a href="value_comparison.json">value_comparison.json</a>,
+      <a href="rank_comparison.json">rank_comparison.json</a>,
+      <a href="eth_trigger_check.json">eth_trigger_check.json</a>
+      · scripts: <a href="compare_values.py">compare_values.py</a>,
+      <a href="compare_ranks.py">compare_ranks.py</a>,
+      <a href="eth_trigger_check.py">eth_trigger_check.py</a> ·
       per-row merged data:
       <a href="cmp_seas5.csv">seas5</a>,
       <a href="cmp_era5.csv">era5</a>,
@@ -537,6 +643,69 @@
         showTip(evt, r.label + " — median change in admin-unit mean", [
           { color: col, value: (r.v < 0.0001 ? "< 0.0001" : String(r.v)) + " " + r.unit, label: "absolute" },
           { color: "transparent", value: r.rel, label: "relative" }
+        ]);
+      }
+      hit.addEventListener("pointermove", over);
+      hit.addEventListener("pointerleave", hideTip);
+      hit.addEventListener("focus", function () {
+        var b = hit.getBoundingClientRect();
+        over({ clientX: b.left + 200, clientY: b.top + 10 });
+      });
+      hit.addEventListener("blur", hideTip);
+    });
+  })();
+
+  // ---- activation-set stability by return period ----
+  (function () {
+    var RPS = ["1-in-3", "1-in-4", "1-in-5", "1-in-10"];
+    var dry = [3.93, 3.06, 2.75, 1.84];
+    var wet = [3.46, 2.28, 2.57, 1.41];
+    var W = 840, H = 250, labelW = 78, padR = 96, padT = 10;
+    var barH = 17, gap = 2, groupGap = 16;
+    var groupH = barH * 2 + gap;
+    var plotW = W - labelW - padR;
+    var maxV = 4.5;
+    var axisY = padT + RPS.length * (groupH + groupGap) - groupGap + 8;
+    var x = function (v) { return labelW + (v / maxV) * plotW; };
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, "class": "chart-svg",
+      role: "img", "aria-label": "Share of series whose activating year set changes, by return-period threshold" },
+      document.getElementById("chart-rank"));
+
+    [0, 1, 2, 3, 4].forEach(function (t) {
+      el("line", { x1: x(t), y1: padT, x2: x(t), y2: axisY - 8,
+        stroke: color("--grid"), "stroke-width": 1 }, svg);
+      var l = el("text", { x: x(t), y: axisY + 8, "text-anchor": "middle",
+        "font-size": 11, fill: color("--muted") }, svg);
+      l.textContent = t + "%";
+    });
+    el("line", { x1: labelW, y1: padT, x2: labelW, y2: axisY - 8,
+      stroke: color("--baseline"), "stroke-width": 1 }, svg);
+
+    RPS.forEach(function (rp, i) {
+      var y0 = padT + i * (groupH + groupGap);
+      var lbl = el("text", { x: labelW - 10, y: y0 + groupH / 2 + 4,
+        "text-anchor": "end", "font-size": 12.5, fill: color("--text-primary") }, svg);
+      lbl.textContent = rp;
+      [[dry[i], color("--s-seas5"), 0, "driest"],
+       [wet[i], color("--s-era5"), 1, "wettest"]].forEach(function (s) {
+        var w = Math.max((s[0] / maxV) * plotW, 2);
+        var yy = y0 + s[2] * (barH + gap);
+        el("path", { d: "M" + labelW + "," + yy + " L" + (labelW + w - 4) + "," + yy +
+          " Q" + (labelW + w) + "," + yy + " " + (labelW + w) + "," + (yy + 4) +
+          " L" + (labelW + w) + "," + (yy + barH - 4) +
+          " Q" + (labelW + w) + "," + (yy + barH) + " " + (labelW + w - 4) + "," + (yy + barH) +
+          " L" + labelW + "," + (yy + barH) + " Z", fill: s[1] }, svg);
+        var vl = el("text", { x: labelW + w + 6, y: yy + barH - 4.5,
+          "font-size": 11.5, fill: color("--text-secondary") }, svg);
+        vl.textContent = s[0].toFixed(2) + "%";
+      });
+      var hit = el("rect", { x: 0, y: y0 - groupGap / 2, width: W,
+        height: groupH + groupGap, fill: "transparent", tabindex: 0 }, svg);
+      function over(evt) {
+        showTip(evt, rp + " threshold — activating set changes in", [
+          { color: color("--s-seas5"), value: dry[i].toFixed(2) + "%", label: "driest-N (drought)" },
+          { color: color("--s-era5"), value: wet[i].toFixed(2) + "%", label: "wettest-N (flood)" },
+          { color: "transparent", value: (100 - dry[i]).toFixed(2) + "%", label: "identical (dry)" }
         ]);
       }
       hit.addEventListener("pointermove", over);

@@ -222,6 +222,38 @@
   </details>
 </figure>
 
+<figure id="fig-grid">
+  <h2>Both axes at once: admin units × dates</h2>
+  <p class="caption">
+    The two sweeps above each vary one axis. This walks the full grid, so the
+    interaction is visible. Cell colour and label are the speedup of
+    PR&nbsp;#49 over the legacy method, on Databricks job compute, running the
+    real pipeline runners (weighted median and row validation included) over
+    synthetic non-pixel-aligned polygons on a Nigeria-sized SEAS5 grid.
+  </p>
+  <div id="chart-grid"></div>
+  <details><summary>Table view — absolute seconds</summary>
+    <div class="scroll"><table>
+      <thead><tr><th>Admin units</th><th>Dates</th><th>Legacy (s)</th><th>PR #49 (s)</th><th>Speedup</th></tr></thead>
+      <tbody id="grid-tbody"></tbody>
+    </table></div>
+  </details>
+  <p class="caption" style="margin-top:12px">
+    The two axes behave completely differently. Legacy cost is a clean
+    product of both — 3,000 admins over 200 dates costs it
+    <strong>749&nbsp;s</strong>. The new method is close to <em>flat</em> in
+    dates: at 3,000 admins, going from 1 date to 200 moves it only
+    0.61&nbsp;s → 0.97&nbsp;s, because the sparse matrix product over 200
+    slices costs barely more than over one. So the multiplier comes from the
+    <strong>date</strong> axis, while the admin axis mostly sets the floor
+    (5–8× at a single date, where neither method amortises anything). The
+    practical reading: daily update runs sit in the cheap corner either way,
+    and adding admin units is close to free — 800 → 3,000 admins costs the
+    new method 0.25&nbsp;s → 0.97&nbsp;s at 200 dates, where it costs the
+    legacy method 199&nbsp;s → 749&nbsp;s.
+  </p>
+</figure>
+
 <figure id="fig-update">
   <h2>Update run: stats compute per country</h2>
     <p class="caption">
@@ -638,6 +670,117 @@
         over({ clientX: r.left + 26, clientY: r.top + 40 });
       });
       hit.addEventListener("blur", hideTip);
+    });
+  })();
+
+  // ---- 2-D speedup heatmap: admins x dates ----
+  (function () {
+    var GRID = {"source": "Databricks job compute (Standard_DS4_v2), run 388778747752852", "cells": [{"a": 10, "d": 1, "legacy": 0.043, "new": 0.0093, "speedup": 4.6}, {"a": 50, "d": 1, "legacy": 0.117, "new": 0.019, "speedup": 6.2}, {"a": 200, "d": 1, "legacy": 0.35, "new": 0.0471, "speedup": 7.4}, {"a": 800, "d": 1, "legacy": 1.285, "new": 0.1658, "speedup": 7.8}, {"a": 3000, "d": 1, "legacy": 5.073, "new": 0.6094, "speedup": 8.3}, {"a": 10, "d": 10, "legacy": 0.222, "new": 0.0105, "speedup": 21.1}, {"a": 50, "d": 10, "legacy": 0.807, "new": 0.0194, "speedup": 41.6}, {"a": 200, "d": 10, "legacy": 3.227, "new": 0.0493, "speedup": 65.5}, {"a": 800, "d": 10, "legacy": 12.41, "new": 0.1753, "speedup": 70.8}, {"a": 3000, "d": 10, "legacy": 46.582, "new": 0.6371, "speedup": 73.1}, {"a": 10, "d": 50, "legacy": 0.889, "new": 0.0106, "speedup": 83.9}, {"a": 50, "d": 50, "legacy": 3.463, "new": 0.0224, "speedup": 154.6}, {"a": 200, "d": 50, "legacy": 13.11, "new": 0.0568, "speedup": 230.8}, {"a": 800, "d": 50, "legacy": 50.129, "new": 0.1928, "speedup": 260.0}, {"a": 3000, "d": 50, "legacy": 183.954, "new": 0.6794, "speedup": 270.8}, {"a": 10, "d": 200, "legacy": 3.126, "new": 0.0172, "speedup": 181.7}, {"a": 50, "d": 200, "legacy": 13.424, "new": 0.0312, "speedup": 430.3}, {"a": 200, "d": 200, "legacy": 51.799, "new": 0.0798, "speedup": 649.1}, {"a": 800, "d": 200, "legacy": 198.992, "new": 0.2537, "speedup": 784.4}, {"a": 3000, "d": 200, "legacy": 749.024, "new": 0.9651, "speedup": 776.1}]};
+    var ADMINS = [10, 50, 200, 800, 3000];
+    var DATES = [1, 10, 50, 200];
+    var container = document.getElementById("chart-grid");
+    var W = 840, padL = 74, padT = 30, padR = 118, padB = 42;
+    var cw = (W - padL - padR) / DATES.length, ch = 46;
+    var H = padT + ADMINS.length * ch + padB;
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, "class": "chart-svg",
+      role: "img", "aria-label": "Heatmap of speedup by admin-unit count and number of dates" },
+      container);
+
+    // sequential blue ramp, log-scaled across the speedup range
+    var RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf",
+                "#184f95", "#0d366b"];
+    var lo = Math.log10(4), hi = Math.log10(800);
+    function fill(v) {
+      var t = (Math.log10(v) - lo) / (hi - lo);
+      var i = Math.round(Math.max(0, Math.min(1, t)) * (RAMP.length - 1));
+      return RAMP[i];
+    }
+    function inkFor(v) {
+      // white on the darker half of the ramp, ink on the lighter half
+      return (Math.log10(v) - lo) / (hi - lo) > 0.5 ? "#ffffff" : "#0b0b0b";
+    }
+
+    DATES.forEach(function (d, j) {
+      var t = el("text", { x: padL + j * cw + cw / 2, y: padT - 12,
+        "text-anchor": "middle", "font-size": 11.5,
+        fill: color("--text-secondary") }, svg);
+      t.textContent = d + (d === 1 ? " date" : " dates");
+    });
+    ADMINS.forEach(function (a, i) {
+      var t = el("text", { x: padL - 10, y: padT + i * ch + ch / 2 + 4,
+        "text-anchor": "end", "font-size": 12,
+        fill: color("--text-primary") }, svg);
+      t.textContent = a.toLocaleString("en-US");
+    });
+    var yl = el("text", { x: 14, y: padT + (ADMINS.length * ch) / 2,
+      "font-size": 11, fill: color("--muted"),
+      transform: "rotate(-90 14 " + (padT + (ADMINS.length * ch) / 2) + ")",
+      "text-anchor": "middle" }, svg);
+    yl.textContent = "admin units";
+
+    var byKey = {};
+    GRID.cells.forEach(function (c) { byKey[c.a + "_" + c.d] = c; });
+
+    ADMINS.forEach(function (a, i) {
+      DATES.forEach(function (d, j) {
+        var c = byKey[a + "_" + d];
+        if (!c) return;
+        var x0 = padL + j * cw, y0 = padT + i * ch;
+        // 2px surface gap between cells rather than a stroke
+        el("rect", { x: x0 + 1, y: y0 + 1, width: cw - 2, height: ch - 2,
+          rx: 4, fill: fill(c.speedup) }, svg);
+        var lbl = el("text", { x: x0 + cw / 2, y: y0 + ch / 2 + 4,
+          "text-anchor": "middle", "font-size": 12.5, "font-weight": 600,
+          fill: inkFor(c.speedup) }, svg);
+        lbl.textContent = c.speedup + "×";
+        var hit = el("rect", { x: x0, y: y0, width: cw, height: ch,
+          fill: "transparent", tabindex: 0 }, svg);
+        function over(evt) {
+          showTip(evt, a.toLocaleString("en-US") + " admin units × " +
+            d + (d === 1 ? " date" : " dates"), [
+            { color: color("--series-new"), value: c.new + " s", label: "PR #49" },
+            { color: color("--series-legacy"), value: c.legacy + " s", label: "legacy" },
+            { color: "transparent", value: c.speedup + "×", label: "speedup" }
+          ]);
+        }
+        hit.addEventListener("pointermove", over);
+        hit.addEventListener("pointerleave", hideTip);
+        hit.addEventListener("focus", function () {
+          var b = hit.getBoundingClientRect();
+          over({ clientX: b.left + 30, clientY: b.top + 10 });
+        });
+        hit.addEventListener("blur", hideTip);
+      });
+    });
+
+    // scale legend
+    var lx = W - padR + 16, ly = padT;
+    var lt = el("text", { x: lx, y: ly - 12, "font-size": 10.5,
+      fill: color("--muted") }, svg);
+    lt.textContent = "speedup";
+    RAMP.forEach(function (c, i) {
+      el("rect", { x: lx, y: ly + i * 22, width: 18, height: 20, rx: 3,
+        fill: c }, svg);
+    });
+    [[0, "4×"], [RAMP.length - 1, "800×"]].forEach(function (p) {
+      var t = el("text", { x: lx + 24, y: ly + p[0] * 22 + 14,
+        "font-size": 10.5, fill: color("--text-secondary") }, svg);
+      t.textContent = p[1];
+    });
+
+    // table view
+    var tb = document.getElementById("grid-tbody");
+    GRID.cells.slice().sort(function (p, q) {
+      return p.a - q.a || p.d - q.d;
+    }).forEach(function (c) {
+      var tr = document.createElement("tr");
+      [c.a.toLocaleString("en-US"), c.d, c.legacy, c.new, c.speedup + "×"]
+        .forEach(function (v) {
+          var td = document.createElement("td");
+          td.textContent = v;
+          tr.appendChild(td);
+        });
+      tb.appendChild(tr);
     });
   })();
 

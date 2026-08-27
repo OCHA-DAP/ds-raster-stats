@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ds-raster-stats · what the method change does to the values</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface-1: #fcfcfb;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --s-seas5: #2a78d6;
+    --s-era5: #eb6834;
+    --s-imerg: #1baf7a;
+    --s-floodscan: #eda100;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface-1: #1a1a19;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --s-seas5: #3987e5;
+      --s-era5: #d95926;
+      --s-imerg: #199e70;
+      --s-floodscan: #c98500;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface-1: #1a1a19;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255,255,255,0.10);
+    --s-seas5: #3987e5;
+    --s-era5: #d95926;
+    --s-imerg: #199e70;
+    --s-floodscan: #c98500;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px 80px; }
+  header h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  header p.sub { color: var(--text-secondary); margin: 0 0 8px; font-size: .95rem; }
+  a { color: var(--s-seas5); }
+  .hero {
+    display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px 24px; margin: 24px 0 12px;
+  }
+  .hero .big { font-size: 52px; font-weight: 650; line-height: 1; }
+  .hero .expl { color: var(--text-secondary); max-width: 34em; font-size: .95rem; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 12px 0 8px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .label { color: var(--text-secondary); font-size: .8rem; }
+  .tile .value { font-size: 1.45rem; font-weight: 650; margin-top: 2px; }
+  .tile .note { color: var(--muted); font-size: .78rem; margin-top: 2px; }
+  figure {
+    margin: 28px 0; background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 20px 12px;
+  }
+  figure h2 { font-size: 1.05rem; margin: 0 0 2px; }
+  figure p.caption { color: var(--text-secondary); font-size: .88rem; margin: 0 0 14px; }
+  .legend { display: flex; gap: 16px; font-size: .82rem; color: var(--text-secondary); margin-bottom: 10px; flex-wrap: wrap; }
+  .legend .key { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .linekey { width: 18px; height: 2px; border-radius: 1px; }
+  .legend .swatch { width: 12px; height: 12px; border-radius: 3px; }
+  svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .chart-svg { width: 100%; height: auto; display: block; }
+  details { margin-top: 8px; }
+  details summary { cursor: pointer; color: var(--text-secondary); font-size: .85rem; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; margin-top: 8px; font-size: .85rem; width: 100%; }
+  th, td { text-align: right; padding: 4px 10px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--text-secondary); font-weight: 600; }
+  section.prose { margin: 30px 0; }
+  section.prose h2 { font-size: 1.15rem; }
+  section.prose p, section.prose li { color: var(--text-secondary); font-size: .93rem; }
+  section.prose strong { color: var(--text-primary); }
+  .tooltip {
+    position: fixed; pointer-events: none; z-index: 10; display: none;
+    background: var(--surface-1); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; font-size: .82rem; box-shadow: 0 4px 14px rgba(0,0,0,.18);
+  }
+  .tooltip .t-title { color: var(--text-secondary); margin-bottom: 3px; }
+  .tooltip .row { display: flex; align-items: center; gap: 7px; }
+  .tooltip .row .k { width: 14px; height: 3px; border-radius: 1px; }
+  .tooltip .row b { font-variant-numeric: tabular-nums; }
+  .tooltip .row span { color: var(--text-secondary); }
+  footer { margin-top: 40px; color: var(--muted); font-size: .8rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>What the method change does to the values</h1>
+  <p class="sub">
+    <a href="../">ds-raster-stats</a> ·
+    exactextract coverage fractions (<a href="https://github.com/OCHA-DAP/ds-raster-stats/pull/49">PR&nbsp;#49</a>)
+    vs the legacy upsample-and-rasterize values already in the prod database ·
+    all four datasets, 8 countries, ~16,900 matched rows · 2026-08-27
+  </p>
+</header>
+
+<div class="hero">
+  <div class="big">0.002<span style="font-size:26px"> mm/day</span></div>
+  <div class="expl">
+    is the median change to a SEAS5 admin-unit mean — 0.20% of a typical
+    value. Differences are small in physical units across every dataset,
+    carry <strong>no systematic bias</strong>, and concentrate in small
+    polygons, which is exactly where the old whole-pixel approximation was
+    documented to be weakest. 22 sub-pixel admin units that previously
+    returned nothing now return values; none lost values.
+  </div>
+</div>
+
+<div class="tiles">
+  <div class="tile">
+    <div class="label">Systematic bias</div>
+    <div class="value">none</div>
+    <div class="note">signed median difference ≈ 0.000% (SEAS5, ERA5) — values scatter, they don't shift</div>
+  </div>
+  <div class="tile">
+    <div class="label">SEAS5 means within 5%</div>
+    <div class="value">97%</div>
+    <div class="note">of 11,123 rows; ERA5 96%</div>
+  </div>
+  <div class="tile">
+    <div class="label">Rows that gained a value</div>
+    <div class="value">+22 units</div>
+    <div class="note">sub-pixel ADM2s in HTI, NGA, MOZ that were NULL under the old method</div>
+  </div>
+  <div class="tile">
+    <div class="label">Rows that lost a value</div>
+    <div class="value">0</div>
+    <div class="note">across all four datasets</div>
+  </div>
+</div>
+
+<figure id="fig-size">
+  <h2>The difference is a boundary effect: it shrinks as polygons grow</h2>
+  <p class="caption">
+    Median relative change in the admin-unit mean, by polygon size expressed
+    in <em>native</em> raster pixels (so the axis means the same thing for a
+    0.4° forecast and a 0.083° flood product). Every dataset declines
+    monotonically — the signature of boundary-pixel treatment, and the same
+    result the 2024 Philippines validation found. Log y-axis.
+  </p>
+  <div class="legend">
+    <span class="key"><span class="linekey" style="background:var(--s-seas5)"></span>SEAS5 (0.4°)</span>
+    <span class="key"><span class="linekey" style="background:var(--s-era5)"></span>ERA5 (0.25°)</span>
+    <span class="key"><span class="linekey" style="background:var(--s-imerg)"></span>IMERG (0.1°)</span>
+    <span class="key"><span class="linekey" style="background:var(--s-floodscan)"></span>FloodScan (0.083°)</span>
+  </div>
+  <div id="chart-size"></div>
+  <details><summary>Table view</summary>
+    <div class="scroll"><table>
+      <thead><tr><th>Polygon size</th><th>SEAS5</th><th>ERA5</th><th>IMERG</th><th>FloodScan</th></tr></thead>
+      <tbody>
+        <tr><td>&lt; 1 native px</td><td>0.32%</td><td>0.61%</td><td>10.61%</td><td>49.99%</td></tr>
+        <tr><td>1–4 px</td><td>0.19%</td><td>0.41%</td><td>7.92%</td><td>33.58%</td></tr>
+        <tr><td>4–16 px</td><td>0.12%</td><td>0.30%</td><td>6.05%</td><td>24.82%</td></tr>
+        <tr><td>16–64 px</td><td>0.09%</td><td>0.23%</td><td>3.55%</td><td>20.43%</td></tr>
+        <tr><td>&gt; 64 px</td><td>0.06%</td><td>0.13%</td><td>1.80%</td><td>13.69%</td></tr>
+      </tbody>
+    </table></div>
+  </details>
+</figure>
+
+<figure id="fig-abs">
+  <h2>Read these in physical units, not percentages</h2>
+  <p class="caption">
+    IMERG and FloodScan look alarming in relative terms only because their
+    values are frequently near zero — FloodScan is a flood <em>fraction</em>
+    whose median admin-unit value is 0, so a negligible absolute change
+    divides by nothing. In physical units every dataset moves by a rounding
+    error. Median absolute change in the admin-unit mean, log scale.
+  </p>
+  <div class="legend">
+    <span class="key"><span class="swatch" style="background:var(--s-seas5)"></span>median absolute change</span>
+  </div>
+  <div id="chart-abs"></div>
+  <details><summary>Table view</summary>
+    <div class="scroll"><table>
+      <thead><tr><th>Dataset</th><th>Native res</th><th>Typical value</th><th>Median abs. change</th><th>p90 abs. change</th><th>Median rel.</th><th>Within 5%</th></tr></thead>
+      <tbody>
+        <tr><td>SEAS5</td><td>0.4°</td><td>1.92 mm/day</td><td>0.0020 mm/day</td><td>0.038 mm/day</td><td>0.20%</td><td>97.1%</td></tr>
+        <tr><td>ERA5</td><td>0.25°</td><td>1.80 mm/day</td><td>0.0058 mm/day</td><td>0.085 mm/day</td><td>0.38%</td><td>96.1%</td></tr>
+        <tr><td>IMERG</td><td>0.1°</td><td>0.70 mm/day</td><td>0.0295 mm/day</td><td>0.586 mm/day</td><td>4.73%</td><td>51.7%</td></tr>
+        <tr><td>FloodScan</td><td>0.083°</td><td>0.00 fraction</td><td>0.0000</td><td>0.0011</td><td>20.09%</td><td>15.3%</td></tr>
+      </tbody>
+    </table></div>
+  </details>
+</figure>
+
+<figure id="fig-dist">
+  <h2>Distribution of the change (SEAS5)</h2>
+  <p class="caption">
+    Signed percentage change in the admin-unit mean across 10,967 SEAS5 rows
+    with a defined ratio, clipped to ±15%. Centred on zero and tight — the
+    new values scatter around the old ones rather than shifting them in
+    either direction. This is the same view as the 2024 methodology page's
+    Philippines histogram, one method-generation later.
+  </p>
+  <div id="chart-dist"></div>
+  <details><summary>Table view</summary>
+    <div class="scroll"><table>
+      <thead><tr><th>Band</th><th>Share of SEAS5 rows</th></tr></thead>
+      <tbody>
+        <tr><td>within ±1%</td><td>82.8%</td></tr>
+        <tr><td>within ±5%</td><td>97.1%</td></tr>
+        <tr><td>beyond ±5%</td><td>2.9%</td></tr>
+      </tbody>
+    </table></div>
+  </details>
+</figure>
+
+<section class="prose">
+  <h2>Why the coarse datasets agree best — the counter-intuitive bit</h2>
+  <p>
+    The natural expectation is that a finer raster gives a more faithful
+    answer, so SEAS5 at 0.4° should disagree most and FloodScan at 0.083°
+    least. The measurements say the opposite, and the <strong>upsample
+    factor</strong> is why. The legacy method resamples everything to a
+    common 0.05° grid and includes whole subpixels by centroid. For SEAS5
+    that is an 8× upsample, so a misassigned subpixel almost always lands
+    inside the <em>same</em> native pixel, carries an identical value, and
+    produces no error at all. For IMERG and FloodScan it is only a 2×
+    upsample, so half of all subpixel boundaries are real native-pixel
+    boundaries where values genuinely differ.
+  </p>
+  <p>
+    In other words the upsampling was <em>masking</em> the approximation
+    error, and masking it best exactly where the raster was coarsest. Field
+    roughness compounds it: SEAS5 is a smooth ensemble mean, ERA5 a monthly
+    average, while IMERG daily precipitation is convective and spatially
+    rough and FloodScan flood extent is close to binary. Rough fields turn a
+    boundary-pixel disagreement into a value disagreement.
+  </p>
+</section>
+
+<section class="prose">
+  <h2>Per-statistic detail, and two semantics changes</h2>
+  <p>
+    <code>median</code> is the most stable statistic (0.00% median change on
+    SEAS5 and ERA5) — it selects an actual pixel value and boundary pixels
+    rarely change which one sits in the middle. <code>mean</code> follows.
+    Two statistics change by design:
+  </p>
+  <ul>
+    <li><strong><code>min</code> and <code>max</code> now consider any pixel
+      with coverage above zero</strong>, a wider set than "pixel centroid
+      inside the polygon", so extremes can move outward. SEAS5 min/max are
+      within 5% on 87–88% of rows versus 97% for the mean. On FloodScan this
+      flipped <code>min</code> from a positive value to 0 on 12 of 2,552
+      rows, where the widened set picks up a dry boundary pixel.</li>
+    <li><strong><code>count</code> and <code>sum</code> are re-derived</strong>
+      from coverage fractions scaled to 0.05°-pixel equivalents, shifting
+      1–2% at the median. Their p90 of exactly 16.67% (= 1/6) is the
+      fingerprint of small-integer rounding rather than a methodological
+      difference.</li>
+  </ul>
+  <details><summary>Full per-statistic table</summary>
+    <div class="scroll"><table>
+      <thead><tr><th>Dataset · stat</th><th>Median |rel|</th><th>p90 |rel|</th><th>Signed median</th><th>Within 5%</th></tr></thead>
+      <tbody>
+        <tr><td>SEAS5 · mean</td><td>0.20%</td><td>1.81%</td><td>−0.000%</td><td>97.1%</td></tr>
+        <tr><td>SEAS5 · median</td><td>0.00%</td><td>0.00%</td><td>0.000%</td><td>96.8%</td></tr>
+        <tr><td>SEAS5 · min</td><td>0.00%</td><td>8.63%</td><td>−0.000%</td><td>87.3%</td></tr>
+        <tr><td>SEAS5 · max</td><td>0.00%</td><td>8.28%</td><td>0.000%</td><td>88.4%</td></tr>
+        <tr><td>SEAS5 · sum</td><td>2.24%</td><td>16.51%</td><td>0.071%</td><td>67.9%</td></tr>
+        <tr><td>SEAS5 · std</td><td>1.22%</td><td>11.05%</td><td>0.149%</td><td>80.0%</td></tr>
+        <tr><td>SEAS5 · count</td><td>1.25%</td><td>16.67%</td><td>0.000%</td><td>73.8%</td></tr>
+        <tr><td>ERA5 · mean</td><td>0.38%</td><td>2.08%</td><td>−0.000%</td><td>96.1%</td></tr>
+        <tr><td>ERA5 · median</td><td>0.00%</td><td>0.00%</td><td>−0.000%</td><td>94.9%</td></tr>
+        <tr><td>ERA5 · min</td><td>0.00%</td><td>19.00%</td><td>−0.000%</td><td>80.3%</td></tr>
+        <tr><td>ERA5 · max</td><td>0.00%</td><td>18.26%</td><td>0.000%</td><td>81.8%</td></tr>
+        <tr><td>IMERG · mean</td><td>4.73%</td><td>25.47%</td><td>0.219%</td><td>51.7%</td></tr>
+        <tr><td>IMERG · median</td><td>0.45%</td><td>27.19%</td><td>−0.000%</td><td>71.1%</td></tr>
+        <tr><td>FloodScan · mean</td><td>20.09%</td><td>85.19%</td><td>3.707%</td><td>15.3%</td></tr>
+        <tr><td>FloodScan · count</td><td>1.35%</td><td>12.50%</td><td>0.000%</td><td>75.2%</td></tr>
+      </tbody>
+    </table></div>
+  </details>
+</section>
+
+<section class="prose">
+  <h2>A defect this comparison caught</h2>
+  <p>
+    The sub-pixel admin units the new method rescues were initially coming
+    back with <code>count = 0</code> alongside a perfectly valid mean,
+    because the coverage-weighted count rounded down. That breaks the
+    invariant the legacy method held — <code>count &gt; 0</code> if and only
+    if the statistics are non-null — so any downstream query filtering on
+    <code>count &gt; 0</code> would have silently dropped exactly the units
+    exact coverage fractions exist to recover (77 rows in the SEAS5 sample
+    alone). PR&nbsp;#49 now floors <code>count</code> at 1 wherever coverage
+    exists, with a regression test.
+  </p>
+</section>
+
+<section class="prose">
+  <h2>What this does <em>not</em> answer</h2>
+  <p>
+    Anticipatory-action triggers are threshold comparisons, so the question
+    that matters is not "how big is the average change" but "does any
+    historical activation move". A 0.20% shift is negligible against forecast
+    uncertainty, yet it can still flip a value sitting exactly on a
+    threshold. Before the archive is rebuilt on the new method, the
+    frameworks reading these tables should have their historical trigger
+    series recomputed under both methods and their activation dates
+    compared — the historical validation the team's
+    <a href="https://github.com/OCHA-DAP/ds-knowledge-base/blob/main/methods/trigger-design.md">trigger-design method</a>
+    requires for any change of this kind.
+  </p>
+</section>
+
+<section class="prose">
+  <h2>Method &amp; caveats</h2>
+  <ul>
+    <li><strong>Comparison:</strong> new values computed in memory from prod
+      COGs and prod COD boundaries, joined to the existing prod database rows
+      (legacy method) on iso3 · pcode · valid_date · adm_level (+ leadtime
+      for SEAS5, band for FloodScan). Nothing was written to any database.</li>
+    <li><strong>Coverage:</strong> NGA, TCD, ETH, SOM, MOZ, HTI, SLV, MMR
+      (FloodScan is Africa-only, so 5 of those) at every admin level the
+      pipeline computes, one date per dataset: SEAS5 issued 2026-07-01 (all
+      7 leadtimes), ERA5 2026-06-01, IMERG and FloodScan 2026-08-20.
+      16,853 matched rows in total.</li>
+    <li><strong>Relative differences are undefined where the legacy value is
+      zero</strong> and are excluded from the ratio statistics; that is why
+      FloodScan's ratio counts are smaller than its row counts. Absolute
+      differences use every row.</li>
+    <li><strong>One date per dataset</strong> is enough to characterise a
+      geometric effect — the difference depends on polygon-versus-pixel
+      geometry, which does not vary with the date — but it does not sample
+      seasonal variation in the fields themselves.</li>
+    <li>Raw output: <a href="value_comparison.json">value_comparison.json</a>
+      · script: <a href="compare_values.py">compare_values.py</a> ·
+      per-row merged data:
+      <a href="cmp_seas5.csv">seas5</a>,
+      <a href="cmp_era5.csv">era5</a>,
+      <a href="cmp_imerg.csv">imerg</a>,
+      <a href="cmp_floodscan.csv">floodscan</a>.</li>
+  </ul>
+</section>
+
+<footer>
+  From <a href="https://github.com/OCHA-DAP/ds-raster-stats/pull/49">PR #49</a>
+  (branch <code>weighted-zonal-stats</code>) · see also the
+  <a href="../benchmarks/">speed benchmarks</a> ·
+  OCHA Centre for Humanitarian Data, Data Science.
+</footer>
+
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+(function () {
+  "use strict";
+  var css = getComputedStyle(document.documentElement);
+  function color(n) { return css.getPropertyValue(n).trim(); }
+  var NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  var tooltip = document.getElementById("tooltip");
+  function showTip(evt, title, rows) {
+    tooltip.textContent = "";
+    var t = document.createElement("div");
+    t.className = "t-title"; t.textContent = title;
+    tooltip.appendChild(t);
+    rows.forEach(function (r) {
+      var d = document.createElement("div"); d.className = "row";
+      var k = document.createElement("span"); k.className = "k";
+      k.style.background = r.color;
+      var b = document.createElement("b"); b.textContent = r.value;
+      var s = document.createElement("span"); s.textContent = r.label;
+      d.appendChild(k); d.appendChild(b); d.appendChild(s);
+      tooltip.appendChild(d);
+    });
+    tooltip.style.display = "block";
+    moveTip(evt);
+  }
+  function moveTip(evt) {
+    var x = evt.clientX + 14, y = evt.clientY + 14;
+    var r = tooltip.getBoundingClientRect();
+    if (x + r.width > window.innerWidth - 8) x = evt.clientX - r.width - 14;
+    if (y + r.height > window.innerHeight - 8) y = evt.clientY - r.height - 14;
+    tooltip.style.left = x + "px"; tooltip.style.top = y + "px";
+  }
+  function hideTip() { tooltip.style.display = "none"; }
+
+  // ---- difference vs polygon size (4 series, log y) ----
+  (function () {
+    var BUCKETS = ["< 1 px", "1–4 px", "4–16 px", "16–64 px", "> 64 px"];
+    var SERIES = [
+      { key: "SEAS5", c: "--s-seas5", v: [0.32, 0.19, 0.12, 0.09, 0.06] },
+      { key: "ERA5", c: "--s-era5", v: [0.61, 0.41, 0.30, 0.23, 0.13] },
+      { key: "IMERG", c: "--s-imerg", v: [10.61, 7.92, 6.05, 3.55, 1.80] },
+      { key: "FloodScan", c: "--s-floodscan", v: [49.99, 33.58, 24.82, 20.43, 13.69] }
+    ];
+    var W = 840, H = 330, padL = 60, padR = 132, padT = 12, padB = 44;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var yMin = Math.log10(0.04), yMax = Math.log10(80);
+    var x = function (i) { return padL + (i / (BUCKETS.length - 1)) * plotW; };
+    var y = function (v) { return padT + plotH - (Math.log10(v) - yMin) / (yMax - yMin) * plotH; };
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, "class": "chart-svg",
+      role: "img", "aria-label": "Median relative difference in the admin-unit mean by polygon size, four datasets, log scale" },
+      document.getElementById("chart-size"));
+
+    [0.1, 1, 10].forEach(function (t) {
+      el("line", { x1: padL, y1: y(t), x2: W - padR, y2: y(t),
+        stroke: color("--grid"), "stroke-width": 1 }, svg);
+      var l = el("text", { x: padL - 8, y: y(t) + 4, "text-anchor": "end",
+        "font-size": 11, fill: color("--muted") }, svg);
+      l.textContent = t + "%";
+    });
+    el("line", { x1: padL, y1: padT + plotH, x2: W - padR, y2: padT + plotH,
+      stroke: color("--baseline"), "stroke-width": 1 }, svg);
+    BUCKETS.forEach(function (b, i) {
+      var l = el("text", { x: x(i), y: H - padB + 20, "text-anchor": "middle",
+        "font-size": 11, fill: color("--muted") }, svg);
+      l.textContent = b;
+    });
+    var xl = el("text", { x: padL + plotW / 2, y: H - 6, "text-anchor": "middle",
+      "font-size": 11, fill: color("--muted") }, svg);
+    xl.textContent = "admin-unit size, in native raster pixels";
+
+    SERIES.forEach(function (s) {
+      var col = color(s.c);
+      var pts = s.v.map(function (v, i) { return x(i) + "," + y(v); });
+      el("polyline", { points: pts.join(" "), fill: "none", stroke: col,
+        "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+      s.v.forEach(function (v, i) {
+        el("circle", { cx: x(i), cy: y(v), r: 4.5, fill: col,
+          stroke: color("--surface-1"), "stroke-width": 2 }, svg);
+      });
+      var lbl = el("text", { x: x(BUCKETS.length - 1) + 12,
+        y: y(s.v[s.v.length - 1]) + 4, "font-size": 12,
+        fill: color("--text-secondary") }, svg);
+      lbl.textContent = s.key + " " + s.v[s.v.length - 1] + "%";
+    });
+
+    BUCKETS.forEach(function (b, i) {
+      var hit = el("rect", { x: x(i) - plotW / 10, y: padT,
+        width: plotW / 5, height: plotH, fill: "transparent", tabindex: 0 }, svg);
+      function over(evt) {
+        showTip(evt, "admin units of " + b, SERIES.map(function (s) {
+          return { color: color(s.c), value: s.v[i] + "%", label: s.key };
+        }));
+      }
+      hit.addEventListener("pointermove", over);
+      hit.addEventListener("pointerleave", hideTip);
+      hit.addEventListener("focus", function () {
+        var r = hit.getBoundingClientRect();
+        over({ clientX: r.left + 30, clientY: r.top + 40 });
+      });
+      hit.addEventListener("blur", hideTip);
+    });
+  })();
+
+  // ---- absolute change per dataset (log x bars) ----
+  (function () {
+    var rows = [
+      { label: "IMERG", v: 0.0295, unit: "mm/day", c: "--s-imerg", rel: "4.73%" },
+      { label: "ERA5", v: 0.0058, unit: "mm/day", c: "--s-era5", rel: "0.38%" },
+      { label: "SEAS5", v: 0.0020, unit: "mm/day", c: "--s-seas5", rel: "0.20%" },
+      { label: "FloodScan", v: 0.00005, unit: "fraction", c: "--s-floodscan", rel: "20.09%" }
+    ];
+    var W = 840, H = 200, labelW = 92, padR = 168, padT = 10, barH = 22, gap = 16;
+    var plotW = W - labelW - padR;
+    var xMin = Math.log10(0.00002), xMax = Math.log10(0.1);
+    var x = function (v) { return labelW + (Math.log10(v) - xMin) / (xMax - xMin) * plotW; };
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, "class": "chart-svg",
+      role: "img", "aria-label": "Median absolute change in the admin-unit mean per dataset, log scale" },
+      document.getElementById("chart-abs"));
+    var axisY = padT + rows.length * (barH + gap);
+    [0.0001, 0.001, 0.01, 0.1].forEach(function (t) {
+      el("line", { x1: x(t), y1: padT, x2: x(t), y2: axisY,
+        stroke: color("--grid"), "stroke-width": 1 }, svg);
+      var l = el("text", { x: x(t), y: axisY + 16, "text-anchor": "middle",
+        "font-size": 11, fill: color("--muted") }, svg);
+      l.textContent = t;
+    });
+    el("line", { x1: labelW, y1: padT, x2: labelW, y2: axisY,
+      stroke: color("--baseline"), "stroke-width": 1 }, svg);
+    var xl = el("text", { x: labelW + plotW / 2, y: axisY + 33, "text-anchor": "middle",
+      "font-size": 11, fill: color("--muted") }, svg);
+    xl.textContent = "median absolute change (mm/day, or flood fraction)";
+
+    rows.forEach(function (r, i) {
+      var yy = padT + i * (barH + gap);
+      var lbl = el("text", { x: labelW - 10, y: yy + barH - 6, "text-anchor": "end",
+        "font-size": 12.5, fill: color("--text-primary") }, svg);
+      lbl.textContent = r.label;
+      var w = Math.max(x(r.v) - labelW, 2);
+      var col = color(r.c);
+      el("path", { d: "M" + labelW + "," + yy + " L" + (labelW + w - 4) + "," + yy +
+        " Q" + (labelW + w) + "," + yy + " " + (labelW + w) + "," + (yy + 4) +
+        " L" + (labelW + w) + "," + (yy + barH - 4) +
+        " Q" + (labelW + w) + "," + (yy + barH) + " " + (labelW + w - 4) + "," + (yy + barH) +
+        " L" + labelW + "," + (yy + barH) + " Z", fill: col }, svg);
+      var vl = el("text", { x: labelW + w + 8, y: yy + barH - 6, "font-size": 11.5,
+        fill: color("--text-secondary") }, svg);
+      vl.textContent = (r.v < 0.0001 ? "< 0.0001" : r.v) + " " + r.unit +
+        "  (" + r.rel + " rel.)";
+      var hit = el("rect", { x: 0, y: yy - gap / 2, width: W, height: barH + gap,
+        fill: "transparent", tabindex: 0 }, svg);
+      function over(evt) {
+        showTip(evt, r.label + " — median change in admin-unit mean", [
+          { color: col, value: (r.v < 0.0001 ? "< 0.0001" : String(r.v)) + " " + r.unit, label: "absolute" },
+          { color: "transparent", value: r.rel, label: "relative" }
+        ]);
+      }
+      hit.addEventListener("pointermove", over);
+      hit.addEventListener("pointerleave", hideTip);
+      hit.addEventListener("focus", function () {
+        var b = hit.getBoundingClientRect();
+        over({ clientX: b.left + 200, clientY: b.top + 10 });
+      });
+      hit.addEventListener("blur", hideTip);
+    });
+  })();
+
+  // ---- SEAS5 signed-difference histogram ----
+  (function () {
+    var counts = [15, 2, 4, 4, 8, 12, 13, 16, 20, 29, 44, 102, 205, 476, 4655, 4427, 416, 157, 103, 60, 32, 28, 19, 15, 16, 4, 13, 3, 3, 66];
+    var edges = [];
+    for (var i = -15; i <= 15; i++) edges.push(i);
+    var W = 840, H = 250, padL = 58, padR = 20, padT = 12, padB = 42;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    // round the axis up to a clean tick so the labels read as round numbers
+    var maxC = 5000;
+    var bw = plotW / counts.length;
+    var x = function (i) { return padL + i * bw; };
+    var y = function (c) { return padT + plotH - (c / maxC) * plotH; };
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, "class": "chart-svg",
+      role: "img", "aria-label": "Histogram of signed percentage change in SEAS5 admin-unit means, centred on zero" },
+      document.getElementById("chart-dist"));
+
+    [0, 1000, 2000, 3000, 4000, 5000].forEach(function (c) {
+      el("line", { x1: padL, y1: y(c), x2: W - padR, y2: y(c),
+        stroke: color("--grid"), "stroke-width": 1 }, svg);
+      var l = el("text", { x: padL - 8, y: y(c) + 4, "text-anchor": "end",
+        "font-size": 11, fill: color("--muted") }, svg);
+      l.textContent = c.toLocaleString("en-US");
+    });
+    counts.forEach(function (c, i) {
+      if (c <= 0) return;
+      var h = padT + plotH - y(c);
+      el("path", { d: "M" + (x(i) + 1) + "," + (y(c) + 4) +
+        " Q" + (x(i) + 1) + "," + y(c) + " " + (x(i) + 5) + "," + y(c) +
+        " L" + (x(i) + bw - 5) + "," + y(c) +
+        " Q" + (x(i) + bw - 1) + "," + y(c) + " " + (x(i) + bw - 1) + "," + (y(c) + 4) +
+        " L" + (x(i) + bw - 1) + "," + (padT + plotH) +
+        " L" + (x(i) + 1) + "," + (padT + plotH) + " Z",
+        fill: color("--s-seas5") }, svg);
+    });
+    el("line", { x1: padL, y1: padT + plotH, x2: W - padR, y2: padT + plotH,
+      stroke: color("--baseline"), "stroke-width": 1 }, svg);
+    [-15, -10, -5, 0, 5, 10, 15].forEach(function (t) {
+      var i = t + 15;
+      var l = el("text", { x: x(i), y: H - padB + 20, "text-anchor": "middle",
+        "font-size": 11, fill: color("--muted") }, svg);
+      l.textContent = (t > 0 ? "+" : "") + t + "%";
+    });
+    var xl = el("text", { x: padL + plotW / 2, y: H - 6, "text-anchor": "middle",
+      "font-size": 11, fill: color("--muted") }, svg);
+    xl.textContent = "change in admin-unit mean, new vs legacy (clipped at ±15%)";
+
+    counts.forEach(function (c, i) {
+      var hit = el("rect", { x: x(i), y: padT, width: bw, height: plotH,
+        fill: "transparent", tabindex: 0 }, svg);
+      function over(evt) {
+        showTip(evt, edges[i] + "% to " + (edges[i] + 1) + "%", [
+          { color: color("--s-seas5"), value: c.toLocaleString("en-US"), label: "admin-unit rows" }
+        ]);
+      }
+      hit.addEventListener("pointermove", over);
+      hit.addEventListener("pointerleave", hideTip);
+      hit.addEventListener("focus", function () {
+        var b = hit.getBoundingClientRect();
+        over({ clientX: b.left, clientY: b.top + 30 });
+      });
+      hit.addEventListener("blur", hideTip);
+    });
+  })();
+})();
+</script>
+</body>
+</html>

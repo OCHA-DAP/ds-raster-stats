@@ -19,6 +19,9 @@
     --s-era5: #eb6834;
     --s-imerg: #1baf7a;
     --s-floodscan: #eda100;
+    --map-1: #b7d3f6; --map-2: #9ec5f4; --map-3: #6da7ec;
+    --map-4: #3987e5; --map-5: #256abf; --map-6: #0d366b;
+    --map-nodata: #e9e8e3;
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) {
@@ -35,6 +38,9 @@
       --s-era5: #d95926;
       --s-imerg: #199e70;
       --s-floodscan: #c98500;
+      --map-1: #0d366b; --map-2: #184f95; --map-3: #256abf;
+      --map-4: #3987e5; --map-5: #6da7ec; --map-6: #cde2fb;
+      --map-nodata: #262625;
     }
   }
   :root[data-theme="dark"] {
@@ -51,6 +57,9 @@
     --s-era5: #d95926;
     --s-imerg: #199e70;
     --s-floodscan: #c98500;
+    --map-1: #0d366b; --map-2: #184f95; --map-3: #256abf;
+    --map-4: #3987e5; --map-5: #6da7ec; --map-6: #cde2fb;
+    --map-nodata: #262625;
   }
   * { box-sizing: border-box; }
   body {
@@ -108,6 +117,24 @@
   .tooltip .row .k { width: 14px; height: 3px; border-radius: 1px; }
   .tooltip .row b { font-variant-numeric: tabular-nums; }
   .tooltip .row span { color: var(--text-secondary); }
+  .mapctl { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
+  .mapbtn {
+    font: inherit; font-size: .82rem; cursor: pointer;
+    background: var(--surface-1); color: var(--text-secondary);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 5px 13px;
+  }
+  .mapbtn:hover { color: var(--text-primary); }
+  .mapbtn.on {
+    background: var(--map-5); border-color: var(--map-5);
+    color: #fff; font-weight: 600;
+  }
+  .maplegend { margin-top: 6px; }
+  .legwrap { display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
+    font-size: .78rem; color: var(--text-secondary); }
+  .legkey { display: inline-flex; align-items: center; gap: 5px; }
+  .legsw { width: 22px; height: 11px; border-radius: 2px; display: inline-block; }
+  .legnote { color: var(--muted); }
   footer { margin-top: 40px; color: var(--muted); font-size: .8rem; }
 </style>
 </head>
@@ -161,6 +188,54 @@
     <div class="note">Ethiopia drought, 29 years, all three trigger variants — the only framework that re-ranks live</div>
   </div>
 </div>
+
+<figure id="fig-map">
+  <h2>Where the change can matter, before any data is read</h2>
+  <p class="caption">
+    The difference between the two methods is a property of geometry alone:
+    how a country's admin polygons sit against a dataset's pixel grid. For
+    every country, at the <strong>deepest admin level the pipeline actually
+    computes</strong> for it, this compares the two weight vectors each
+    method places on native pixels — exact coverage fractions versus the
+    legacy rule's centroid-counted 0.05° cells — and takes their
+    <em>total variation distance</em>: the share of averaging weight that
+    lands on different pixels. No raster values are involved. Median across
+    each country's admin units.
+  </p>
+  <div class="mapctl" id="map-controls"></div>
+  <div id="chart-map"></div>
+  <div class="maplegend" id="map-legend"></div>
+  <details><summary>Table view — most and least sensitive countries</summary>
+    <div class="scroll"><table>
+      <thead><tr><th>Country</th><th>Admin level</th><th>Units</th><th>SEAS5</th><th>ERA5</th><th>IMERG</th><th>FloodScan</th></tr></thead>
+      <tbody id="map-tbody"></tbody>
+    </table></div>
+  </details>
+  <p class="caption" style="margin-top:12px">
+    <strong>How to read it.</strong> A value of 0.05 means 5% of the
+    averaging weight moves to different pixels. What that costs in the
+    output depends on how rough the field is: multiply by roughly
+    <strong>0.15</strong> for the smooth products (SEAS5 ensemble means,
+    ERA5 monthly) and roughly <strong>1.0</strong> for the rough daily ones
+    (IMERG precipitation, FloodScan flood extent). Those factors come from
+    regressing this geometric measure against the differences actually
+    measured on 8 countries, where it ranks countries correctly — Spearman
+    +0.83 for SEAS5, +0.74 IMERG, +0.80 FloodScan. So the map says
+    <em>where</em>, and the multiplier says <em>how much</em>.
+  </p>
+  <p class="caption" style="margin-top:10px">
+    <strong>FloodScan is uniformly dark, and that is the point.</strong>
+    Its native resolution is 300 arc-seconds (0.0833°), so the legacy
+    upsample factor to 0.05° is 1.667 — not a whole number. The upsampled
+    cells therefore never nest inside native pixels for <em>any</em>
+    polygon, anywhere, and every country carries an irreducible ~20% weight
+    disagreement regardless of how large or well-behaved its admin units
+    are (range 19.7% to 41.7% across the 52 covered countries). The other
+    three datasets divide into 0.05° exactly — 8×, 5× and 2× — so their
+    disagreement is driven by polygon shape and shrinks with polygon size.
+    This is why FloodScan showed the largest measured value differences.
+  </p>
+</figure>
 
 <figure id="fig-size">
   <h2>The difference is a boundary effect: it shrinks as polygons grow</h2>
@@ -522,6 +597,182 @@
     tooltip.style.left = x + "px"; tooltip.style.top = y + "px";
   }
   function hideTip() { tooltip.style.display = "none"; }
+
+  // ---- geometric sensitivity choropleth ----
+  (function () {
+    var DS = [
+      { key: "seas5", label: "SEAS5", res: "0.4°" },
+      { key: "era5", label: "ERA5", res: "0.25°" },
+      { key: "imerg", label: "IMERG", res: "0.1°" },
+      { key: "floodscan", label: "FloodScan", res: "0.083°" }
+    ];
+    // sequential, binned: lightest = least weight moved
+    var BINS = [0.01, 0.02, 0.04, 0.08, 0.16];
+    var BIN_LABELS = ["< 1%", "1–2%", "2–4%", "4–8%", "8–16%", "> 16%"];
+    var current = "seas5";
+    var DATA = null;
+
+    var mapEl = document.getElementById("chart-map");
+    var ctlEl = document.getElementById("map-controls");
+    var legEl = document.getElementById("map-legend");
+    var tbody = document.getElementById("map-tbody");
+
+    function ramp() {
+      var out = [];
+      for (var i = 1; i <= 6; i++) out.push(color("--map-" + i));
+      return out;
+    }
+    function binOf(v) {
+      for (var i = 0; i < BINS.length; i++) if (v < BINS[i]) return i;
+      return BINS.length;
+    }
+
+    // equirectangular, fitted to the drawn extent
+    var W = 840, H = 420, PAD = 6;
+    var LON0 = -180, LON1 = 180, LAT0 = -58, LAT1 = 84;
+    function px(lon) { return PAD + (lon - LON0) / (LON1 - LON0) * (W - 2 * PAD); }
+    function py(lat) { return PAD + (LAT1 - lat) / (LAT1 - LAT0) * (H - 2 * PAD); }
+
+    function render() {
+      mapEl.textContent = "";
+      var svg = el("svg", { viewBox: "0 0 " + W + " " + H, "class": "chart-svg",
+        role: "img",
+        "aria-label": "World map of geometric sensitivity to the method change, by country, for " + current },
+        mapEl);
+      el("rect", { x: 0, y: 0, width: W, height: H, fill: "transparent" }, svg);
+      var R = ramp();
+      var drawn = 0, missing = 0;
+
+      DATA.features.forEach(function (f) {
+        var v = f[current];
+        var has = typeof v === "number";
+        if (has) drawn++; else missing++;
+        var fillc = has ? R[binOf(v)] : color("--map-nodata");
+        var title = f.iso3 + (has ? "" : " — not covered");
+
+        function attach(node) {
+          node.setAttribute("tabindex", "0");
+          function over(evt) {
+            var rows = [];
+            DS.forEach(function (d) {
+              if (typeof f[d.key] === "number") {
+                rows.push({
+                  color: d.key === current ? color("--map-5") : "transparent",
+                  value: (f[d.key] * 100).toFixed(1) + "%",
+                  label: d.label
+                });
+              }
+            });
+            showTip(evt, f.iso3 + " · adm" + f.adm_level + " · " +
+              (f.n || "?") + " units", rows.length ? rows :
+              [{ color: "transparent", value: "—", label: "no coverage" }]);
+          }
+          node.addEventListener("pointermove", over);
+          node.addEventListener("pointerleave", hideTip);
+          node.addEventListener("focus", function () {
+            var b = node.getBoundingClientRect();
+            over({ clientX: b.left + b.width / 2, clientY: b.top });
+          });
+          node.addEventListener("blur", hideTip);
+        }
+
+        if (f.rings) {
+          var d = f.rings.map(function (r) {
+            return "M" + r.map(function (c) {
+              return px(c[0]).toFixed(1) + "," + py(c[1]).toFixed(1);
+            }).join("L") + "Z";
+          }).join(" ");
+          var p = el("path", { d: d, fill: fillc,
+            stroke: color("--surface-1"), "stroke-width": 0.4,
+            "stroke-linejoin": "round" }, svg);
+          p.appendChild(el("title", {}, null)).textContent = title;
+          attach(p);
+        } else if (f.pt) {
+          var c = el("circle", { cx: px(f.pt[0]).toFixed(1),
+            cy: py(f.pt[1]).toFixed(1), r: 3.4, fill: fillc,
+            stroke: color("--surface-1"), "stroke-width": 1.2 }, svg);
+          c.appendChild(el("title", {}, null)).textContent = title;
+          attach(c);
+        }
+      });
+
+      // legend
+      legEl.textContent = "";
+      var lw = document.createElement("div");
+      lw.className = "legwrap";
+      R.forEach(function (c, i) {
+        var k = document.createElement("span");
+        k.className = "legkey";
+        var sw = document.createElement("span");
+        sw.className = "legsw";
+        sw.style.background = c;
+        var tx = document.createElement("span");
+        tx.textContent = BIN_LABELS[i];
+        k.appendChild(sw); k.appendChild(tx); lw.appendChild(k);
+      });
+      var note = document.createElement("span");
+      note.className = "legnote";
+      note.textContent = "share of averaging weight that moves · " +
+        drawn + " countries" + (missing ? " · " + missing + " not covered" : "");
+      lw.appendChild(note);
+      legEl.appendChild(lw);
+
+      // table: extremes
+      tbody.textContent = "";
+      var sorted = DATA.features.filter(function (f) {
+        return typeof f[current] === "number";
+      }).sort(function (a, b) { return b[current] - a[current]; });
+      var pick = sorted.slice(0, 8).concat([null]).concat(sorted.slice(-5));
+      pick.forEach(function (f) {
+        var tr = document.createElement("tr");
+        if (f === null) {
+          var td = document.createElement("td");
+          td.colSpan = 7;
+          td.textContent = "…";
+          td.style.color = color("--muted");
+          tr.appendChild(td); tbody.appendChild(tr); return;
+        }
+        [f.iso3, "adm" + f.adm_level, f.n || "—"].forEach(function (v) {
+          var td = document.createElement("td");
+          td.textContent = v; tr.appendChild(td);
+        });
+        DS.forEach(function (d) {
+          var td = document.createElement("td");
+          td.textContent = typeof f[d.key] === "number"
+            ? (f[d.key] * 100).toFixed(1) + "%" : "—";
+          if (d.key === current) td.style.fontWeight = "600";
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    function buildControls() {
+      ctlEl.textContent = "";
+      DS.forEach(function (d) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "mapbtn" + (d.key === current ? " on" : "");
+        b.textContent = d.label + " " + d.res;
+        b.addEventListener("click", function () {
+          current = d.key;
+          Array.prototype.forEach.call(
+            ctlEl.querySelectorAll(".mapbtn"),
+            function (x) { x.classList.remove("on"); }
+          );
+          b.classList.add("on");
+          render();
+        });
+        ctlEl.appendChild(b);
+      });
+    }
+
+    fetch("map_data.json").then(function (r) { return r.json(); })
+      .then(function (j) { DATA = j; buildControls(); render(); })
+      .catch(function () {
+        mapEl.textContent = "Could not load map data.";
+      });
+  })();
 
   // ---- difference vs polygon size (4 series, log y) ----
   (function () {

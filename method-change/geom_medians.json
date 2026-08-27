@@ -1,0 +1,1286 @@
+[
+ {
+  "iso3": "AFG",
+  "adm_level": 2,
+  "n": 401,
+  "seas5": 0.02,
+  "era5": 0.034,
+  "imerg": 0.069
+ },
+ {
+  "iso3": "AGO",
+  "adm_level": 1,
+  "n": 18,
+  "seas5": 0.006,
+  "era5": 0.007,
+  "imerg": 0.012,
+  "floodscan": 0.2
+ },
+ {
+  "iso3": "ALB",
+  "adm_level": 1,
+  "n": 12,
+  "seas5": 0.024,
+  "era5": 0.03,
+  "imerg": 0.054
+ },
+ {
+  "iso3": "ARE",
+  "adm_level": 1,
+  "n": 7,
+  "seas5": 0.031,
+  "era5": 0.042,
+  "imerg": 0.08
+ },
+ {
+  "iso3": "ARG",
+  "adm_level": 1,
+  "n": 24,
+  "seas5": 0.004,
+  "era5": 0.006,
+  "imerg": 0.008
+ },
+ {
+  "iso3": "ARM",
+  "adm_level": 1,
+  "n": 11,
+  "seas5": 0.014,
+  "era5": 0.022,
+  "imerg": 0.051
+ },
+ {
+  "iso3": "ATG",
+  "adm_level": 1,
+  "n": 8,
+  "seas5": 0.0,
+  "era5": 0.05,
+  "imerg": 0.139
+ },
+ {
+  "iso3": "AZE",
+  "adm_level": 1,
+  "n": 74,
+  "seas5": 0.022,
+  "era5": 0.031,
+  "imerg": 0.063
+ },
+ {
+  "iso3": "BDI",
+  "adm_level": 1,
+  "n": 18,
+  "seas5": 0.03,
+  "era5": 0.039,
+  "imerg": 0.069,
+  "floodscan": 0.23
+ },
+ {
+  "iso3": "BEN",
+  "adm_level": 1,
+  "n": 12,
+  "seas5": 0.017,
+  "era5": 0.021,
+  "imerg": 0.037,
+  "floodscan": 0.206
+ },
+ {
+  "iso3": "BES",
+  "adm_level": 1,
+  "n": 3,
+  "seas5": 0.0,
+  "era5": 0.157,
+  "imerg": 0.13
+ },
+ {
+  "iso3": "BFA",
+  "adm_level": 2,
+  "n": 45,
+  "seas5": 0.015,
+  "era5": 0.02,
+  "imerg": 0.036,
+  "floodscan": 0.209
+ },
+ {
+  "iso3": "BGD",
+  "adm_level": 1,
+  "n": 8,
+  "seas5": 0.013,
+  "era5": 0.016,
+  "imerg": 0.029
+ },
+ {
+  "iso3": "BGR",
+  "adm_level": 1,
+  "n": 28,
+  "seas5": 0.016,
+  "era5": 0.023,
+  "imerg": 0.044
+ },
+ {
+  "iso3": "BHS",
+  "adm_level": 1,
+  "n": 32,
+  "seas5": 0.046,
+  "era5": 0.091,
+  "imerg": 0.195
+ },
+ {
+  "iso3": "BLR",
+  "adm_level": 1,
+  "n": 7,
+  "seas5": 0.006,
+  "era5": 0.009,
+  "imerg": 0.014
+ },
+ {
+  "iso3": "BLZ",
+  "adm_level": 1,
+  "n": 6,
+  "seas5": 0.017,
+  "era5": 0.023,
+  "imerg": 0.045
+ },
+ {
+  "iso3": "BMU",
+  "adm_level": 1,
+  "n": 9,
+  "seas5": 0.0,
+  "era5": 0.0,
+  "imerg": 0.325
+ },
+ {
+  "iso3": "BOL",
+  "adm_level": 1,
+  "n": 9,
+  "seas5": 0.005,
+  "era5": 0.008,
+  "imerg": 0.012
+ },
+ {
+  "iso3": "BRA",
+  "adm_level": 1,
+  "n": 27,
+  "seas5": 0.003,
+  "era5": 0.004,
+  "imerg": 0.007
+ },
+ {
+  "iso3": "BRB",
+  "adm_level": 1,
+  "n": 11,
+  "seas5": 0.02,
+  "era5": 0.019,
+  "imerg": 0.172
+ },
+ {
+  "iso3": "BTN",
+  "adm_level": 1,
+  "n": 20,
+  "seas5": 0.018,
+  "era5": 0.028,
+  "imerg": 0.053
+ },
+ {
+  "iso3": "BWA",
+  "adm_level": 1,
+  "n": 17,
+  "seas5": 0.011,
+  "era5": 0.013,
+  "imerg": 0.034,
+  "floodscan": 0.204
+ },
+ {
+  "iso3": "CAF",
+  "adm_level": 2,
+  "n": 72,
+  "seas5": 0.013,
+  "era5": 0.019,
+  "imerg": 0.033,
+  "floodscan": 0.205
+ },
+ {
+  "iso3": "CHL",
+  "adm_level": 1,
+  "n": 16,
+  "seas5": 0.007,
+  "era5": 0.011,
+  "imerg": 0.019
+ },
+ {
+  "iso3": "CHN",
+  "adm_level": 1,
+  "n": 34,
+  "seas5": 0.004,
+  "era5": 0.005,
+  "imerg": 0.008
+ },
+ {
+  "iso3": "CIV",
+  "adm_level": 1,
+  "n": 33,
+  "seas5": 0.013,
+  "era5": 0.018,
+  "imerg": 0.032,
+  "floodscan": 0.208
+ },
+ {
+  "iso3": "CMR",
+  "adm_level": 2,
+  "n": 58,
+  "seas5": 0.014,
+  "era5": 0.023,
+  "imerg": 0.039,
+  "floodscan": 0.206
+ },
+ {
+  "iso3": "COD",
+  "adm_level": 2,
+  "n": 189,
+  "seas5": 0.01,
+  "era5": 0.015,
+  "imerg": 0.027
+ },
+ {
+  "iso3": "COG",
+  "adm_level": 1,
+  "n": 12,
+  "seas5": 0.008,
+  "era5": 0.012,
+  "imerg": 0.018,
+  "floodscan": 0.202
+ },
+ {
+  "iso3": "COL",
+  "adm_level": 2,
+  "n": 1122,
+  "seas5": 0.024,
+  "era5": 0.045,
+  "imerg": 0.104
+ },
+ {
+  "iso3": "COM",
+  "adm_level": 1,
+  "n": 3,
+  "seas5": 0.04,
+  "era5": 0.04,
+  "imerg": 0.112,
+  "floodscan": 0.293
+ },
+ {
+  "iso3": "CPV",
+  "adm_level": 1,
+  "n": 22,
+  "seas5": 0.037,
+  "era5": 0.033,
+  "imerg": 0.132,
+  "floodscan": 0.27
+ },
+ {
+  "iso3": "CRI",
+  "adm_level": 1,
+  "n": 7,
+  "seas5": 0.017,
+  "era5": 0.024,
+  "imerg": 0.05
+ },
+ {
+  "iso3": "CUB",
+  "adm_level": 1,
+  "n": 16,
+  "seas5": 0.018,
+  "era5": 0.027,
+  "imerg": 0.045
+ },
+ {
+  "iso3": "CYM",
+  "adm_level": 1,
+  "n": 6,
+  "seas5": 0.0,
+  "era5": 0.0,
+  "imerg": 0.201
+ },
+ {
+  "iso3": "DJI",
+  "adm_level": 1,
+  "n": 6,
+  "seas5": 0.017,
+  "era5": 0.025,
+  "imerg": 0.045,
+  "floodscan": 0.216
+ },
+ {
+  "iso3": "DMA",
+  "adm_level": 1,
+  "n": 10,
+  "seas5": 0.0,
+  "era5": 0.001,
+  "imerg": 0.139
+ },
+ {
+  "iso3": "DOM",
+  "adm_level": 1,
+  "n": 10,
+  "seas5": 0.016,
+  "era5": 0.021,
+  "imerg": 0.04
+ },
+ {
+  "iso3": "DZA",
+  "adm_level": 1,
+  "n": 48,
+  "seas5": 0.011,
+  "era5": 0.016,
+  "imerg": 0.03,
+  "floodscan": 0.203
+ },
+ {
+  "iso3": "ECU",
+  "adm_level": 1,
+  "n": 25,
+  "seas5": 0.012,
+  "era5": 0.018,
+  "imerg": 0.033
+ },
+ {
+  "iso3": "EGY",
+  "adm_level": 1,
+  "n": 27,
+  "seas5": 0.013,
+  "era5": 0.019,
+  "imerg": 0.033,
+  "floodscan": 0.204
+ },
+ {
+  "iso3": "ERI",
+  "adm_level": 1,
+  "n": 6,
+  "seas5": 0.011,
+  "era5": 0.016,
+  "imerg": 0.026,
+  "floodscan": 0.206
+ },
+ {
+  "iso3": "ESH",
+  "adm_level": 1,
+  "n": 4,
+  "seas5": 0.008,
+  "era5": 0.01,
+  "imerg": 0.012
+ },
+ {
+  "iso3": "ETH",
+  "adm_level": 2,
+  "n": 92,
+  "seas5": 0.012,
+  "era5": 0.016,
+  "imerg": 0.03,
+  "floodscan": 0.203
+ },
+ {
+  "iso3": "FJI",
+  "adm_level": 1,
+  "n": 4,
+  "seas5": 0.026,
+  "era5": 0.034,
+  "imerg": 0.067
+ },
+ {
+  "iso3": "FSM",
+  "adm_level": 1,
+  "n": 4,
+  "seas5": 0.131,
+  "era5": 0.303,
+  "imerg": 0.346
+ },
+ {
+  "iso3": "GAB",
+  "adm_level": 1,
+  "n": 9,
+  "seas5": 0.007,
+  "era5": 0.011,
+  "imerg": 0.017,
+  "floodscan": 0.202
+ },
+ {
+  "iso3": "GEO",
+  "adm_level": 1,
+  "n": 13,
+  "seas5": 0.014,
+  "era5": 0.018,
+  "imerg": 0.03
+ },
+ {
+  "iso3": "GHA",
+  "adm_level": 1,
+  "n": 16,
+  "seas5": 0.009,
+  "era5": 0.014,
+  "imerg": 0.026,
+  "floodscan": 0.207
+ },
+ {
+  "iso3": "GIN",
+  "adm_level": 1,
+  "n": 8,
+  "seas5": 0.009,
+  "era5": 0.012,
+  "imerg": 0.022,
+  "floodscan": 0.203
+ },
+ {
+  "iso3": "GLP",
+  "adm_level": 1,
+  "n": 2,
+  "seas5": 0.029,
+  "era5": 0.048,
+  "imerg": 0.078
+ },
+ {
+  "iso3": "GMB",
+  "adm_level": 1,
+  "n": 8,
+  "seas5": 0.03,
+  "era5": 0.037,
+  "imerg": 0.082,
+  "floodscan": 0.217
+ },
+ {
+  "iso3": "GNB",
+  "adm_level": 1,
+  "n": 9,
+  "seas5": 0.022,
+  "era5": 0.024,
+  "imerg": 0.064,
+  "floodscan": 0.218
+ },
+ {
+  "iso3": "GNQ",
+  "adm_level": 1,
+  "n": 7,
+  "seas5": 0.022,
+  "era5": 0.028,
+  "imerg": 0.043,
+  "floodscan": 0.209
+ },
+ {
+  "iso3": "GRD",
+  "adm_level": 1,
+  "n": 8,
+  "seas5": 0.0,
+  "era5": 0.0,
+  "imerg": 0.196
+ },
+ {
+  "iso3": "GTM",
+  "adm_level": 2,
+  "n": 342,
+  "seas5": 0.021,
+  "era5": 0.046,
+  "imerg": 0.129
+ },
+ {
+  "iso3": "GUF",
+  "adm_level": 1,
+  "n": 2,
+  "seas5": 0.006,
+  "era5": 0.007,
+  "imerg": 0.013
+ },
+ {
+  "iso3": "GUY",
+  "adm_level": 1,
+  "n": 10,
+  "seas5": 0.011,
+  "era5": 0.014,
+  "imerg": 0.022
+ },
+ {
+  "iso3": "HND",
+  "adm_level": 2,
+  "n": 298,
+  "seas5": 0.024,
+  "era5": 0.051,
+  "imerg": 0.132
+ },
+ {
+  "iso3": "HTI",
+  "adm_level": 2,
+  "n": 140,
+  "seas5": 0.025,
+  "era5": 0.054,
+  "imerg": 0.132
+ },
+ {
+  "iso3": "HUN",
+  "adm_level": 1,
+  "n": 20,
+  "seas5": 0.014,
+  "era5": 0.02,
+  "imerg": 0.035
+ },
+ {
+  "iso3": "IDN",
+  "adm_level": 1,
+  "n": 34,
+  "seas5": 0.011,
+  "era5": 0.015,
+  "imerg": 0.025
+ },
+ {
+  "iso3": "IRN",
+  "adm_level": 1,
+  "n": 31,
+  "seas5": 0.007,
+  "era5": 0.011,
+  "imerg": 0.018
+ },
+ {
+  "iso3": "IRQ",
+  "adm_level": 1,
+  "n": 18,
+  "seas5": 0.009,
+  "era5": 0.012,
+  "imerg": 0.021
+ },
+ {
+  "iso3": "JAM",
+  "adm_level": 1,
+  "n": 14,
+  "seas5": 0.035,
+  "era5": 0.046,
+  "imerg": 0.082
+ },
+ {
+  "iso3": "KAZ",
+  "adm_level": 1,
+  "n": 20,
+  "seas5": 0.004,
+  "era5": 0.005,
+  "imerg": 0.007
+ },
+ {
+  "iso3": "KEN",
+  "adm_level": 1,
+  "n": 47,
+  "seas5": 0.014,
+  "era5": 0.024,
+  "imerg": 0.043,
+  "floodscan": 0.205
+ },
+ {
+  "iso3": "KGZ",
+  "adm_level": 1,
+  "n": 7,
+  "seas5": 0.009,
+  "era5": 0.012,
+  "imerg": 0.021
+ },
+ {
+  "iso3": "KHM",
+  "adm_level": 1,
+  "n": 25,
+  "seas5": 0.013,
+  "era5": 0.018,
+  "imerg": 0.034
+ },
+ {
+  "iso3": "KIR",
+  "adm_level": 1,
+  "n": 3,
+  "seas5": 0.376,
+  "era5": 0.432,
+  "imerg": 0.495
+ },
+ {
+  "iso3": "KNA",
+  "adm_level": 1,
+  "n": 14,
+  "seas5": 0.0,
+  "era5": 0.0,
+  "imerg": 0.146
+ },
+ {
+  "iso3": "KWT",
+  "adm_level": 1,
+  "n": 6,
+  "seas5": 0.028,
+  "era5": 0.06,
+  "imerg": 0.08
+ },
+ {
+  "iso3": "LAO",
+  "adm_level": 1,
+  "n": 18,
+  "seas5": 0.011,
+  "era5": 0.014,
+  "imerg": 0.025
+ },
+ {
+  "iso3": "LBN",
+  "adm_level": 1,
+  "n": 9,
+  "seas5": 0.026,
+  "era5": 0.03,
+  "imerg": 0.079
+ },
+ {
+  "iso3": "LBR",
+  "adm_level": 1,
+  "n": 15,
+  "seas5": 0.015,
+  "era5": 0.019,
+  "imerg": 0.034,
+  "floodscan": 0.209
+ },
+ {
+  "iso3": "LBY",
+  "adm_level": 1,
+  "n": 3,
+  "seas5": 0.003,
+  "era5": 0.003,
+  "imerg": 0.004,
+  "floodscan": 0.197
+ },
+ {
+  "iso3": "LCA",
+  "adm_level": 1,
+  "n": 10,
+  "seas5": 0.0,
+  "era5": 0.136,
+  "imerg": 0.216
+ },
+ {
+  "iso3": "LKA",
+  "adm_level": 1,
+  "n": 9,
+  "seas5": 0.015,
+  "era5": 0.021,
+  "imerg": 0.042
+ },
+ {
+  "iso3": "LSO",
+  "adm_level": 1,
+  "n": 10,
+  "seas5": 0.022,
+  "era5": 0.03,
+  "imerg": 0.059
+ },
+ {
+  "iso3": "MAR",
+  "adm_level": 1,
+  "n": 10,
+  "seas5": 0.006,
+  "era5": 0.008,
+  "imerg": 0.013,
+  "floodscan": 0.201
+ },
+ {
+  "iso3": "MDA",
+  "adm_level": 1,
+  "n": 37,
+  "seas5": 0.025,
+  "era5": 0.04,
+  "imerg": 0.083
+ },
+ {
+  "iso3": "MDG",
+  "adm_level": 1,
+  "n": 22,
+  "seas5": 0.008,
+  "era5": 0.011,
+  "imerg": 0.02,
+  "floodscan": 0.201
+ },
+ {
+  "iso3": "MDV",
+  "adm_level": 1,
+  "n": 5,
+  "seas5": 0.475,
+  "era5": 0.424,
+  "imerg": 0.787
+ },
+ {
+  "iso3": "MEX",
+  "adm_level": 1,
+  "n": 32,
+  "seas5": 0.009,
+  "era5": 0.012,
+  "imerg": 0.017
+ },
+ {
+  "iso3": "MHL",
+  "adm_level": 1,
+  "n": 25,
+  "seas5": 0.678,
+  "era5": 0.718,
+  "imerg": 0.822
+ },
+ {
+  "iso3": "MLI",
+  "adm_level": 2,
+  "n": 53,
+  "seas5": 0.011,
+  "era5": 0.014,
+  "imerg": 0.026,
+  "floodscan": 0.203
+ },
+ {
+  "iso3": "MMR",
+  "adm_level": 2,
+  "n": 80,
+  "seas5": 0.013,
+  "era5": 0.02,
+  "imerg": 0.036
+ },
+ {
+  "iso3": "MNG",
+  "adm_level": 1,
+  "n": 22,
+  "seas5": 0.004,
+  "era5": 0.006,
+  "imerg": 0.009
+ },
+ {
+  "iso3": "MOZ",
+  "adm_level": 2,
+  "n": 159,
+  "seas5": 0.015,
+  "era5": 0.022,
+  "imerg": 0.041,
+  "floodscan": 0.21
+ },
+ {
+  "iso3": "MRT",
+  "adm_level": 1,
+  "n": 15,
+  "seas5": 0.008,
+  "era5": 0.011,
+  "imerg": 0.017,
+  "floodscan": 0.2
+ },
+ {
+  "iso3": "MSR",
+  "adm_level": 1,
+  "n": 3,
+  "seas5": 0.0,
+  "era5": 0.087,
+  "imerg": 0.339
+ },
+ {
+  "iso3": "MTQ",
+  "adm_level": 1,
+  "n": 4,
+  "seas5": 0.004,
+  "era5": 0.058,
+  "imerg": 0.154
+ },
+ {
+  "iso3": "MUS",
+  "adm_level": 1,
+  "n": 12,
+  "seas5": 0.019,
+  "era5": 0.077,
+  "imerg": 0.191,
+  "floodscan": 0.209
+ },
+ {
+  "iso3": "MWI",
+  "adm_level": 1,
+  "n": 3,
+  "seas5": 0.011,
+  "era5": 0.016,
+  "imerg": 0.024,
+  "floodscan": 0.204
+ },
+ {
+  "iso3": "MYS",
+  "adm_level": 1,
+  "n": 16,
+  "seas5": 0.009,
+  "era5": 0.015,
+  "imerg": 0.035
+ },
+ {
+  "iso3": "NAM",
+  "adm_level": 1,
+  "n": 14,
+  "seas5": 0.006,
+  "era5": 0.008,
+  "imerg": 0.011,
+  "floodscan": 0.2
+ },
+ {
+  "iso3": "NER",
+  "adm_level": 2,
+  "n": 67,
+  "seas5": 0.014,
+  "era5": 0.019,
+  "imerg": 0.035,
+  "floodscan": 0.205
+ },
+ {
+  "iso3": "NGA",
+  "adm_level": 2,
+  "n": 774,
+  "seas5": 0.021,
+  "era5": 0.035,
+  "imerg": 0.079,
+  "floodscan": 0.224
+ },
+ {
+  "iso3": "NIC",
+  "adm_level": 1,
+  "n": 17,
+  "seas5": 0.018,
+  "era5": 0.023,
+  "imerg": 0.055
+ },
+ {
+  "iso3": "NPL",
+  "adm_level": 1,
+  "n": 7,
+  "seas5": 0.009,
+  "era5": 0.012,
+  "imerg": 0.02
+ },
+ {
+  "iso3": "OMN",
+  "adm_level": 1,
+  "n": 11,
+  "seas5": 0.011,
+  "era5": 0.018,
+  "imerg": 0.032
+ },
+ {
+  "iso3": "PAK",
+  "adm_level": 1,
+  "n": 7,
+  "seas5": 0.005,
+  "era5": 0.006,
+  "imerg": 0.009
+ },
+ {
+  "iso3": "PAN",
+  "adm_level": 1,
+  "n": 13,
+  "seas5": 0.019,
+  "era5": 0.03,
+  "imerg": 0.053
+ },
+ {
+  "iso3": "PER",
+  "adm_level": 1,
+  "n": 25,
+  "seas5": 0.007,
+  "era5": 0.011,
+  "imerg": 0.017
+ },
+ {
+  "iso3": "PHL",
+  "adm_level": 1,
+  "n": 17,
+  "seas5": 0.016,
+  "era5": 0.023,
+  "imerg": 0.038
+ },
+ {
+  "iso3": "PNG",
+  "adm_level": 1,
+  "n": 22,
+  "seas5": 0.012,
+  "era5": 0.017,
+  "imerg": 0.031
+ },
+ {
+  "iso3": "POL",
+  "adm_level": 1,
+  "n": 16,
+  "seas5": 0.009,
+  "era5": 0.011,
+  "imerg": 0.018
+ },
+ {
+  "iso3": "PRK",
+  "adm_level": 1,
+  "n": 11,
+  "seas5": 0.012,
+  "era5": 0.016,
+  "imerg": 0.028
+ },
+ {
+  "iso3": "PRY",
+  "adm_level": 1,
+  "n": 18,
+  "seas5": 0.013,
+  "era5": 0.016,
+  "imerg": 0.025
+ },
+ {
+  "iso3": "PSE",
+  "adm_level": 1,
+  "n": 2,
+  "seas5": 0.017,
+  "era5": 0.051,
+  "imerg": 0.072
+ },
+ {
+  "iso3": "QAT",
+  "adm_level": 1,
+  "n": 8,
+  "seas5": 0.037,
+  "era5": 0.04,
+  "imerg": 0.098
+ },
+ {
+  "iso3": "ROU",
+  "adm_level": 1,
+  "n": 8,
+  "seas5": 0.007,
+  "era5": 0.009,
+  "imerg": 0.014
+ },
+ {
+  "iso3": "RUS",
+  "adm_level": 1,
+  "n": 8,
+  "seas5": 0.002,
+  "era5": 0.002,
+  "imerg": 0.003
+ },
+ {
+  "iso3": "RWA",
+  "adm_level": 1,
+  "n": 5,
+  "seas5": 0.02,
+  "era5": 0.029,
+  "imerg": 0.042,
+  "floodscan": 0.217
+ },
+ {
+  "iso3": "SAU",
+  "adm_level": 1,
+  "n": 13,
+  "seas5": 0.004,
+  "era5": 0.005,
+  "imerg": 0.009
+ },
+ {
+  "iso3": "SDN",
+  "adm_level": 2,
+  "n": 189,
+  "seas5": 0.014,
+  "era5": 0.02,
+  "imerg": 0.037,
+  "floodscan": 0.205
+ },
+ {
+  "iso3": "SEN",
+  "adm_level": 1,
+  "n": 14,
+  "seas5": 0.014,
+  "era5": 0.017,
+  "imerg": 0.028,
+  "floodscan": 0.204
+ },
+ {
+  "iso3": "SLB",
+  "adm_level": 1,
+  "n": 10,
+  "seas5": 0.027,
+  "era5": 0.042,
+  "imerg": 0.095
+ },
+ {
+  "iso3": "SLE",
+  "adm_level": 1,
+  "n": 5,
+  "seas5": 0.01,
+  "era5": 0.014,
+  "imerg": 0.024,
+  "floodscan": 0.204
+ },
+ {
+  "iso3": "SLV",
+  "adm_level": 2,
+  "n": 48,
+  "seas5": 0.03,
+  "era5": 0.048,
+  "imerg": 0.098
+ },
+ {
+  "iso3": "SOM",
+  "adm_level": 2,
+  "n": 74,
+  "seas5": 0.012,
+  "era5": 0.017,
+  "imerg": 0.029,
+  "floodscan": 0.204
+ },
+ {
+  "iso3": "SSD",
+  "adm_level": 2,
+  "n": 79,
+  "seas5": 0.013,
+  "era5": 0.018,
+  "imerg": 0.033,
+  "floodscan": 0.206
+ },
+ {
+  "iso3": "STP",
+  "adm_level": 1,
+  "n": 2,
+  "seas5": 0.042,
+  "era5": 0.019,
+  "imerg": 0.104,
+  "floodscan": 0.303
+ },
+ {
+  "iso3": "SUR",
+  "adm_level": 1,
+  "n": 10,
+  "seas5": 0.02,
+  "era5": 0.024,
+  "imerg": 0.039
+ },
+ {
+  "iso3": "SVK",
+  "adm_level": 1,
+  "n": 8,
+  "seas5": 0.012,
+  "era5": 0.016,
+  "imerg": 0.032
+ },
+ {
+  "iso3": "SWZ",
+  "adm_level": 1,
+  "n": 4,
+  "seas5": 0.019,
+  "era5": 0.022,
+  "imerg": 0.039,
+  "floodscan": 0.214
+ },
+ {
+  "iso3": "SXM",
+  "adm_level": 1,
+  "n": 8,
+  "seas5": 0.0,
+  "era5": 0.0,
+  "imerg": 0.0
+ },
+ {
+  "iso3": "SYC",
+  "adm_level": 1,
+  "n": 4,
+  "seas5": 0.006,
+  "era5": 0.26,
+  "imerg": 0.349,
+  "floodscan": 0.417
+ },
+ {
+  "iso3": "SYR",
+  "adm_level": 2,
+  "n": 62,
+  "seas5": 0.019,
+  "era5": 0.033,
+  "imerg": 0.066
+ },
+ {
+  "iso3": "TCA",
+  "adm_level": 1,
+  "n": 6,
+  "seas5": 0.036,
+  "era5": 0.076,
+  "imerg": 0.122
+ },
+ {
+  "iso3": "TCD",
+  "adm_level": 2,
+  "n": 70,
+  "seas5": 0.011,
+  "era5": 0.015,
+  "imerg": 0.025,
+  "floodscan": 0.204
+ },
+ {
+  "iso3": "TGO",
+  "adm_level": 1,
+  "n": 5,
+  "seas5": 0.012,
+  "era5": 0.016,
+  "imerg": 0.027,
+  "floodscan": 0.204
+ },
+ {
+  "iso3": "THA",
+  "adm_level": 1,
+  "n": 77,
+  "seas5": 0.015,
+  "era5": 0.02,
+  "imerg": 0.037
+ },
+ {
+  "iso3": "TLS",
+  "adm_level": 1,
+  "n": 13,
+  "seas5": 0.021,
+  "era5": 0.032,
+  "imerg": 0.076
+ },
+ {
+  "iso3": "TON",
+  "adm_level": 1,
+  "n": 5,
+  "seas5": 0.202,
+  "era5": 0.202,
+  "imerg": 0.278
+ },
+ {
+  "iso3": "TTO",
+  "adm_level": 1,
+  "n": 15,
+  "seas5": 0.01,
+  "era5": 0.055,
+  "imerg": 0.108
+ },
+ {
+  "iso3": "TUN",
+  "adm_level": 1,
+  "n": 6,
+  "seas5": 0.005,
+  "era5": 0.01,
+  "imerg": 0.017,
+  "floodscan": 0.203
+ },
+ {
+  "iso3": "TUR",
+  "adm_level": 1,
+  "n": 81,
+  "seas5": 0.011,
+  "era5": 0.018,
+  "imerg": 0.028
+ },
+ {
+  "iso3": "TZA",
+  "adm_level": 1,
+  "n": 31,
+  "seas5": 0.008,
+  "era5": 0.011,
+  "imerg": 0.021,
+  "floodscan": 0.203
+ },
+ {
+  "iso3": "UGA",
+  "adm_level": 1,
+  "n": 4,
+  "seas5": 0.006,
+  "era5": 0.008,
+  "imerg": 0.012,
+  "floodscan": 0.202
+ },
+ {
+  "iso3": "UKR",
+  "adm_level": 2,
+  "n": 139,
+  "seas5": 0.016,
+  "era5": 0.021,
+  "imerg": 0.04
+ },
+ {
+  "iso3": "URY",
+  "adm_level": 1,
+  "n": 19,
+  "seas5": 0.012,
+  "era5": 0.014,
+  "imerg": 0.025
+ },
+ {
+  "iso3": "UZB",
+  "adm_level": 1,
+  "n": 14,
+  "seas5": 0.01,
+  "era5": 0.014,
+  "imerg": 0.025
+ },
+ {
+  "iso3": "VCT",
+  "adm_level": 1,
+  "n": 6,
+  "seas5": 0.109,
+  "era5": 0.029,
+  "imerg": 0.109
+ },
+ {
+  "iso3": "VEN",
+  "adm_level": 2,
+  "n": 335,
+  "seas5": 0.022,
+  "era5": 0.034,
+  "imerg": 0.084
+ },
+ {
+  "iso3": "VGB",
+  "adm_level": 1,
+  "n": 7,
+  "seas5": 0.055,
+  "era5": 0.001,
+  "imerg": 0.295
+ },
+ {
+  "iso3": "VIR",
+  "adm_level": 1,
+  "n": 3,
+  "seas5": 0.019,
+  "era5": 0.111,
+  "imerg": 0.141
+ },
+ {
+  "iso3": "VNM",
+  "adm_level": 1,
+  "n": 63,
+  "seas5": 0.016,
+  "era5": 0.022,
+  "imerg": 0.041
+ },
+ {
+  "iso3": "VUT",
+  "adm_level": 1,
+  "n": 6,
+  "seas5": 0.04,
+  "era5": 0.053,
+  "imerg": 0.11
+ },
+ {
+  "iso3": "YEM",
+  "adm_level": 2,
+  "n": 335,
+  "seas5": 0.021,
+  "era5": 0.044,
+  "imerg": 0.091
+ },
+ {
+  "iso3": "ZAF",
+  "adm_level": 1,
+  "n": 9,
+  "seas5": 0.004,
+  "era5": 0.006,
+  "imerg": 0.009,
+  "floodscan": 0.2
+ },
+ {
+  "iso3": "ZMB",
+  "adm_level": 1,
+  "n": 10,
+  "seas5": 0.005,
+  "era5": 0.007,
+  "imerg": 0.014,
+  "floodscan": 0.201
+ },
+ {
+  "iso3": "ZWE",
+  "adm_level": 1,
+  "n": 10,
+  "seas5": 0.007,
+  "era5": 0.01,
+  "imerg": 0.015,
+  "floodscan": 0.202
+ }
+]

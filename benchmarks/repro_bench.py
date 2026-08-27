@@ -10,9 +10,9 @@ plus the PR #49 weight-matrix kernel as a third line.
 Setup matches the originals as far as they are recoverable:
 ERA5 monthly precip at native 0.25 deg (the committed driver uses
 prep_raster(upsample=False)), ETH and PHL, ADM2 CODs, sweeps over
-N dates (full ADM2 set) and N polygons (fixed 10 dates), averaged over
+N dates (full ADM2 set) and N polygons (fixed 10 dates), best of N
 iterations (10 for the fast/new methods; 3 for the rasterstats baseline,
-which is too slow for 10 -- means reported either way).
+which is too slow for 10).
 The rasterize / weight-build steps are outside the timed section for
 fast/new respectively, mirroring the original harness where
 `admin_raster` was a precomputed argument.
@@ -58,13 +58,21 @@ def log(msg):
     print(f"[repro] {msg}", flush=True)
 
 
-def mean_time(fn, n_iter):
+def best_time(fn, n_iter):
+    """Minimum, not mean.
+
+    The mean absorbs contention from anything else running on the box;
+    on the first pass that inflated the largest (last-measured) points by
+    up to 6x and made the kernel look as though it had a cliff. The
+    minimum estimates the uncontended cost, which is what a scaling
+    comparison wants.
+    """
     times = []
     for _ in range(n_iter):
         t0 = time.perf_counter()
         fn()
         times.append(time.perf_counter() - t0)
-    return sum(times) / len(times)
+    return min(times)
 
 
 log("stacking 125 ERA5 months from prod...")
@@ -112,19 +120,19 @@ for iso3 in ["eth", "phl"]:
     for n in N_DATES_SWEEP:
         ds_sub = ds_clip.isel(date=slice(0, n))
         vals_sub = values_all[:n]
-        t_base = mean_time(
+        t_base = best_time(
             lambda: r24.compute_zonal_statistics(
                 ds_sub, gdf2.copy(), "ADM2_PCODE", 2, iso3
             ),
             ITER_BASE,
         )
-        t_fast = mean_time(
+        t_fast = best_time(
             lambda: r24.fast_compute_zonal_statistics(
                 ds_sub, admin_raster, 2, iso3, adm_ids
             ),
             ITER_FAST,
         )
-        t_new = mean_time(
+        t_new = best_time(
             lambda: weighted_zonal_stats(vals_sub, W, scale), ITER_FAST
         )
         rows.append(
@@ -158,19 +166,19 @@ for iso3 in ["eth", "phl"]:
             continue
         wsub = build_weights(gsub, "ADM2_PCODE", ds_clip)
         ids = gsub["ADM2_PCODE"]
-        t_base = mean_time(
+        t_base = best_time(
             lambda: r24.compute_zonal_statistics(
                 ds_sub, gsub.copy(), "ADM2_PCODE", 2, iso3
             ),
             ITER_BASE,
         )
-        t_fast = mean_time(
+        t_fast = best_time(
             lambda: r24.fast_compute_zonal_statistics(
                 ds_sub, araster, 2, iso3, ids
             ),
             ITER_FAST,
         )
-        t_new = mean_time(
+        t_new = best_time(
             lambda: weighted_zonal_stats(vals_sub, wsub, scale), ITER_FAST
         )
         rows.append(

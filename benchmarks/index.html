@@ -327,7 +327,7 @@
     recoverable — ERA5 monthly at native 0.25°, ETH and PHL ADM2 CODs,
     sweeps over N dates — with the PR&nbsp;#49 kernel as a third line.
     Outputs of baseline and fast were verified identical before timing.
-    Log y-axis; seconds per run (mean of 10 iterations; 3 for the baseline).
+    Log y-axis; seconds per run (best of 10 iterations; 3 for the baseline).
   </p>
   <div class="legend">
     <span class="key"><span class="linekey" style="background:var(--series-base)"></span>2024 baseline (rasterstats)</span>
@@ -340,10 +340,10 @@
     <table>
       <thead><tr><th>Country · N dates</th><th>Baseline (s)</th><th>Fast (s)</th><th>PR #49 (s)</th><th>2024 chart: baseline / fast (s)</th></tr></thead>
       <tbody>
-        <tr><td>ETH · 5</td><td>0.54</td><td>0.007</td><td>0.006</td><td>~0.5 / ~0.05</td></tr>
-        <tr><td>ETH · 125</td><td>10.56</td><td>0.178</td><td>0.042</td><td>~6.6 / ~0.75</td></tr>
-        <tr><td>PHL · 5</td><td>9.53</td><td>0.006</td><td>0.005</td><td>~1.4 / ~0.02</td></tr>
-        <tr><td>PHL · 125</td><td>59.04</td><td>0.138</td><td>0.076</td><td>~35.3 / ~0.2</td></tr>
+        <tr><td>ETH · 5</td><td>0.50</td><td>0.006</td><td>0.005</td><td>~0.5 / ~0.05</td></tr>
+        <tr><td>ETH · 125</td><td>10.93</td><td>0.155</td><td>0.027</td><td>~6.6 / ~0.75</td></tr>
+        <tr><td>PHL · 5</td><td>10.39</td><td>0.006</td><td>0.005</td><td>~1.4 / ~0.02</td></tr>
+        <tr><td>PHL · 125</td><td>60.12</td><td>0.133</td><td>0.014</td><td>~35.3 / ~0.2</td></tr>
       </tbody>
     </table>
   </details>
@@ -351,12 +351,12 @@
     <table>
       <thead><tr><th>Country · N polygons</th><th>Baseline (s)</th><th>Fast (s)</th><th>PR #49 (s)</th></tr></thead>
       <tbody>
-        <tr><td>ETH · 1</td><td>0.045</td><td>0.013</td><td>0.0002</td></tr>
-        <tr><td>ETH · 25</td><td>0.316</td><td>0.008</td><td>0.0017</td></tr>
-        <tr><td>ETH · 92</td><td>0.931</td><td>0.013</td><td>0.0061</td></tr>
-        <tr><td>PHL · 1</td><td>0.069</td><td>0.008</td><td>0.0002</td></tr>
-        <tr><td>PHL · 25</td><td>5.495</td><td>0.008</td><td>0.0016</td></tr>
-        <tr><td>PHL · 88</td><td>11.971</td><td>0.015</td><td>0.0054</td></tr>
+        <tr><td>ETH · 1</td><td>0.046</td><td>0.006</td><td>0.0001</td></tr>
+        <tr><td>ETH · 25</td><td>0.310</td><td>0.008</td><td>0.0016</td></tr>
+        <tr><td>ETH · 92</td><td>0.963</td><td>0.013</td><td>0.0057</td></tr>
+        <tr><td>PHL · 1</td><td>0.061</td><td>0.006</td><td>0.0002</td></tr>
+        <tr><td>PHL · 25</td><td>5.471</td><td>0.008</td><td>0.0015</td></tr>
+        <tr><td>PHL · 88</td><td>12.919</td><td>0.013</td><td>0.0051</td></tr>
       </tbody>
     </table>
   </details>
@@ -373,15 +373,33 @@
     (0.07→12.0&nbsp;s) — consistent with their PHL polygon sweep having run
     on the upsampled 0.05° grid, where a large fixed per-date cost swamps
     the per-polygon term; the sweep configuration was never committed, so
-    this is a hypothesis. The fast→PR&nbsp;#49 gap is modest here (2–4×) for
-    a specific, measurable reason: faithful to the 2024 harness, both kernels
-    ran on the <em>native</em> grid — but the production legacy path first
-    upsamples to 0.05° (25× the pixels for ERA5). Rerunning the same ETH/PHL
-    data with the legacy method configured as production actually runs it
-    (upsample + stats on the inflated grid) widens the gap to
-    <strong>16–17×</strong> (ETH 0.7&nbsp;s vs 0.043&nbsp;s; PHL 0.5&nbsp;s
-    vs 0.030&nbsp;s at 125 dates). The gap grows further with slices and
-    admin count — see the pipeline-scale and admin-scaling sections above.
+    this is a hypothesis. At the largest size measured here the 2024-fast →
+    PR&nbsp;#49 gap is <strong>5.7× (ETH)</strong> and
+    <strong>9.8× (PHL)</strong> — and note that both kernels are running on
+    the <em>native</em> grid, faithful to the 2024 harness, whereas the
+    production legacy path first upsamples to 0.05° (25× the pixels for
+    ERA5). Rerunning the same ETH/PHL data with the legacy method configured
+    as production actually runs it widens the gap to <strong>16–17×</strong>
+    (ETH 0.7&nbsp;s vs 0.043&nbsp;s; PHL 0.5&nbsp;s vs 0.030&nbsp;s at 125
+    dates), and it grows further with slices and admin count — see the
+    pipeline-scale and 2-D sections above.
+  </p>
+  <p class="caption" style="margin-top:10px">
+    <strong>Correction (2026-08-27).</strong> The first version of this
+    figure timed with the <em>mean</em> of repeated runs, which absorbs
+    contention from anything else on the machine rather than rejecting it.
+    Other benchmarks were running concurrently, and because the largest
+    point in each sweep is measured last it took the worst of it: the
+    PR&nbsp;#49 figure at 125 dates was published as 0.076&nbsp;s (PHL) and
+    0.042&nbsp;s (ETH) against true values of 0.014&nbsp;s and
+    0.027&nbsp;s — inflating PHL roughly 6×, and making the gap look like
+    2–4× when it is 5.7–9.8×. Re-measuring the kernel in isolation on a
+    quiet machine confirmed there is no cliff: per-slice cost is flat at
+    ~0.10&nbsp;ms from 75 through 200 slices. All timings on this page now
+    use the <strong>minimum</strong> of repeated runs, which estimates the
+    uncontended cost. The Databricks figures elsewhere on this page were
+    unaffected — a dedicated cluster with nothing else on it, already
+    min-of-N.
   </p>
 </figure>
 
@@ -865,16 +883,16 @@
 
   reproChart("chart-repro-eth", "Ethiopia (92 ADM2)", {
     n: [5, 25, 50, 75, 100, 125],
-    baseline: [0.539, 2.191, 4.106, 6.266, 8.281, 10.558],
-    fast: [0.007, 0.032, 0.063, 0.097, 0.131, 0.178],
-    nw: [0.0057, 0.0081, 0.0105, 0.0128, 0.0159, 0.0418]
+    baseline: [0.502, 2.126, 4.040, 5.993, 8.239, 10.929],
+    fast: [0.006, 0.031, 0.062, 0.093, 0.127, 0.155],
+    nw: [0.0053, 0.0073, 0.0094, 0.0117, 0.0142, 0.0271]
   }, Math.log10(0.004), Math.log10(80), [0.01, 0.1, 1, 10]);
 
   reproChart("chart-repro-phl", "Philippines (88 ADM2)", {
     n: [5, 25, 50, 75, 100, 125],
-    baseline: [9.529, 19.005, 28.418, 39.761, 50.278, 59.038],
-    fast: [0.006, 0.055, 0.075, 0.127, 0.112, 0.138],
-    nw: [0.0051, 0.0063, 0.0078, 0.0098, 0.0096, 0.0762]
+    baseline: [10.388, 18.059, 28.859, 39.451, 50.680, 60.116],
+    fast: [0.006, 0.029, 0.055, 0.082, 0.115, 0.133],
+    nw: [0.0049, 0.0057, 0.0068, 0.0077, 0.0087, 0.0136]
   }, Math.log10(0.004), Math.log10(80), [0.01, 0.1, 1, 10]);
 })();
 </script>

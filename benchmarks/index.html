@@ -246,11 +246,53 @@
     0.61&nbsp;s → 0.97&nbsp;s, because the sparse matrix product over 200
     slices costs barely more than over one. So the multiplier comes from the
     <strong>date</strong> axis, while the admin axis mostly sets the floor
-    (5–8× at a single date, where neither method amortises anything). The
+    (5–8× at a single date warm, and see the cold table below for the worst case where the weight build is not yet amortised). The
     practical reading: daily update runs sit in the cheap corner either way,
     and adding admin units is close to free — 800 → 3,000 admins costs the
     new method 0.25&nbsp;s → 0.97&nbsp;s at 200 dates, where it costs the
     legacy method 199&nbsp;s → 749&nbsp;s.
+  </p>
+
+  <p class="caption" style="margin-top:16px">
+    <strong>One asymmetry in the grid above, and the worst case it hides.</strong>
+    The legacy timings rebuild their rasterized mask on every repetition,
+    because that is what the legacy code does. The new-method timings load
+    the weight matrix from its disk cache, because that is what the pipeline
+    does after the first chunk touches a country. That is a fair model of a
+    production run, but it amortises the weight build to zero — so the table
+    below re-measures the same grid with the build inside the timed call
+    (<em>cold</em>), which is the honest worst case for a single isolated run.
+  </p>
+  <details open><summary>Cold vs warm weight cache — separate run, seconds</summary>
+    <div class="scroll"><table>
+      <thead><tr><th>Admin units</th><th>Dates</th><th>Legacy</th><th>PR #49 warm</th><th>PR #49 cold</th><th>Speedup warm</th><th>Speedup cold</th></tr></thead>
+      <tbody>
+        <tr><td>10</td><td>1</td><td>0.029</td><td>0.006</td><td>0.028</td><td>4.5×</td><td><strong>1.04×</strong></td></tr>
+        <tr><td>200</td><td>1</td><td>0.244</td><td>0.039</td><td>0.133</td><td>6.2×</td><td>1.83×</td></tr>
+        <tr><td>3,000</td><td>1</td><td>3.372</td><td>0.516</td><td>1.175</td><td>6.5×</td><td>2.87×</td></tr>
+        <tr><td>10</td><td>10</td><td>0.147</td><td>0.007</td><td>0.025</td><td>20.9×</td><td>5.9×</td></tr>
+        <tr><td>200</td><td>10</td><td>2.177</td><td>0.042</td><td>0.113</td><td>51.8×</td><td>19.2×</td></tr>
+        <tr><td>3,000</td><td>10</td><td>31.418</td><td>0.550</td><td>1.197</td><td>57.1×</td><td>26.2×</td></tr>
+        <tr><td>10</td><td>50</td><td>0.691</td><td>0.009</td><td>0.026</td><td>80.8×</td><td>26.8×</td></tr>
+        <tr><td>200</td><td>50</td><td>10.800</td><td>0.048</td><td>0.125</td><td>226.9×</td><td>86.5×</td></tr>
+        <tr><td>3,000</td><td>50</td><td>157.900</td><td>0.575</td><td>1.223</td><td>274.6×</td><td>129.1×</td></tr>
+      </tbody>
+    </table></div>
+  </details>
+  <p class="caption" style="margin-top:12px">
+    Two things follow. First, <strong>the weight build is a fixed cost per
+    country and admin level, not per date</strong> — cold minus warm is
+    0.021 / 0.018 / 0.017&nbsp;s at 10 admins across 1, 10 and 50 dates, and
+    0.659 / 0.647 / 0.648&nbsp;s at 3,000. It scales with admin units
+    (it is geometry work) and is then cached across every subsequent chunk,
+    country-worker and run. Second, <strong>even paying it in full the new
+    method is never slower</strong>: the true worst case in this grid — a
+    single date over only 10 admin units, where there is nothing whatsoever
+    to amortise against — is 1.04×, essentially break-even, rising to 2.9×
+    at 3,000 units and past 100× once there are 50 dates to spread it over.
+    Separate run from the grid above, so its warm figures differ slightly
+    (different cluster instance); the cold/warm comparison within it is
+    self-consistent.
   </p>
 </figure>
 
@@ -449,6 +491,8 @@
       "cold" includes the exactextract build.</li>
     <li>Raw results:
       <a href="dbx_results.json">dbx_results.json</a> (Databricks),
+      <a href="grid_2d_dbx.json">grid_2d_dbx.json</a> (2-D grid),
+      <a href="bench_2d_cold_dbx.json">bench_2d_cold_dbx.json</a> (cold/warm),
       <a href="bench_results.json">bench_results.json</a> (laptop) ·
       harnesses: <a href="dbx_bench.py">dbx_bench.py</a>,
       <a href="bench_full.py">bench_full.py</a> · 2024 reproduction:

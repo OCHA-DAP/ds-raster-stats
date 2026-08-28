@@ -7,9 +7,11 @@ are lazy. This probes the parts that were never measured:
 
   P1. Does the fetch itself parallelize? dask threaded scheduler,
       1 vs 2 vs 4 vs 8 workers.
-  P2. Is the fetch redundant across countries? Persist the stack ONCE for
-      a multi-country bbox, then slice per country in memory, versus the
-      current per-country remote fetch.
+  P2. Is the fetch redundant across countries? Persist the stack ONCE
+      for a multi-country bbox, then slice per country in memory, versus
+      the current per-country remote fetch. The shared arm runs FIRST
+      and on a DISJOINT issuance range, so any transfer-layer caching
+      works against the saving being claimed rather than for it.
   P3. How does the existing process pool scale over countries?
 
 Read-only against prod blob.
@@ -21,7 +23,12 @@ import sys
 import time
 from multiprocessing import Pool
 
-os.environ["DSCI_AZ_BLOB_PROD_SAS_WRITE"] = os.environ["DSCI_AZ_BLOB_PROD_SAS"]
+# get_cog_url reads the _WRITE SAS even for reads; this shim only
+# satisfies that import-time expectation for a read-only script and
+# should not be copied into anything that actually writes.
+os.environ.setdefault(
+    "DSCI_AZ_BLOB_PROD_SAS_WRITE", os.environ.get("DSCI_AZ_BLOB_PROD_SAS", "")
+)
 
 sys.path.insert(0, os.getcwd())
 
@@ -73,16 +80,11 @@ json.dump(results, open(f"{SCRATCH}/parallel_probe.json", "w"), indent=1)
 
 # ---------------------------------------------------------------- P2
 log("P2: is the per-country fetch redundant?")
-ds = stack_cogs(DATES, "seas5", "prod")
-per_country = {}
-for iso3 in COUNTRIES:
-    dt, _ = fetch_one(iso3, ds)
-    per_country[iso3] = round(dt, 2)
-    log(f"P2 per-country fetch {iso3}: {dt:.1f}s")
-results["p2_per_country_fetch_seconds"] = per_country
-results["p2_per_country_total"] = round(sum(per_country.values()), 2)
+# Disjoint issuance ranges per arm, and the shared arm first, so that
+# transfer-layer caching cannot inflate the saving this measures.
+DATES_SHARED = list(pd.date_range("2016-01-01", "2019-12-01", freq="MS"))
+DATES_PERCOUNTRY = DATES
 
-# now: persist ONE window covering all four, then slice in memory
 bounds = []
 for iso3 in COUNTRIES:
     shp = load_shp_cached(iso3, "prod")
@@ -101,12 +103,12 @@ union = gpd.GeoDataFrame(
     ),
     crs="EPSG:4326",
 )
-ds2 = stack_cogs(DATES, "seas5", "prod")
+ds_shared = stack_cogs(DATES_SHARED, "seas5", "prod")
 t0 = time.perf_counter()
-shared = clip_raster(ds2, union)
+shared = clip_raster(ds_shared, union)
 _ = shared.values
 t_shared = time.perf_counter() - t0
-log(f"P2 single shared fetch (union bbox): {t_shared:.1f}s")
+log(f"P2 single shared fetch (union bbox, cold range): {t_shared:.1f}s")
 
 t0 = time.perf_counter()
 for iso3 in COUNTRIES:
@@ -115,7 +117,23 @@ for iso3 in COUNTRIES:
     sub = clip_raster(shared, gdf0)
     _ = sub.values
 t_slice = time.perf_counter() - t0
-log(f"P2 slicing 4 countries out of memory: {t_slice:.1f}s")
+log(f"P2 slicing {len(COUNTRIES)} countries out of memory: {t_slice:.1f}s")
+del ds_shared, shared
+
+ds = stack_cogs(DATES_PERCOUNTRY, "seas5", "prod")
+per_country = {}
+for iso3 in COUNTRIES:
+    dt, _ = fetch_one(iso3, ds)
+    per_country[iso3] = round(dt, 2)
+    log(f"P2 per-country fetch {iso3}: {dt:.1f}s")
+del ds
+
+results["p2_note"] = (
+    "shared arm run first on a disjoint issuance range so transfer "
+    "caching biases against the saving"
+)
+results["p2_per_country_fetch_seconds"] = per_country
+results["p2_per_country_total"] = round(sum(per_country.values()), 2)
 results["p2_shared_fetch_seconds"] = round(t_shared, 2)
 results["p2_inmemory_slice_seconds"] = round(t_slice, 2)
 results["p2_total_shared"] = round(t_shared + t_slice, 2)
@@ -123,7 +141,6 @@ results["p2_saving_factor"] = round(
     results["p2_per_country_total"] / (t_shared + t_slice), 2
 )
 json.dump(results, open(f"{SCRATCH}/parallel_probe.json", "w"), indent=1)
-del ds, ds2, shared
 
 
 # ---------------------------------------------------------------- P3

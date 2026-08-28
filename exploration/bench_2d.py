@@ -6,7 +6,13 @@ product of two independent effects or whether one axis dominates.
 
 Uses the REAL runners (legacy fast_zonal_stats_runner vs the PR's
 zonal_stats_runner), not just the kernels, so per-row validation and
-DataFrame assembly are included. Geometry is synthetic (a jittered grid
+DataFrame assembly are included.
+
+Both a warm and a cold weight-cache timing are reported. The legacy
+reps rebuild their rasterized mask on every call because that is what
+the legacy code does; the new method caches weights across chunks and
+runs, so warm models the pipeline while cold is the honest worst case
+for a single isolated run. Geometry is synthetic (a jittered grid
 of polygons over a Nigeria-sized bbox) so the admin count can be dialled
 freely; polygons are deliberately not pixel-aligned, so exactextract does
 real fractional work.
@@ -165,8 +171,19 @@ for nd in N_DATES:
             lambda: fast_zonal_stats_runner(da_up, gdf.copy(), 2, "TST"), reps
         )
 
-        shutil.rmtree(zonal_utils.WEIGHTS_CACHE_DIR, ignore_errors=True)
-        zonal_stats_runner(da, gdf, 2, "TST")  # warm + build weights
+        # Cold: weight matrix built inside the timed call. This is the
+        # honest worst case for a one-off run, and matters most at
+        # n_dates=1 (the update-run shape) where there is nothing to
+        # amortise the build against.
+        def _cold():
+            shutil.rmtree(zonal_utils.WEIGHTS_CACHE_DIR, ignore_errors=True)
+            zonal_stats_runner(da, gdf, 2, "TST")
+
+        t_new_cold = time_it(_cold, 1)
+
+        # Warm: weights loaded from the disk cache, which is how the
+        # pipeline runs after the first chunk touches a country.
+        zonal_stats_runner(da, gdf, 2, "TST")
         t_new = time_it(lambda: zonal_stats_runner(da, gdf, 2, "TST"), reps)
 
         cell = {
@@ -174,13 +191,17 @@ for nd in N_DATES:
             "n_dates": nd,
             "legacy_s": round(t_leg, 4),
             "new_s": round(t_new, 4),
+            "new_cold_s": round(t_new_cold, 4),
             "speedup": round(t_leg / t_new, 2),
+            "speedup_cold": round(t_leg / t_new_cold, 2),
             "rows": na * nd,
         }
         results["cells"].append(cell)
         log(
             f"admins={na:5} dates={nd:4}: legacy {t_leg:8.3f}s  "
-            f"new {t_new:7.4f}s  speedup {cell['speedup']:6.1f}x"
+            f"new {t_new:7.4f}s (cold {t_new_cold:7.4f}s)  "
+            f"speedup {cell['speedup']:6.1f}x "
+            f"(cold {cell['speedup_cold']:6.2f}x)"
         )
         json.dump(results, open(OUT, "w"), indent=1)
 

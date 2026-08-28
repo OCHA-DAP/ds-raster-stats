@@ -8,8 +8,6 @@ under /benchmarks/):
   B. archival     -- 100 issuances x 7 leadtimes, BDI/TCD/NGA,
                      prep (fetch) vs stats split
   C. admin scale  -- synthetic kernel, 10..3000 admin units
-  D. stacking     -- serial vs threaded COG opens (disjoint date ranges
-                     per mode so GDAL caching cannot favour the second run)
 
 Results: JSON printed between RESULTS_JSON_BEGIN/END markers and written
 to /dbfs/tmp/rasterstats_dbx_bench.json.
@@ -35,7 +33,6 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 from scipy import sparse  # noqa: E402
 
-import src.utils.cog_utils as cog_utils  # noqa: E402
 import src.utils.zonal_utils as zonal_utils  # noqa: E402
 from src.utils.cog_utils import stack_cogs  # noqa: E402
 from src.utils.iso3_utils import load_shp_cached  # noqa: E402
@@ -90,51 +87,15 @@ def run_new(ds, shp_dir, iso3, max_adm=2):
 
 
 # ---------------------------------------------------------------- D
-# Stacking first (cold caches). Disjoint date ranges per mode.
-log("D: stacking serial vs threaded...")
-real_tpe = cog_utils.ThreadPoolExecutor
-
-
-class SerialTPE(real_tpe):
-    def __init__(self, max_workers=None):
-        super().__init__(max_workers=1)
-
-
-stacking = {}
-for dataset, ranges in [
-    (
-        "seas5",
-        {
-            "threaded": pd.date_range("2022-01-01", "2022-07-01", freq="MS"),
-            "serial": pd.date_range("2021-01-01", "2021-07-01", freq="MS"),
-        },
-    ),
-    (
-        "imerg",
-        {
-            "threaded": pd.date_range("2025-03-01", "2025-03-30", freq="D"),
-            "serial": pd.date_range("2025-02-01", "2025-02-28", freq="D"),
-        },
-    ),
-]:
-    stacking[dataset] = {}
-    for mode, dates in ranges.items():
-        cog_utils.ThreadPoolExecutor = (
-            SerialTPE if mode == "serial" else real_tpe
-        )
-        t0 = time.perf_counter()
-        ds_tmp = stack_cogs(list(dates), dataset, "prod")
-        dt = time.perf_counter() - t0
-        n = len(dates)
-        stacking[dataset][mode] = {
-            "seconds": round(dt, 2),
-            "n_dates": n,
-            "s_per_cog": round(dt / max(len(ds_tmp.date), 1), 3),
-        }
-        log(f"D {dataset} {mode}: {dt:.1f}s for {n} dates")
-        del ds_tmp
-cog_utils.ThreadPoolExecutor = real_tpe
-results["stacking"] = stacking
+# Scenario D (threaded vs serial COG opens) has been removed. It was
+# measured and answered: no gain on a home connection (SEAS5 49 COGs
+# 6.2s serial vs 6.1s threaded) and none on Azure-internal job compute
+# (7.9s vs 8.2s; IMERG 0.79 vs 0.81 s/COG), because the opens are lazy
+# and the bulk transfer happens later per country. PR #49 therefore
+# deleted the threaded path, and with it the symbol this scenario
+# patched -- so keeping the scenario would only break the module at
+# import. Published result:
+# https://ocha-dap.github.io/ds-raster-stats/benchmarks/
 
 # ---------------------------------------------------------------- A
 log("A: update-run scenario...")

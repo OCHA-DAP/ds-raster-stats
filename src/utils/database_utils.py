@@ -78,6 +78,10 @@ def create_dataset_table(dataset, engine, is_forecast=False, extra_dims={}):
         Column("std", REAL),
     ]
 
+    # The constraint NAME is deliberately fixed across datasets even
+    # though its column set now varies (some tables have no leadtime):
+    # postgres_upsert's default `constraint=` resolves by this exact
+    # string, so renaming it to match the columns would break upserts.
     unique_constraint_columns = ["valid_date", "pcode"] + list(extra_dims)
     table_args = [
         UniqueConstraint(

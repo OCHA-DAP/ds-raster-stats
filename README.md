@@ -40,7 +40,8 @@ options:
   --backfill            Whether to check and backfill for any missing dates.
   --update-metadata     Update the iso3 and polygon metadata tables.
   --test                Processes a smaller subset of the source data. Use to test the pipeline.
-  --num-processes       Number of worker processes (default: NUM_PROCESSES env var, or 4).
+  --num-processes       Number of worker processes (default: NUM_PROCESSES env var, or 2).
+                        Each worker persists its own COG stack, so this drives peak memory.
 ```
 
 Work is parallelized across date chunks, and additionally across

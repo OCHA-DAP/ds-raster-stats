@@ -104,17 +104,16 @@ def load_shp_cached(iso3, mode, cache_dir=None):
             ),
         )
     blob_mode = "dev" if mode == "local" else mode
-    try:
-        props = (
-            get_container_client(blob_mode, "polygon")
-            .get_blob_client(f"{iso3.lower()}_shp.zip")
-            .get_blob_properties()
-        )
-        tag = re.sub(r"[^A-Za-z0-9]", "", str(props.etag))[:16]
-    except Exception:
-        # can't reach the blob to check: fall back to an unversioned
-        # directory rather than failing the country outright
-        tag = "unversioned"
+    # Deliberately not caught: an unreachable blob must fail the country
+    # loudly (process_chunk logs it to the qa table like any other
+    # per-country error) rather than silently reusing a cached copy of
+    # unbounded age -- which is the drift this ETag key exists to stop.
+    props = (
+        get_container_client(blob_mode, "polygon")
+        .get_blob_client(f"{iso3.lower()}_shp.zip")
+        .get_blob_properties()
+    )
+    tag = re.sub(r"[^A-Za-z0-9]", "", str(props.etag))[:16]
     target_dir = os.path.join(cache_dir, mode, f"{iso3.lower()}_{tag}")
     if os.path.isdir(target_dir):
         return target_dir

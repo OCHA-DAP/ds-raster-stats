@@ -229,16 +229,19 @@
     <em>where</em>, and the multiplier says <em>how much</em>.
   </p>
   <p class="caption" style="margin-top:10px">
-    <strong>FloodScan is uniformly dark, and that is the point.</strong>
+    <strong>FloodScan sits on a different scale, and that is the point.</strong>
     Its native resolution is 300 arc-seconds (0.0833°), so the legacy
     upsample factor to 0.05° is 1.667 — not a whole number. The upsampled
     cells therefore never nest inside native pixels for <em>any</em>
-    polygon, anywhere, and every country carries an irreducible ~20% weight
-    disagreement regardless of how large or well-behaved its admin units
-    are (range 19.7% to 41.7% across the 52 covered countries). The other
-    three datasets divide into 0.05° exactly — 8×, 5× and 2× — so their
-    disagreement is driven by polygon shape and shrinks with polygon size.
-    This is why FloodScan showed the largest measured value differences.
+    polygon, anywhere, so every unit carries an irreducible ~20%
+    disagreement no matter how large or well-behaved it is: its whole
+    range is 19.7% to 83%, against a median of 20.8%. The other three
+    datasets divide into 0.05° exactly — 8×, 5× and 2× — so their
+    disagreement is driven by polygon shape and falls away with polygon
+    size. Because FloodScan's floor is structural rather than geometric,
+    each dataset gets breaks drawn from its own distribution; compare
+    within a map rather than between them. This is also why FloodScan
+    showed the largest measured value differences.
   </p>
 </figure>
 
@@ -611,8 +614,27 @@
       { key: "i", label: "IMERG", res: "0.1°" },
       { key: "f", label: "FloodScan", res: "0.083°" }
     ];
-    var BINS = [0.01, 0.02, 0.04, 0.08, 0.16];
-    var BIN_LABELS = ["< 1%", "1–2%", "2–4%", "4–8%", "8–16%", "> 16%"];
+    // Breaks are per dataset, from that dataset's own distribution over
+    // the 7,165 units. A single absolute scale put every FloodScan unit
+    // in one class (its whole range is 19.7-83%), hiding real structure.
+    var BINS = {
+      s: [0.005, 0.01, 0.018, 0.035, 0.08],
+      e: [0.008, 0.015, 0.028, 0.05, 0.12],
+      i: [0.02, 0.035, 0.06, 0.10, 0.20],
+      f: [0.20, 0.205, 0.215, 0.235, 0.32]
+    };
+    function pct(v) {
+      var x = v * 100;
+      return (x < 10 ? x.toFixed(1) : x.toFixed(x % 1 ? 1 : 0)) + "%";
+    }
+    function binLabels(key) {
+      var b = BINS[key], out = ["< " + pct(b[0])];
+      for (var i = 1; i < b.length; i++) {
+        out.push(pct(b[i - 1]) + "–" + pct(b[i]));
+      }
+      out.push("> " + pct(b[b.length - 1]));
+      return out;
+    }
     var current = "s";
     var DATA = null, FEATS = [], RINGS = [];
 
@@ -655,8 +677,9 @@
       return out;
     }
     function binOf(v) {
-      for (var i = 0; i < BINS.length; i++) if (v < BINS[i]) return i;
-      return BINS.length;
+      var b = BINS[current];
+      for (var i = 0; i < b.length; i++) if (v < b[i]) return i;
+      return b.length;
     }
     function idToColor(i) {
       var n = i + 1;
@@ -795,6 +818,7 @@
       legEl.textContent = "";
       var lw = document.createElement("div");
       lw.className = "legwrap";
+      var LBL = binLabels(current);
       ramp().forEach(function (c, i) {
         var k = document.createElement("span");
         k.className = "legkey";
@@ -802,7 +826,7 @@
         sw.className = "legsw";
         sw.style.background = c;
         var tx = document.createElement("span");
-        tx.textContent = BIN_LABELS[i];
+        tx.textContent = LBL[i];
         k.appendChild(sw); k.appendChild(tx); lw.appendChild(k);
       });
       if (counts.dropped) {
@@ -819,7 +843,8 @@
       var note = document.createElement("span");
       note.className = "legnote";
       note.textContent = counts.total.toLocaleString("en-US") +
-        " admin units · scroll to zoom, drag to pan";
+        " admin units · scale is per dataset — read within a map, " +
+        "not between · scroll to zoom, drag to pan";
       lw.appendChild(note);
       legEl.appendChild(lw);
     }

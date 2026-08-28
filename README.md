@@ -2,6 +2,26 @@
 
 This repo contains code to calculate raster (or zonal) statistics from internal stores of gridded datasets.
 
+## Methodology
+
+Stats are computed at the raster's native resolution against **exact
+coverage fractions**: for each (country, admin level) a sparse weight
+matrix is built once with [`exactextract`](https://github.com/isciences/exactextract)
+— entry `(admin, pixel)` is the fraction of the pixel's area covered by
+the admin polygon — and all statistics for every date (and
+leadtime/band) slice are then computed at once from that matrix
+(`src/utils/zonal_utils.py`). `mean`/`sum`/`std`/`median` are
+coverage-weighted; `min`/`max` are taken over all pixels with any
+coverage; `count`/`sum` are scaled to the equivalent number of 0.05°
+pixels for continuity with previously published values.
+
+This replaces the earlier approach of physically upsampling each
+raster to 0.05° and including whole upsampled pixels by centroid
+(still available in `src/utils/raster_utils.py`, and used by
+`--update-metadata`). The weight matrices are cached under the system temp dir
+(configurable via `WEIGHTS_CACHE_DIR`) and are reused across date
+chunks, worker processes, and runs on the same machine.
+
 ## Usage
 
 This pipeline can be run from the command line by calling `python run_raster_stats.py` with appropriate input args:
@@ -20,7 +40,13 @@ options:
   --backfill            Whether to check and backfill for any missing dates.
   --update-metadata     Update the iso3 and polygon metadata tables.
   --test                Processes a smaller subset of the source data. Use to test the pipeline.
+  --num-processes       Number of worker processes (default: NUM_PROCESSES env var, or 2).
+                        Each worker persists its own COG stack, so this drives peak memory.
 ```
+
+Work is parallelized across date chunks, and additionally across
+countries when there are fewer chunks than workers (e.g. the daily /
+monthly update runs).
 
 ## Development Setup
 
@@ -44,10 +70,16 @@ pip install -e .
 
 ```
 # Connection to Azure blob storage
-DSCI_AZ_SAS_DEV=<provided-on-request>
-DSCI_AZ_SAS_PROD=<provided-on-request>
-AZURE_DB_PW_DEV=<provided-on-request>
-AZURE_DB_PW_PROD=<provided-on-request>
+DSCI_AZ_BLOB_DEV_SAS=<provided-on-request>
+DSCI_AZ_BLOB_DEV_SAS_WRITE=<provided-on-request>
+DSCI_AZ_BLOB_PROD_SAS=<provided-on-request>
+DSCI_AZ_BLOB_PROD_SAS_WRITE=<provided-on-request>
+
+# Connection to the rasterstats Postgres databases
+DSCI_AZ_DB_DEV_UID_WRITE=<provided-on-request>
+DSCI_AZ_DB_DEV_PW_WRITE=<provided-on-request>
+DSCI_AZ_DB_PROD_UID_WRITE=<provided-on-request>
+DSCI_AZ_DB_PROD_PW_WRITE=<provided-on-request>
 ```
 
 ### Pre-Commit

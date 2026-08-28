@@ -18,6 +18,10 @@ load_dotenv()
 
 UPSAMPLED_RESOLUTION = 0.05
 LOG_LEVEL = "DEBUG"
+# Each worker stacks and persists its own COGs, so this multiplies peak
+# memory. 2 matches the previous behaviour; raise it with --num-processes
+# or $NUM_PROCESSES where memory allows.
+NUM_PROCESSES = int(os.getenv("NUM_PROCESSES", "2"))
 AZURE_DB_UID_DEV = os.getenv("DSCI_AZ_DB_DEV_UID_WRITE")
 AZURE_DB_UID_PROD = os.getenv("DSCI_AZ_DB_PROD_UID_WRITE")
 AZURE_DB_PW_DEV = os.getenv("DSCI_AZ_DB_DEV_PW_WRITE")

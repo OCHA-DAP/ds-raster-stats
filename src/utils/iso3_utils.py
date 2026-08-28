@@ -1,4 +1,7 @@
 import os
+import re
+import shutil
+import tempfile
 import zipfile
 from datetime import datetime
 from io import StringIO
@@ -6,7 +9,7 @@ from io import StringIO
 import numpy as np
 import pandas as pd
 import requests
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 from src.config.settings import load_pipeline_config
 from src.utils.cloud_utils import get_container_client
@@ -63,6 +66,75 @@ def load_shp(shp_url, shp_dir, iso3):
         zip_ref.extractall(shp_dir)
 
 
+def load_shp_cached(iso3, mode, cache_dir=None):
+    """
+    Download and extract a country's zipped shapefile from Azure Blob
+    Storage into a cache directory, reusing it if already present. The
+    extraction is atomic (extract to a temp dir, then rename), so
+    concurrent worker processes can share the cache safely.
+
+    The cache directory is keyed on the blob's ETag, so a hand-refreshed
+    COD in blob is picked up on the next run rather than being masked by
+    a stale copy on a long-lived host. Without that, the weight cache
+    (which keys on the geometry it is given) would stay perfectly
+    consistent with boundaries that are silently out of date.
+
+    Parameters
+    ----------
+    iso3 : str
+        A three-letter ISO code used to identify the shapefile.
+    mode : str
+        The current mode, determining which Azure storage container to
+        point to (dev or prod)
+    cache_dir : str, optional
+        Root of the boundary cache. Defaults to $BOUNDARY_CACHE_DIR or
+        `raster-stats-cache/boundaries` under the system temp dir
+        (relative dot-dirs fail on Databricks' workspace filesystem).
+
+    Returns
+    -------
+    str
+        Directory containing the extracted shapefiles.
+    """
+    if cache_dir is None:
+        cache_dir = os.getenv(
+            "BOUNDARY_CACHE_DIR",
+            os.path.join(
+                tempfile.gettempdir(), "raster-stats-cache", "boundaries"
+            ),
+        )
+    blob_mode = "dev" if mode == "local" else mode
+    # Deliberately not caught: an unreachable blob must fail the country
+    # loudly (process_chunk logs it to the qa table like any other
+    # per-country error) rather than silently reusing a cached copy of
+    # unbounded age -- which is the drift this ETag key exists to stop.
+    props = (
+        get_container_client(blob_mode, "polygon")
+        .get_blob_client(f"{iso3.lower()}_shp.zip")
+        .get_blob_properties()
+    )
+    tag = re.sub(r"[^A-Za-z0-9]", "", str(props.etag))[:16]
+    target_dir = os.path.join(cache_dir, mode, f"{iso3.lower()}_{tag}")
+    if os.path.isdir(target_dir):
+        return target_dir
+
+    os.makedirs(os.path.dirname(target_dir), exist_ok=True)
+    tmp_dir = f"{target_dir}.tmp{os.getpid()}"
+    os.makedirs(tmp_dir, exist_ok=True)
+    try:
+        load_shp_from_azure(iso3, tmp_dir, mode)
+        os.rename(tmp_dir, target_dir)
+    except OSError:
+        # Another worker finished extracting first
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        if not os.path.isdir(target_dir):
+            raise
+    except Exception:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise
+    return target_dir
+
+
 def load_shp_from_azure(iso3, shp_dir, mode):
     """
     Download and extract a zipped shapefile from Azure Blob Storage.
@@ -80,6 +152,9 @@ def load_shp_from_azure(iso3, shp_dir, mode):
     -------
     None
     """
+    # No data stored locally, so read from dev (as in stack_cogs)
+    if mode == "local":
+        mode = "dev"
     blob_name = f"{iso3.lower()}_shp.zip"
     container_client = get_container_client(mode, "polygon")
     blob_client = container_client.get_blob_client(blob_name)
@@ -90,6 +165,16 @@ def load_shp_from_azure(iso3, shp_dir, mode):
 
     with zipfile.ZipFile(temp_path, "r") as zip_ref:
         zip_ref.extractall(shp_dir)
+
+
+def _iso3_table(engine):
+    """Qualify with the schema on postgres; sqlite has no schemas.
+
+    Leaving it unqualified on postgres would resolve through
+    `search_path`, so a same-named table in another schema on the
+    search path would silently be read instead.
+    """
+    return "public.iso3" if engine.dialect.name == "postgresql" else "iso3"
 
 
 def get_iso3_data(iso3_codes, engine):
@@ -110,15 +195,16 @@ def get_iso3_data(iso3_codes, engine):
 
     """
     if iso3_codes and len(iso3_codes) > 0:
-        if len(iso3_codes) == 1:
-            query = text("SELECT * FROM public.iso3 WHERE iso3 = :code")
-            params = {"code": iso3_codes[0]}
-        else:
-            query = text("SELECT * FROM public.iso3 WHERE iso3 = ANY(:codes)")
-            params = {"codes": iso3_codes}
+        # IN with an expanding bindparam works on both postgres and
+        # local sqlite (unlike ANY)
+        table = _iso3_table(engine)
+        query = text(f"SELECT * FROM {table} WHERE iso3 IN :codes").bindparams(
+            bindparam("codes", expanding=True)
+        )
+        params = {"codes": list(iso3_codes)}
         df = pd.read_sql_query(query, engine.connect(), params=params)
     else:
-        query = text("SELECT * FROM public.iso3")
+        query = text(f"SELECT * FROM {_iso3_table(engine)}")
         df = pd.read_sql_query(query, engine.connect())
 
     return df

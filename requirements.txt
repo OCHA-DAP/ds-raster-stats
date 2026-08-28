@@ -14,3 +14,12 @@ sqlalchemy==2.0.33
 rasterio==1.3.10
 pytest==8.3.3
 numpy<2.0.0
+pandas==2.2.3
+exactextract==0.3.0
+# scipy >=1.16 requires Python >=3.11; the Databricks runtime is
+# 3.10, so cap it to keep `pip install -r` working there.
+scipy==1.15.3
+# affine >=2.4 puts a cached_property on a __slots__ namedtuple, which
+# raises on Python 3.10 (e.g. Databricks runtime 14.3) whenever a
+# rasterio transform is indexed. Fine on 3.12+, so pin for portability.
+affine==2.3.1

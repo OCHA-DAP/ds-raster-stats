@@ -185,21 +185,20 @@ def stack_cogs(dates, dataset, mode="dev"):
     if len(cogs_list) == 0:
         raise Exception(f"No COGs found to process for dates: {dates}")
 
-    das = []
+    process_fn = {
+        "era5": process_era5,
+        "seas5": process_seas5,
+        "imerg": process_imerg,
+        "floodscan": process_floodscan,
+    }[dataset]
 
-    # Only show progress bar if running in interactive mode (ie. running locally)
-    cogs_list = tqdm.tqdm(cogs_list) if mode == "local" else cogs_list
-
-    for cog in cogs_list:
-        if dataset == "era5":
-            da_in = process_era5(cog, mode)
-        elif dataset == "seas5":
-            da_in = process_seas5(cog, mode)
-        elif dataset == "imerg":
-            da_in = process_imerg(cog, mode)
-        elif dataset == "floodscan":
-            da_in = process_floodscan(cog, mode)
-        das.append(da_in)
+    # Opens are lazy (`chunks="auto"` reads metadata only), so the bulk
+    # transfer happens later, per country, in prep/clip. Threading these
+    # opens measured no gain on either a home connection or Azure-internal
+    # job compute, so they stay serial.
+    # Only show progress bar if running in interactive mode (ie. locally)
+    cogs_iter = tqdm.tqdm(cogs_list) if mode == "local" else cogs_list
+    das = [process_fn(cog, mode) for cog in cogs_iter]
 
     # Note that we're dropping all attributes here
     ds = xr.combine_by_coords(das, combine_attrs="drop")

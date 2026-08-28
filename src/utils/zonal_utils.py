@@ -18,6 +18,12 @@ upsampled pixels). ``mean``/``median``/``std`` are scale-invariant.
 legacy method included only pixels with at least one upsampled-pixel
 centroid inside the polygon.
 
+An admin unit smaller than half a 0.05-degree pixel-equivalent has its
+``count`` floored to 1 so that a non-null mean always implies
+``count > 0`` (the legacy invariant). ``sum`` follows that floored count
+rather than staying area-true, so ``mean == sum / count`` still holds
+for those rows.
+
 Weight matrices only depend on the admin boundaries and the raster
 grid, so they are cached on disk and reused across date chunks and
 worker processes.
@@ -48,6 +54,9 @@ WEIGHTS_CACHE_DIR = os.getenv(
 )
 
 STATS = ["mean", "max", "min", "median", "sum", "std", "count"]
+
+# discard coverage fractions below this as float noise
+COVERAGE_EPS = 1e-9
 
 
 def clip_raster(ds, gdf_adm, logger=None):
@@ -166,7 +175,12 @@ def build_weights(gdf, pcode_col, ds):
     for i, (cell_ids, coverage) in enumerate(
         zip(df_cov["cell_id"], df_cov["coverage"])
     ):
-        keep = coverage > 0
+        # Numerical floor, not a semantic one: coverage along a shared
+        # polygon/pixel edge can come back ~1e-16 rather than exactly 0,
+        # and such a pixel would otherwise participate fully in min/max
+        # and could hand a geometrically-empty unit a floored count of 1.
+        # Far below any meaningful weight, far above accumulated error.
+        keep = coverage > COVERAGE_EPS
         rows.append(np.full(keep.sum(), i))
         cols.append(cell_ids[keep])
         vals.append(coverage[keep])
@@ -299,14 +313,23 @@ def weighted_zonal_stats(values, W, scale):
     # `count > 0` filters don't silently drop the sub-pixel admin units
     # that exact coverage fractions are meant to rescue.
     counts = np.rint(w_count * scale).astype(int)
-    counts = np.where((w_count > 0) & (counts == 0), 1, counts)
+    floored = (w_count > 0) & (counts == 0)
+    counts = np.where(floored, 1, counts)
+
+    # `sum` follows the floored count rather than staying area-true, so
+    # the row keeps mean == sum / count. Area-truth is already fictional
+    # once count has been rounded up from a fraction, and a row where
+    # sum / count is under half the mean reads as corrupt to anything
+    # that reconstructs or sanity-checks a mean that way.
+    sums_out = sums * scale
+    sums_out = np.where(floored, mean * counts, sums_out)
 
     return {
         "mean": mean,
         "max": maxs,
         "min": mins,
         "median": medians,
-        "sum": sums * scale,
+        "sum": sums_out,
         "std": stds,
         "count": counts,
     }
@@ -426,7 +449,14 @@ def zonal_stats_runner(
         *(["date", fourth_dim, "y", "x"] if fourth_dim else ["date", "y", "x"])
     )
 
-    native_res = abs(ds.rio.resolution()[0])
+    res_x, res_y = ds.rio.resolution()
+    if not np.isclose(abs(res_x), abs(res_y), rtol=1e-6):
+        raise ValueError(
+            "Non-square pixels "
+            f"({abs(res_x)} x {abs(res_y)}): the count/sum scale factor "
+            "assumes square pixels"
+        )
+    native_res = abs(res_x)
     scale = (native_res / UPSAMPLED_RESOLUTION) ** 2
 
     W = load_or_build_weights(

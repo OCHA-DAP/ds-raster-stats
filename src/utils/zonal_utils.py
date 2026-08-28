@@ -184,29 +184,37 @@ def build_weights(gdf, pcode_col, ds):
     return W
 
 
-def _weights_cache_path(iso3, adm_level, ds):
-    """Cache filename keyed on country, admin level, and exact grid."""
+def _weights_cache_path(iso3, adm_level, ds, gdf):
+    """Cache filename keyed on the exact grid AND the exact boundaries.
+
+    The boundary hash matters: the COD polygon cache in blob is refreshed
+    by hand, and without it a refreshed boundary would silently reuse
+    weights built against the previous one.
+    """
     xmin, ymin, xmax, ymax, height, width = _grid_params(ds)
-    grid_key = hashlib.md5(
+    h = hashlib.md5(
         f"{xmin:.6f}_{ymin:.6f}_{xmax:.6f}_{ymax:.6f}_{height}_{width}".encode()
-    ).hexdigest()[:12]
+    )
+    for wkb in gdf.geometry.to_wkb():
+        h.update(wkb)
     return os.path.join(
-        WEIGHTS_CACHE_DIR, f"{iso3.lower()}_adm{adm_level}_{grid_key}.npz"
+        WEIGHTS_CACHE_DIR,
+        f"{iso3.lower()}_adm{adm_level}_{h.hexdigest()[:16]}.npz",
     )
 
 
 def load_or_build_weights(gdf, pcode_col, iso3, adm_level, ds, logger=None):
     """
-    Load the coverage-weight matrix for (iso3, adm_level, grid) from
-    the on-disk cache, or build and cache it. The cache lets weights be
-    reused across date chunks and worker processes within a run (and
-    across runs when the cache directory persists).
+    Load the coverage-weight matrix for (iso3, adm_level, grid,
+    boundaries) from the on-disk cache, or build and cache it. The cache
+    lets weights be reused across date chunks and worker processes
+    within a run (and across runs when the cache directory persists).
     """
     if logger is None:
         logger = logging.getLogger(__name__)
         logger.addHandler(logging.NullHandler())
 
-    path = _weights_cache_path(iso3, adm_level, ds)
+    path = _weights_cache_path(iso3, adm_level, ds, gdf)
     if os.path.exists(path):
         try:
             return sparse.load_npz(path)

@@ -241,6 +241,21 @@ def test_weighted_median_handles_nan_and_empty():
     assert np.isnan(result[1])
 
 
+def test_weights_cache_invalidates_when_boundaries_change(random_gdf):
+    """A refreshed COD boundary must not reuse the previous weights."""
+    data = np.zeros((1, 10, 10))
+    da = make_da(data, coords={"date": ["2021-01-01"]})
+    W1 = zonal_utils.load_or_build_weights(
+        random_gdf, "ADM1_PCODE", "TST", 1, da
+    )
+
+    moved = random_gdf.copy()
+    moved["geometry"] = moved.geometry.translate(xoff=1.5)
+    W2 = zonal_utils.load_or_build_weights(moved, "ADM1_PCODE", "TST", 1, da)
+
+    assert (W1 != W2).nnz > 0, "shifted boundaries returned cached weights"
+
+
 def test_weights_cache_roundtrip(random_gdf):
     data = np.zeros((1, 10, 10))
     da = make_da(data, coords={"date": ["2021-01-01"]})

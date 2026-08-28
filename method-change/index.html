@@ -22,6 +22,7 @@
     --map-1: #b7d3f6; --map-2: #9ec5f4; --map-3: #6da7ec;
     --map-4: #3987e5; --map-5: #256abf; --map-6: #0d366b;
     --map-nodata: #e9e8e3;
+    --map-dropped: #e87ba4;
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) {
@@ -41,6 +42,7 @@
       --map-1: #0d366b; --map-2: #184f95; --map-3: #256abf;
       --map-4: #3987e5; --map-5: #6da7ec; --map-6: #cde2fb;
       --map-nodata: #262625;
+      --map-dropped: #d55181;
     }
   }
   :root[data-theme="dark"] {
@@ -60,6 +62,7 @@
     --map-1: #0d366b; --map-2: #184f95; --map-3: #256abf;
     --map-4: #3987e5; --map-5: #6da7ec; --map-6: #cde2fb;
     --map-nodata: #262625;
+    --map-dropped: #d55181;
   }
   * { box-sizing: border-box; }
   body {
@@ -129,6 +132,9 @@
     background: var(--map-5); border-color: var(--map-5);
     color: #fff; font-weight: 600;
   }
+  .mapcanvas { width: 100%; display: block; border-radius: 6px;
+    touch-action: none; background: var(--page); }
+  .mapbtn.reset { margin-left: auto; }
   .maplegend { margin-top: 6px; }
   .legwrap { display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
     font-size: .78rem; color: var(--text-secondary); }
@@ -199,15 +205,14 @@
     method places on native pixels — exact coverage fractions versus the
     legacy rule's centroid-counted 0.05° cells — and takes their
     <em>total variation distance</em>: the share of averaging weight that
-    lands on different pixels. No raster values are involved. Median across
-    each country's admin units.
+    lands on different pixels. No raster values are involved. <strong>Scroll to zoom, drag to pan.</strong> Every one of the 7,165 admin units the pipeline computes is drawn separately — each country at its own deepest level, 5,223 at ADM2 and 1,942 at ADM1 — so the admin level itself is visible, along with the variation inside each country.
   </p>
   <div class="mapctl" id="map-controls"></div>
   <div id="chart-map"></div>
   <div class="maplegend" id="map-legend"></div>
-  <details><summary>Table view — most and least sensitive countries</summary>
+  <details><summary>Table view — most and least sensitive admin units</summary>
     <div class="scroll"><table>
-      <thead><tr><th>Country</th><th>Admin level</th><th>Units</th><th>SEAS5</th><th>ERA5</th><th>IMERG</th><th>FloodScan</th></tr></thead>
+      <thead><tr><th>P-code</th><th>Country</th><th>Level</th><th>SEAS5</th><th>ERA5</th><th>IMERG</th><th>FloodScan</th></tr></thead>
       <tbody id="map-tbody"></tbody>
     </table></div>
   </details>
@@ -598,24 +603,51 @@
   }
   function hideTip() { tooltip.style.display = "none"; }
 
-  // ---- geometric sensitivity choropleth ----
+  // ---- per-admin-unit geometric sensitivity map (canvas, zoomable) ----
   (function () {
     var DS = [
-      { key: "seas5", label: "SEAS5", res: "0.4°" },
-      { key: "era5", label: "ERA5", res: "0.25°" },
-      { key: "imerg", label: "IMERG", res: "0.1°" },
-      { key: "floodscan", label: "FloodScan", res: "0.083°" }
+      { key: "s", label: "SEAS5", res: "0.4°" },
+      { key: "e", label: "ERA5", res: "0.25°" },
+      { key: "i", label: "IMERG", res: "0.1°" },
+      { key: "f", label: "FloodScan", res: "0.083°" }
     ];
-    // sequential, binned: lightest = least weight moved
     var BINS = [0.01, 0.02, 0.04, 0.08, 0.16];
     var BIN_LABELS = ["< 1%", "1–2%", "2–4%", "4–8%", "8–16%", "> 16%"];
-    var current = "seas5";
-    var DATA = null;
+    var current = "s";
+    var DATA = null, FEATS = [], RINGS = [];
 
-    var mapEl = document.getElementById("chart-map");
+    var wrap = document.getElementById("chart-map");
     var ctlEl = document.getElementById("map-controls");
     var legEl = document.getElementById("map-legend");
     var tbody = document.getElementById("map-tbody");
+
+    // world extent; view is a window onto it that zoom/pan moves
+    var LON0 = -180, LON1 = 180, LAT0 = -58, LAT1 = 84;
+    var CW = 880, CH = 440;
+    var view = { x: LON0, y: LAT1, w: LON1 - LON0, h: LAT1 - LAT0 };
+    var HOME = { x: view.x, y: view.y, w: view.w, h: view.h };
+
+    var cv = document.createElement("canvas");
+    cv.className = "mapcanvas";
+    var pick = document.createElement("canvas");  // offscreen index layer
+    var ctx, pctx, dpr = 1;
+
+    function sizeCanvas() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      var cssW = wrap.clientWidth || CW;
+      var cssH = Math.round(cssW * CH / CW);
+      cv.style.width = cssW + "px";
+      cv.style.height = cssH + "px";
+      cv.width = Math.round(cssW * dpr);
+      cv.height = Math.round(cssH * dpr);
+      pick.width = cv.width;
+      pick.height = cv.height;
+      ctx = cv.getContext("2d");
+      pctx = pick.getContext("2d", { willReadFrequently: true });
+    }
+
+    function sx(lon) { return (lon - view.x) / view.w * cv.width; }
+    function sy(lat) { return (view.y - lat) / view.h * cv.height; }
 
     function ramp() {
       var out = [];
@@ -626,81 +658,144 @@
       for (var i = 0; i < BINS.length; i++) if (v < BINS[i]) return i;
       return BINS.length;
     }
+    function idToColor(i) {
+      var n = i + 1;
+      return "rgb(" + (n & 255) + "," + ((n >> 8) & 255) + "," +
+        ((n >> 16) & 255) + ")";
+    }
 
-    // equirectangular, fitted to the drawn extent
-    var W = 840, H = 420, PAD = 6;
-    var LON0 = -180, LON1 = 180, LAT0 = -58, LAT1 = 84;
-    function px(lon) { return PAD + (lon - LON0) / (LON1 - LON0) * (W - 2 * PAD); }
-    function py(lat) { return PAD + (LAT1 - lat) / (LAT1 - LAT0) * (H - 2 * PAD); }
-
-    function render() {
-      mapEl.textContent = "";
-      var svg = el("svg", { viewBox: "0 0 " + W + " " + H, "class": "chart-svg",
-        role: "img",
-        "aria-label": "World map of geometric sensitivity to the method change, by country, for " + current },
-        mapEl);
-      el("rect", { x: 0, y: 0, width: W, height: H, fill: "transparent" }, svg);
+    function draw() {
       var R = ramp();
-      var drawn = 0, missing = 0;
+      var missing = color("--map-nodata");
+      var dropped = color("--map-dropped");
+      var stroke = color("--surface-1");
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      pctx.clearRect(0, 0, pick.width, pick.height);
+      // hairlines only help once units are big enough on screen
+      var lw = view.w < 90 ? Math.max(0.4, 0.9 * dpr) : 0;
+      ctx.lineWidth = lw;
+      ctx.strokeStyle = stroke;
+      ctx.lineJoin = "round";
 
-      DATA.features.forEach(function (f) {
+      for (var k = 0; k < FEATS.length; k++) {
+        var f = FEATS[k];
         var v = f[current];
-        var has = typeof v === "number";
-        if (has) drawn++; else missing++;
-        var fillc = has ? R[binOf(v)] : color("--map-nodata");
-        var title = f.iso3 + (has ? "" : " — not covered");
+        var fill;
+        if (typeof v !== "number") fill = missing;
+        else if (v < 0) fill = dropped;
+        else fill = R[binOf(v)];
 
-        function attach(node) {
-          node.setAttribute("tabindex", "0");
-          function over(evt) {
-            var rows = [];
-            DS.forEach(function (d) {
-              if (typeof f[d.key] === "number") {
-                rows.push({
-                  color: d.key === current ? color("--map-5") : "transparent",
-                  value: (f[d.key] * 100).toFixed(1) + "%",
-                  label: d.label
-                });
-              }
-            });
-            showTip(evt, f.iso3 + " · adm" + f.adm_level + " · " +
-              (f.n || "?") + " units", rows.length ? rows :
-              [{ color: "transparent", value: "—", label: "no coverage" }]);
+        var rings = RINGS[k];
+        if (rings) {
+          ctx.beginPath();
+          pctx.beginPath();
+          for (var r = 0; r < rings.length; r++) {
+            var ring = rings[r];
+            for (var p = 0; p < ring.length; p += 2) {
+              var X = sx(ring[p]), Y = sy(ring[p + 1]);
+              if (p === 0) { ctx.moveTo(X, Y); pctx.moveTo(X, Y); }
+              else { ctx.lineTo(X, Y); pctx.lineTo(X, Y); }
+            }
+            ctx.closePath();
+            pctx.closePath();
           }
-          node.addEventListener("pointermove", over);
-          node.addEventListener("pointerleave", hideTip);
-          node.addEventListener("focus", function () {
-            var b = node.getBoundingClientRect();
-            over({ clientX: b.left + b.width / 2, clientY: b.top });
-          });
-          node.addEventListener("blur", hideTip);
+          ctx.fillStyle = fill;
+          ctx.fill("evenodd");
+          if (lw) ctx.stroke();
+          pctx.fillStyle = idToColor(k);
+          pctx.fill("evenodd");
+        } else if (f.m) {
+          var mx = sx(f.m[0]), my = sy(f.m[1]);
+          var rad = Math.max(2.5 * dpr, Math.min(7 * dpr, 60 / view.w * dpr));
+          ctx.beginPath();
+          ctx.arc(mx, my, rad, 0, 6.2832);
+          ctx.fillStyle = fill;
+          ctx.fill();
+          if (lw) ctx.stroke();
+          pctx.beginPath();
+          pctx.arc(mx, my, rad + 1, 0, 6.2832);
+          pctx.fillStyle = idToColor(k);
+          pctx.fill();
         }
+      }
+    }
 
-        if (f.rings) {
-          var d = f.rings.map(function (r) {
-            return "M" + r.map(function (c) {
-              return px(c[0]).toFixed(1) + "," + py(c[1]).toFixed(1);
-            }).join("L") + "Z";
-          }).join(" ");
-          var p = el("path", { d: d, fill: fillc,
-            stroke: color("--surface-1"), "stroke-width": 0.4,
-            "stroke-linejoin": "round" }, svg);
-          p.appendChild(el("title", {}, null)).textContent = title;
-          attach(p);
-        } else if (f.pt) {
-          var c = el("circle", { cx: px(f.pt[0]).toFixed(1),
-            cy: py(f.pt[1]).toFixed(1), r: 3.4, fill: fillc,
-            stroke: color("--surface-1"), "stroke-width": 1.2 }, svg);
-          c.appendChild(el("title", {}, null)).textContent = title;
-          attach(c);
+    function featureAt(evt) {
+      var b = cv.getBoundingClientRect();
+      var x = Math.round((evt.clientX - b.left) / b.width * pick.width);
+      var y = Math.round((evt.clientY - b.top) / b.height * pick.height);
+      if (x < 0 || y < 0 || x >= pick.width || y >= pick.height) return -1;
+      var d = pctx.getImageData(x, y, 1, 1).data;
+      var id = d[0] | (d[1] << 8) | (d[2] << 16);
+      return id > 0 ? id - 1 : -1;
+    }
+
+    function bindInteraction() {
+      var dragging = false, lastX = 0, lastY = 0, moved = false;
+
+      cv.addEventListener("pointermove", function (evt) {
+        if (dragging) {
+          var b = cv.getBoundingClientRect();
+          var dx = (evt.clientX - lastX) / b.width * view.w;
+          var dy = (evt.clientY - lastY) / b.height * view.h;
+          view.x -= dx; view.y += dy;
+          lastX = evt.clientX; lastY = evt.clientY;
+          moved = true;
+          draw();
+          hideTip();
+          return;
         }
+        var id = featureAt(evt);
+        if (id < 0) { hideTip(); return; }
+        var f = FEATS[id];
+        var rows = DS.filter(function (d) {
+          return typeof f[d.key] === "number";
+        }).map(function (d) {
+          var v = f[d.key];
+          return {
+            color: d.key === current ? color("--map-5") : "transparent",
+            value: v < 0 ? "no value" : (v * 100).toFixed(1) + "%",
+            label: d.label
+          };
+        });
+        showTip(evt, f.p + " · " + f.i + " · adm" + f.l,
+          rows.length ? rows
+            : [{ color: "transparent", value: "—", label: "no coverage" }]);
       });
+      cv.addEventListener("pointerleave", hideTip);
+      cv.addEventListener("pointerdown", function (evt) {
+        dragging = true; moved = false;
+        lastX = evt.clientX; lastY = evt.clientY;
+        cv.setPointerCapture(evt.pointerId);
+        cv.style.cursor = "grabbing";
+      });
+      cv.addEventListener("pointerup", function (evt) {
+        dragging = false;
+        cv.style.cursor = "grab";
+        try { cv.releasePointerCapture(evt.pointerId); } catch (e) {}
+      });
+      cv.addEventListener("wheel", function (evt) {
+        evt.preventDefault();
+        var b = cv.getBoundingClientRect();
+        var fx = (evt.clientX - b.left) / b.width;
+        var fy = (evt.clientY - b.top) / b.height;
+        var lon = view.x + fx * view.w;
+        var lat = view.y - fy * view.h;
+        var k = evt.deltaY > 0 ? 1.18 : 1 / 1.18;
+        var nw = Math.min(HOME.w, Math.max(1.2, view.w * k));
+        var nh = nw * (HOME.h / HOME.w);
+        view.x = lon - fx * nw;
+        view.y = lat + fy * nh;
+        view.w = nw; view.h = nh;
+        draw();
+      }, { passive: false });
+    }
 
-      // legend
+    function renderLegend(counts) {
       legEl.textContent = "";
       var lw = document.createElement("div");
       lw.className = "legwrap";
-      R.forEach(function (c, i) {
+      ramp().forEach(function (c, i) {
         var k = document.createElement("span");
         k.className = "legkey";
         var sw = document.createElement("span");
@@ -710,41 +805,63 @@
         tx.textContent = BIN_LABELS[i];
         k.appendChild(sw); k.appendChild(tx); lw.appendChild(k);
       });
+      if (counts.dropped) {
+        var kd = document.createElement("span");
+        kd.className = "legkey";
+        var sd = document.createElement("span");
+        sd.className = "legsw";
+        sd.style.background = color("--map-dropped");
+        var td = document.createElement("span");
+        td.textContent = "no value under the old method (" +
+          counts.dropped + ")";
+        kd.appendChild(sd); kd.appendChild(td); lw.appendChild(kd);
+      }
       var note = document.createElement("span");
       note.className = "legnote";
-      note.textContent = "share of averaging weight that moves · " +
-        drawn + " countries" + (missing ? " · " + missing + " not covered" : "");
+      note.textContent = counts.total.toLocaleString("en-US") +
+        " admin units · scroll to zoom, drag to pan";
       lw.appendChild(note);
       legEl.appendChild(lw);
+    }
 
-      // table: extremes
+    function renderTable() {
       tbody.textContent = "";
-      var sorted = DATA.features.filter(function (f) {
-        return typeof f[current] === "number";
+      var withV = FEATS.filter(function (f) {
+        return typeof f[current] === "number" && f[current] >= 0;
       }).sort(function (a, b) { return b[current] - a[current]; });
-      var pick = sorted.slice(0, 8).concat([null]).concat(sorted.slice(-5));
-      pick.forEach(function (f) {
+      var pick2 = withV.slice(0, 8).concat([null]).concat(withV.slice(-4));
+      pick2.forEach(function (f) {
         var tr = document.createElement("tr");
         if (f === null) {
           var td = document.createElement("td");
-          td.colSpan = 7;
-          td.textContent = "…";
+          td.colSpan = 7; td.textContent = "…";
           td.style.color = color("--muted");
           tr.appendChild(td); tbody.appendChild(tr); return;
         }
-        [f.iso3, "adm" + f.adm_level, f.n || "—"].forEach(function (v) {
+        [f.p, f.i, "adm" + f.l].forEach(function (v) {
           var td = document.createElement("td");
           td.textContent = v; tr.appendChild(td);
         });
         DS.forEach(function (d) {
           var td = document.createElement("td");
-          td.textContent = typeof f[d.key] === "number"
-            ? (f[d.key] * 100).toFixed(1) + "%" : "—";
+          var v = f[d.key];
+          td.textContent = typeof v !== "number" ? "—"
+            : v < 0 ? "none" : (v * 100).toFixed(1) + "%";
           if (d.key === current) td.style.fontWeight = "600";
           tr.appendChild(td);
         });
         tbody.appendChild(tr);
       });
+    }
+
+    function refresh() {
+      draw();
+      var dropped = 0;
+      FEATS.forEach(function (f) {
+        if (f[current] === -1) dropped++;
+      });
+      renderLegend({ total: FEATS.length, dropped: dropped });
+      renderTable();
     }
 
     function buildControls() {
@@ -756,22 +873,55 @@
         b.textContent = d.label + " " + d.res;
         b.addEventListener("click", function () {
           current = d.key;
-          Array.prototype.forEach.call(
-            ctlEl.querySelectorAll(".mapbtn"),
-            function (x) { x.classList.remove("on"); }
-          );
+          Array.prototype.forEach.call(ctlEl.querySelectorAll(".mapbtn"),
+            function (x) { x.classList.remove("on"); });
           b.classList.add("on");
-          render();
+          refresh();
         });
         ctlEl.appendChild(b);
       });
+      var reset = document.createElement("button");
+      reset.type = "button";
+      reset.className = "mapbtn reset";
+      reset.textContent = "Reset view";
+      reset.addEventListener("click", function () {
+        view = { x: HOME.x, y: HOME.y, w: HOME.w, h: HOME.h };
+        draw();
+      });
+      ctlEl.appendChild(reset);
     }
 
-    fetch("map_data.json").then(function (r) { return r.json(); })
-      .then(function (j) { DATA = j; buildControls(); render(); })
-      .catch(function () {
-        mapEl.textContent = "Could not load map data.";
-      });
+    fetch("admin_map.json").then(function (r) { return r.json(); })
+      .then(function (j) {
+        DATA = j;
+        FEATS = j.features;
+        var q = j.quant;
+        // decode delta rings once, into absolute degrees
+        RINGS = FEATS.map(function (f) {
+          if (!f.r) return null;
+          return f.r.map(function (enc) {
+            var out = new Float32Array(enc.length);
+            var x = enc[0], y = enc[1];
+            out[0] = x * q; out[1] = y * q;
+            for (var p = 2; p < enc.length; p += 2) {
+              x += enc[p]; y += enc[p + 1];
+              out[p] = x * q; out[p + 1] = y * q;
+            }
+            return out;
+          });
+        });
+        wrap.textContent = "";
+        wrap.appendChild(cv);
+        cv.style.cursor = "grab";
+        sizeCanvas();
+        buildControls();
+        bindInteraction();
+        refresh();
+        window.addEventListener("resize", function () {
+          sizeCanvas(); draw();
+        });
+      })
+      .catch(function () { wrap.textContent = "Could not load map data."; });
   })();
 
   // ---- difference vs polygon size (4 series, log y) ----

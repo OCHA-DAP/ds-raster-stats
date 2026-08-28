@@ -18,6 +18,9 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from src.config.settings import DATABASES
 
+# extra dimensions any dataset may add (src/config/*.yml)
+EXTRA_DIM_COLUMNS = ("leadtime", "band")
+
 
 def db_engine_url(mode):
     """
@@ -267,6 +270,19 @@ def insert_qa_table(iso3, adm_level, dataset, error, stack_trace, engine):
     return
 
 
+def unique_key_columns(keys):
+    """The unique-key columns for a dataset table, in schema order.
+
+    Mirrors create_dataset_table: valid_date + pcode, plus whichever
+    extra dims that dataset carries.
+    """
+    return [
+        c
+        for c in ["valid_date", "pcode"] + list(EXTRA_DIM_COLUMNS)
+        if c in keys
+    ]
+
+
 def postgres_upsert(table, conn, keys, data_iter, constraint=None):
     """
     Perform an upsert (insert or update) operation on a PostgreSQL table. Adapted from:
@@ -299,13 +315,17 @@ def postgres_upsert(table, conn, keys, data_iter, constraint=None):
             set_={c.key: c for c in insert_statement.excluded},
         )
     else:
-        # sqlite (local mode) can't reference a constraint by name;
-        # use the unique-key columns instead (see create_dataset_table)
+        # sqlite (local mode) can't reference a constraint by name, so
+        # use the unique-key columns. Read them off the table rather than
+        # hardcoding, so a new extra_dim in a dataset yml stays in sync.
         index_elements = [
-            col
-            for col in ["valid_date", "pcode", "leadtime", "band"]
-            if col in keys
+            c.name
+            for uc in table.table.constraints
+            if isinstance(uc, UniqueConstraint)
+            for c in uc.columns
         ]
+        if not index_elements:
+            index_elements = unique_key_columns(keys)
         insert_statement = sqlite_insert(table.table).values(data)
         upsert_statement = insert_statement.on_conflict_do_update(
             index_elements=index_elements,

@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import tempfile
 import zipfile
@@ -68,9 +69,15 @@ def load_shp(shp_url, shp_dir, iso3):
 def load_shp_cached(iso3, mode, cache_dir=None):
     """
     Download and extract a country's zipped shapefile from Azure Blob
-    Storage into a per-run cache directory, reusing it if already
-    present. The extraction is atomic (extract to a temp dir, then
-    rename), so concurrent worker processes can share the cache safely.
+    Storage into a cache directory, reusing it if already present. The
+    extraction is atomic (extract to a temp dir, then rename), so
+    concurrent worker processes can share the cache safely.
+
+    The cache directory is keyed on the blob's ETag, so a hand-refreshed
+    COD in blob is picked up on the next run rather than being masked by
+    a stale copy on a long-lived host. Without that, the weight cache
+    (which keys on the geometry it is given) would stay perfectly
+    consistent with boundaries that are silently out of date.
 
     Parameters
     ----------
@@ -96,7 +103,19 @@ def load_shp_cached(iso3, mode, cache_dir=None):
                 tempfile.gettempdir(), "raster-stats-cache", "boundaries"
             ),
         )
-    target_dir = os.path.join(cache_dir, mode, iso3.lower())
+    blob_mode = "dev" if mode == "local" else mode
+    try:
+        props = (
+            get_container_client(blob_mode, "polygon")
+            .get_blob_client(f"{iso3.lower()}_shp.zip")
+            .get_blob_properties()
+        )
+        tag = re.sub(r"[^A-Za-z0-9]", "", str(props.etag))[:16]
+    except Exception:
+        # can't reach the blob to check: fall back to an unversioned
+        # directory rather than failing the country outright
+        tag = "unversioned"
+    target_dir = os.path.join(cache_dir, mode, f"{iso3.lower()}_{tag}")
     if os.path.isdir(target_dir):
         return target_dir
 
@@ -149,6 +168,16 @@ def load_shp_from_azure(iso3, shp_dir, mode):
         zip_ref.extractall(shp_dir)
 
 
+def _iso3_table(engine):
+    """Qualify with the schema on postgres; sqlite has no schemas.
+
+    Leaving it unqualified on postgres would resolve through
+    `search_path`, so a same-named table in another schema on the
+    search path would silently be read instead.
+    """
+    return "public.iso3" if engine.dialect.name == "postgresql" else "iso3"
+
+
 def get_iso3_data(iso3_codes, engine):
     """
     Retrieve ISO3 data from a database for given ISO3 code(s).
@@ -169,13 +198,14 @@ def get_iso3_data(iso3_codes, engine):
     if iso3_codes and len(iso3_codes) > 0:
         # IN with an expanding bindparam works on both postgres and
         # local sqlite (unlike ANY)
-        query = text("SELECT * FROM iso3 WHERE iso3 IN :codes").bindparams(
+        table = _iso3_table(engine)
+        query = text(f"SELECT * FROM {table} WHERE iso3 IN :codes").bindparams(
             bindparam("codes", expanding=True)
         )
         params = {"codes": list(iso3_codes)}
         df = pd.read_sql_query(query, engine.connect(), params=params)
     else:
-        query = text("SELECT * FROM iso3")
+        query = text(f"SELECT * FROM {_iso3_table(engine)}")
         df = pd.read_sql_query(query, engine.connect())
 
     return df

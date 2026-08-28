@@ -81,8 +81,17 @@ RES = 0.4
 NX, NY = 30, 25
 X0, Y0 = 2.6, 14.0
 
-N_ADMINS = [10, 50, 200, 800, 3000]
-N_DATES = [1, 10, 50, 200, 700]
+
+def _ints(name, default):
+    raw = os.environ.get(name)
+    return [int(x) for x in raw.split(",")] if raw else default
+
+
+# Overridable so the cheap corners can be re-run on their own: the cold
+# weight-build cost is fixed per (country, level), so it is the n_dates=1
+# column that shows it, and that column costs seconds rather than hours.
+N_ADMINS = _ints("BENCH2D_ADMINS", [10, 50, 200, 800, 3000])
+N_DATES = _ints("BENCH2D_DATES", [1, 10, 50, 200, 700])
 
 
 def log(m):

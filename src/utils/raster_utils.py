@@ -34,7 +34,7 @@ def validate_dimensions(ds):
 
 
 def validate_stats(iso3, stats):
-    logger.debug("Validating rows...")
+    # logger.debug("Validating rows...")
 
     pattern = re.compile("^[A-Z]{3}$")
 
@@ -453,7 +453,7 @@ def prep_raster(ds, gdf_adm, logger=None):
 
     logger.debug("Clipping raster to iso3 bounds and persisting in memory...")
     minx, miny, maxx, maxy = gdf_adm.total_bounds
-    ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny)).persist()
+    ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny))  # .persist()
     logger.debug("Upsampling raster...")
     ds_resampled = upsample_raster(ds_clip, logger=logger)
     logger.debug("Raster prep completed.")

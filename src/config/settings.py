@@ -113,8 +113,9 @@ def config_pipeline(dataset, test, update, mode, backfill, engine):
         start_date = get_most_recent_date(mode, config["blob_prefix"])
         end_date = None
 
+    chunk_size = config["date_chunks"] if "date_chunks" in config else 100
     dates = generate_date_series(
-        start_date, end_date, frequency, missing_dates
+        start_date, end_date, frequency, missing_dates, chunk_size=chunk_size
     )
     output_config["date_chunks"] = dates
 

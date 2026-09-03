@@ -49,9 +49,10 @@ def cli_args():
     )
     parser.add_argument(
         "--num-processes",
-        help="""Number of worker processes. Defaults to the
-        NUM_PROCESSES env var, or 2. Each worker stacks and persists
-        its own COGs, so raising this raises peak memory.""",
+        help="""Number of Spark task slots to target. Defaults to
+        spark.sparkContext.defaultParallelism (the cluster's available
+        executor cores). Each task stacks and persists its own COGs,
+        so raising this raises peak memory per executor.""",
         type=int,
         default=None,
     )

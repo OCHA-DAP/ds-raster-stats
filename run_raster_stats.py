@@ -1,16 +1,17 @@
 import logging
+import os
 import sys
 import traceback
-from multiprocessing import Pool, current_process
 
 import coloredlogs
 import geopandas as gpd
 import pandas as pd
+from pyspark import TaskContext
+from pyspark.sql import SparkSession
 from sqlalchemy import create_engine
 
 from src.config.settings import (
     LOG_LEVEL,
-    NUM_PROCESSES,
     UPSAMPLED_RESOLUTION,
     config_pipeline,
 )
@@ -55,8 +56,9 @@ def setup_logger(name, level=logging.INFO):
 def process_chunk(
     dates, dataset, mode, df_iso3s, engine_url, chunksize, forecast
 ):
-    process_name = current_process().name
-    logger = setup_logger(f"{process_name}: {dataset}_{dates[0]}")
+    tc = TaskContext.get()
+    task_label = f"partition-{tc.partitionId()}" if tc else "local"
+    logger = setup_logger(f"{task_label}: {dataset}_{dates[0]}")
     logger.info(
         f"""
         Starting processing for {len(dates)} dates for {dataset}
@@ -148,11 +150,11 @@ def process_chunk(
 
 def build_tasks(date_chunks, df_iso3s, num_processes):
     """
-    Build (dates, df_iso3s) work items for the process pool.
+    Build (dates, df_iso3s) work items, one per Spark task.
 
     Date chunks are the primary unit of parallelism. When there are
-    fewer chunks than workers (e.g. the daily/monthly update runs,
-    which have a single date), countries are also split across workers
+    fewer chunks than task slots (e.g. the daily/monthly update runs,
+    which have a single date), countries are also split across tasks
     so the run still parallelizes.
     """
     if not len(df_iso3s):
@@ -225,11 +227,16 @@ if __name__ == "__main__":
     df_iso3s = get_iso3_data(config["sel_iso3s"], engine)
     date_chunks = config["date_chunks"]
 
-    num_processes = args.num_processes or NUM_PROCESSES
+    builder = SparkSession.builder.appName("raster-stats")
+    if "DATABRICKS_RUNTIME_VERSION" not in os.environ:
+        builder = builder.master("local[*]")
+    spark = builder.getOrCreate()
+
+    num_processes = args.num_processes or spark.sparkContext.defaultParallelism
     tasks = build_tasks(date_chunks, df_iso3s, num_processes)
     logger.info(
         f"Processing {len(date_chunks)} date chunks "
-        f"({len(tasks)} tasks) with {num_processes} processes"
+        f"({len(tasks)} tasks) with {num_processes} Spark task slots"
     )
 
     process_args = [
@@ -245,7 +252,10 @@ if __name__ == "__main__":
         for dates, df_iso3s_group in tasks
     ]
 
-    with Pool(num_processes) as pool:
-        pool.starmap(process_chunk, process_args)
+    if process_args:
+        rdd = spark.sparkContext.parallelize(
+            process_args, numSlices=len(process_args)
+        )
+        rdd.foreach(lambda t: process_chunk(*t))
 
     logger.info("Done calculating and saving stats.")

@@ -108,7 +108,19 @@ def process_chunk(
                 if not all_results:
                     continue
                 df_all_results = pd.concat(all_results, ignore_index=True)
+
+                if dataset == "chirps":
+                    n_before = len(df_all_results)
+                    df_all_results = df_all_results[
+                        df_all_results["mean"] != 0
+                    ]
+                    logger.debug(
+                        f"Dropped {n_before - len(df_all_results)} "
+                        "zero-precipitation row(s) for chirps..."
+                    )
+
                 validate_stats_df(df_all_results, forecast)
+
                 logger.debug(
                     f"Writing {len(df_all_results)} rows to database..."
                 )

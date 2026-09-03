@@ -143,6 +143,16 @@ def build_tasks(date_chunks, df_iso3s, num_processes):
     which have a single date), countries are also split across workers
     so the run still parallelizes.
     """
+    if not len(df_iso3s):
+        # never a valid production state: a typo'd sel_iso3s or the wrong
+        # DB would otherwise look identical to a completed run
+        raise ValueError(
+            "No countries selected -- check public.iso3 and any "
+            "configured iso3s filter"
+        )
+    if not date_chunks:
+        logger.warning("No dates to process; nothing to do")
+        return []
     n_groups = min(
         -(-num_processes // len(date_chunks)),  # ceil division
         len(df_iso3s),

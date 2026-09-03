@@ -18,6 +18,12 @@ upsampled pixels). ``mean``/``median``/``std`` are scale-invariant.
 legacy method included only pixels with at least one upsampled-pixel
 centroid inside the polygon.
 
+An admin unit smaller than half a 0.05-degree pixel-equivalent has its
+``count`` floored to 1 so that a non-null mean always implies
+``count > 0`` (the legacy invariant). ``sum`` follows that floored count
+rather than staying area-true, so ``mean == sum / count`` still holds
+for those rows.
+
 Weight matrices only depend on the admin boundaries and the raster
 grid, so they are cached on disk and reused across date chunks and
 worker processes.
@@ -48,6 +54,9 @@ WEIGHTS_CACHE_DIR = os.getenv(
 )
 
 STATS = ["mean", "max", "min", "median", "sum", "std", "count"]
+
+# discard coverage fractions below this as float noise
+COVERAGE_EPS = 1e-9
 
 
 def clip_raster(ds, gdf_adm, logger=None):
@@ -166,7 +175,12 @@ def build_weights(gdf, pcode_col, ds):
     for i, (cell_ids, coverage) in enumerate(
         zip(df_cov["cell_id"], df_cov["coverage"])
     ):
-        keep = coverage > 0
+        # Numerical floor, not a semantic one: coverage along a shared
+        # polygon/pixel edge can come back ~1e-16 rather than exactly 0,
+        # and such a pixel would otherwise participate fully in min/max
+        # and could hand a geometrically-empty unit a floored count of 1.
+        # Far below any meaningful weight, far above accumulated error.
+        keep = coverage > COVERAGE_EPS
         rows.append(np.full(keep.sum(), i))
         cols.append(cell_ids[keep])
         vals.append(coverage[keep])
@@ -184,29 +198,37 @@ def build_weights(gdf, pcode_col, ds):
     return W
 
 
-def _weights_cache_path(iso3, adm_level, ds):
-    """Cache filename keyed on country, admin level, and exact grid."""
+def _weights_cache_path(iso3, adm_level, ds, gdf):
+    """Cache filename keyed on the exact grid AND the exact boundaries.
+
+    The boundary hash matters: the COD polygon cache in blob is refreshed
+    by hand, and without it a refreshed boundary would silently reuse
+    weights built against the previous one.
+    """
     xmin, ymin, xmax, ymax, height, width = _grid_params(ds)
-    grid_key = hashlib.md5(
+    h = hashlib.md5(
         f"{xmin:.6f}_{ymin:.6f}_{xmax:.6f}_{ymax:.6f}_{height}_{width}".encode()
-    ).hexdigest()[:12]
+    )
+    for wkb in gdf.geometry.to_wkb():
+        h.update(wkb)
     return os.path.join(
-        WEIGHTS_CACHE_DIR, f"{iso3.lower()}_adm{adm_level}_{grid_key}.npz"
+        WEIGHTS_CACHE_DIR,
+        f"{iso3.lower()}_adm{adm_level}_{h.hexdigest()[:16]}.npz",
     )
 
 
 def load_or_build_weights(gdf, pcode_col, iso3, adm_level, ds, logger=None):
     """
-    Load the coverage-weight matrix for (iso3, adm_level, grid) from
-    the on-disk cache, or build and cache it. The cache lets weights be
-    reused across date chunks and worker processes within a run (and
-    across runs when the cache directory persists).
+    Load the coverage-weight matrix for (iso3, adm_level, grid,
+    boundaries) from the on-disk cache, or build and cache it. The cache
+    lets weights be reused across date chunks and worker processes
+    within a run (and across runs when the cache directory persists).
     """
     if logger is None:
         logger = logging.getLogger(__name__)
         logger.addHandler(logging.NullHandler())
 
-    path = _weights_cache_path(iso3, adm_level, ds)
+    path = _weights_cache_path(iso3, adm_level, ds, gdf)
     if os.path.exists(path):
         try:
             return sparse.load_npz(path)
@@ -291,14 +313,23 @@ def weighted_zonal_stats(values, W, scale):
     # `count > 0` filters don't silently drop the sub-pixel admin units
     # that exact coverage fractions are meant to rescue.
     counts = np.rint(w_count * scale).astype(int)
-    counts = np.where((w_count > 0) & (counts == 0), 1, counts)
+    floored = (w_count > 0) & (counts == 0)
+    counts = np.where(floored, 1, counts)
+
+    # `sum` follows the floored count rather than staying area-true, so
+    # the row keeps mean == sum / count. Area-truth is already fictional
+    # once count has been rounded up from a fraction, and a row where
+    # sum / count is under half the mean reads as corrupt to anything
+    # that reconstructs or sanity-checks a mean that way.
+    sums_out = sums * scale
+    sums_out = np.where(floored, mean * counts, sums_out)
 
     return {
         "mean": mean,
         "max": maxs,
         "min": mins,
         "median": medians,
-        "sum": sums * scale,
+        "sum": sums_out,
         "std": stds,
         "count": counts,
     }
@@ -418,7 +449,14 @@ def zonal_stats_runner(
         *(["date", fourth_dim, "y", "x"] if fourth_dim else ["date", "y", "x"])
     )
 
-    native_res = abs(ds.rio.resolution()[0])
+    res_x, res_y = ds.rio.resolution()
+    if not np.isclose(abs(res_x), abs(res_y), rtol=1e-6):
+        raise ValueError(
+            "Non-square pixels "
+            f"({abs(res_x)} x {abs(res_y)}): the count/sum scale factor "
+            "assumes square pixels"
+        )
+    native_res = abs(res_x)
     scale = (native_res / UPSAMPLED_RESOLUTION) ** 2
 
     W = load_or_build_weights(

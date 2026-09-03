@@ -50,7 +50,8 @@ def cli_args():
     parser.add_argument(
         "--num-processes",
         help="""Number of worker processes. Defaults to the
-        NUM_PROCESSES env var, or 4.""",
+        NUM_PROCESSES env var, or 2. Each worker stacks and persists
+        its own COGs, so raising this raises peak memory.""",
         type=int,
         default=None,
     )

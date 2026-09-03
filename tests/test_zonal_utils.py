@@ -195,22 +195,50 @@ def test_runner_admin_without_coverage():
 
 
 def test_subpixel_admin_keeps_count_at_least_one():
-    """A polygon smaller than half a pixel still gets count >= 1, so a
-    non-null mean always implies count > 0 (what the legacy method did,
-    and what downstream `count > 0` filters assume)."""
+    """A polygon too small to round to one pixel-equivalent still gets
+    count >= 1, so a non-null mean always implies count > 0 (the legacy
+    invariant, and what downstream `count > 0` filters assume).
+
+    Sizing matters: the grid is 1 degree and scale is (1/0.05)**2 = 400,
+    so the floor only fires below 0.00125 of a pixel. 0.03 x 0.03 gives
+    9e-4 of a pixel -> 0.36 pixel-equivalents -> rint 0 -> floored.
+    """
     data = np.full((1, 6, 6), 5.0)
     da = make_da(data, coords={"date": ["2021-01-01"]})
-    # ~1/25th of one 1-degree pixel, well under the rounding threshold
-    # (the grid spans x -5..1, y -1..5)
-    tiny = box(-4.9, 0.1, -4.7, 0.3)
+    tiny = box(-4.99, 0.01, -4.96, 0.04)
     gdf = gpd.GeoDataFrame(
         {"geometry": [tiny], "ADM2_PCODE": ["TINY"]}, crs="EPSG:4326"
     )
 
+    # the floor must actually be the thing under test
+    W = zonal_utils.build_weights(gdf, "ADM2_PCODE", da)
+    raw = float(W.sum()) * (1.0 / 0.05) ** 2
+    assert raw < 0.5, f"polygon too big to exercise the floor (raw {raw})"
+
     result = zonal_stats_runner(ds=da, gdf=gdf, adm_level=2, iso3="TST")
     row = result.iloc[0]
     assert row["mean"] == pytest.approx(5.0)
-    assert row["count"] >= 1
+    assert row["count"] == 1
+    # sum follows the floored count so the row stays self-consistent
+    assert row["sum"] == pytest.approx(5.0)
+    assert row["sum"] / row["count"] == pytest.approx(row["mean"])
+
+
+def test_epsilon_coverage_slivers_are_dropped():
+    """A polygon sharing only an edge with a pixel must not pick that
+    pixel up through float-epsilon coverage."""
+    data = np.arange(36, dtype=float).reshape(1, 6, 6)
+    da = make_da(data, coords={"date": ["2021-01-01"]})
+    # exactly one grid cell, so neighbours touch only along the edges
+    one_cell = box(-5.0, 0.0, -4.0, 1.0)
+    gdf = gpd.GeoDataFrame(
+        {"geometry": [one_cell], "ADM1_PCODE": ["ONE"]}, crs="EPSG:4326"
+    )
+    W = zonal_utils.build_weights(gdf, "ADM1_PCODE", da)
+    assert W.nnz == 1, f"edge-sharing neighbours leaked in (nnz {W.nnz})"
+
+    row = zonal_stats_runner(ds=da, gdf=gdf, adm_level=1, iso3="TST").iloc[0]
+    assert row["min"] == row["max"], "min/max drew on a neighbouring pixel"
 
 
 def test_clip_raster_renames_floodscan_bands():
@@ -239,6 +267,21 @@ def test_weighted_median_handles_nan_and_empty():
     result = _weighted_median(vals, w)
     assert result[0] == 3.0
     assert np.isnan(result[1])
+
+
+def test_weights_cache_invalidates_when_boundaries_change(random_gdf):
+    """A refreshed COD boundary must not reuse the previous weights."""
+    data = np.zeros((1, 10, 10))
+    da = make_da(data, coords={"date": ["2021-01-01"]})
+    W1 = zonal_utils.load_or_build_weights(
+        random_gdf, "ADM1_PCODE", "TST", 1, da
+    )
+
+    moved = random_gdf.copy()
+    moved["geometry"] = moved.geometry.translate(xoff=1.5)
+    W2 = zonal_utils.load_or_build_weights(moved, "ADM1_PCODE", "TST", 1, da)
+
+    assert (W1 != W2).nnz > 0, "shifted boundaries returned cached weights"
 
 
 def test_weights_cache_roundtrip(random_gdf):

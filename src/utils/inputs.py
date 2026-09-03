@@ -47,4 +47,13 @@ def cli_args():
         action="store_true",
         help="Whether to check and backfill for any missing dates",
     )
+    parser.add_argument(
+        "--num-processes",
+        help="""Number of Spark task slots to target. Defaults to
+        spark.sparkContext.defaultParallelism (the cluster's available
+        executor cores). Each task stacks and persists its own COGs,
+        so raising this raises peak memory per executor.""",
+        type=int,
+        default=None,
+    )
     return parser.parse_args()

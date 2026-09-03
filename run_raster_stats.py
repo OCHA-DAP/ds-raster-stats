@@ -1,12 +1,14 @@
 import logging
+import os
 import sys
 import tempfile
 import traceback
-from multiprocessing import Pool, current_process
 
 import coloredlogs
 import geopandas as gpd
 import pandas as pd
+from pyspark import TaskContext
+from pyspark.sql import SparkSession
 from sqlalchemy import create_engine
 
 from src.config.settings import (
@@ -53,8 +55,9 @@ def setup_logger(name, level=logging.INFO):
 
 
 def process_chunk(dates, dataset, mode, df_iso3s, engine_url, chunksize):
-    process_name = current_process().name
-    logger = setup_logger(f"{process_name}: {dataset}_{dates[0]}")
+    tc = TaskContext.get()
+    task_label = f"partition-{tc.partitionId()}" if tc else "local"
+    logger = setup_logger(f"{task_label}: {dataset}_{dates[0]}")
     logger.info(
         f"""
         Starting processing for {len(dates)} dates for {dataset}
@@ -190,9 +193,14 @@ if __name__ == "__main__":
     df_iso3s = get_iso3_data(config["sel_iso3s"], engine)
     date_chunks = config["date_chunks"]
 
-    NUM_PROCESSES = 2
+    builder = SparkSession.builder.appName("raster-stats")
+    if "DATABRICKS_RUNTIME_VERSION" not in os.environ:
+        builder = builder.master("local[*]")
+    spark = builder.getOrCreate()
+
+    num_processes = args.num_processes or spark.sparkContext.defaultParallelism
     logger.info(
-        f"Processing {len(date_chunks)} date chunks with {NUM_PROCESSES} processes"
+        f"Processing {len(date_chunks)} date chunks with {num_processes} Spark task slots"
     )
 
     process_args = [
@@ -200,7 +208,10 @@ if __name__ == "__main__":
         for dates in date_chunks
     ]
 
-    with Pool(NUM_PROCESSES) as pool:
-        pool.starmap(process_chunk, process_args)
+    if process_args:
+        rdd = spark.sparkContext.parallelize(
+            process_args, numSlices=len(process_args)
+        )
+        rdd.foreach(lambda t: process_chunk(*t))
 
     logger.info("Done calculating and saving stats.")

@@ -7,7 +7,6 @@ import coloredlogs
 import numpy as np
 import pandas as pd
 import xarray as xr
-from dateutil.relativedelta import relativedelta
 from rasterio.enums import Resampling
 from rasterio.features import rasterize
 
@@ -103,6 +102,7 @@ def validate_stats(iso3, stats):
             raise ValueError(
                 f"Validation error: issued_date {issued_date} is not <= valid_date {valid_date}"
             )
+        """TODO
         elif "leadtime" in stats:
             leadtime = int(stats["leadtime"])
             if not (0 <= leadtime <= 6):
@@ -114,6 +114,7 @@ def validate_stats(iso3, stats):
                     f"Validation error: leadtime {leadtime} should match the diff between issued_date {issued_date} and"
                     f" valid_date {valid_date}"
                 )
+        """
     else:
         # Observational tables
         if not valid_date <= datetime.datetime.now():

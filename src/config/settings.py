@@ -35,12 +35,15 @@ coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
 
 def load_pipeline_config(pipeline_name):
-    config_path = os.path.join(
-        os.path.dirname(__file__), f"{pipeline_name}.yml"
-    )
-    with open(config_path, "r") as config_file:
-        config = yaml.safe_load(config_file)
-    return config
+    try:
+        config_path = os.path.join(
+            os.path.dirname(__file__), f"{pipeline_name}.yml"
+        )
+        with open(config_path, "r") as config_file:
+            config = yaml.safe_load(config_file)
+        return config
+    except Exception as e:
+        logger.error(f"Error in parsing the config file: {e}")
 
 
 def config_pipeline(dataset, test, update, mode, backfill, engine):

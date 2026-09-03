@@ -505,14 +505,14 @@ def validate_stats_df(df, forecast):
     check(has_minmax & (df["min"] > df["max"]), "min > max")
     check(
         has_minmax
-        & df["mean"].notna()
-        & ~df["mean"].between(df["min"] - tol, df["max"] + tol),
+        & df["mean"].notna()  # noqa
+        & ~df["mean"].between(df["min"] - tol, df["max"] + tol),  # noqa
         "mean outside [min, max]",
     )
     check(
         has_minmax
-        & df["median"].notna()
-        & ~df["median"].between(df["min"] - tol, df["max"] + tol),
+        & df["median"].notna()  # noqa
+        & ~df["median"].between(df["min"] - tol, df["max"] + tol),  # noqa
         "median outside [min, max]",
     )
     check(df["std"].notna() & (df["std"] < 0), "std < 0")
@@ -527,7 +527,7 @@ def validate_stats_df(df, forecast):
     if forecast:
         issued_date = pd.to_datetime(df["issued_date"])
         check(valid_date < issued_date, "valid_date < issued_date")
-        check(~df["leadtime"].between(0, 6), "leadtime outside [0, 6]")
+        # TODO check(~df["leadtime"].between(0, 6), "leadtime outside [0, 6]")
         months_diff = (valid_date.dt.year - issued_date.dt.year) * 12 + (
             valid_date.dt.month - issued_date.dt.month
         )

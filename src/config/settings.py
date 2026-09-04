@@ -88,7 +88,12 @@ def config_pipeline(dataset, test, update, mode, backfill, engine):
 
     start_date = config_section["start_date"]
     end_date = config_section.get("end_date")
-    frequency = config["frequency"]
+    frequency = config_section.get("frequency")
+    chunk_size = (
+        config_section.get("chunk_size")
+        if "chunk_size" in config_section
+        else 100
+    )
 
     # Now work on getting the dates to process
     if not end_date:
@@ -110,7 +115,7 @@ def config_pipeline(dataset, test, update, mode, backfill, engine):
         end_date = None
 
     dates = generate_date_series(
-        start_date, end_date, frequency, missing_dates
+        start_date, end_date, frequency, missing_dates, chunk_size
     )
     output_config["date_chunks"] = dates
 

@@ -65,12 +65,6 @@ def process_chunk(dates, dataset, mode, df_iso3s, engine_url, chunksize):
     else:
         task_label = current_process().name
     logger = setup_logger(f"{task_label}: {dataset}_{dates[0]}")
-    logger.info(
-        f"""
-        Starting processing for {len(dates)} dates for {dataset}
-        between {dates[0].strftime('%Y-%m-%d')} to {dates[-1].strftime('%Y-%m-%d')}
-        """
-    )
 
     engine = create_engine(engine_url)
     ds = stack_cogs(dates, dataset, mode)

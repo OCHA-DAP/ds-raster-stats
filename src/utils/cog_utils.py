@@ -281,8 +281,6 @@ def stack_cogs(dates, dataset, mode="dev"):
         )
 
     logger.debug(f"Processing {len(cogs_list)} cog(s):")
-    for cog in cogs_list:
-        logger.debug(f" - {cog}")
 
     # TODO Check with Hannah what the new behavior should be here
     # if len(cogs_list) != len(dates):

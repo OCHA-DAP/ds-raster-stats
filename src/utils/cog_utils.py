@@ -147,9 +147,7 @@ def extract_date_and_leadtime_from(filepath):
 
 
 def process_chirps(cog_name, mode):
-    da_in = get_cog_da(
-        cog_name, mode, test_path="test_outputs/chirps/v3/15_day/global/data/"
-    )
+    da_in = get_cog_da(cog_name, mode)
     cog_date, leadtime = extract_date_and_leadtime_from(
         da_in.attrs["TIFFTAG_DOCUMENTNAME"]
     )

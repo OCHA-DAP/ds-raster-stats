@@ -114,8 +114,8 @@ def process_seas5(cog_name, mode):
     return da_in
 
 
-def get_cog_da(cog_name, mode, test_path=None):
-    cog_url = get_cog_url(mode, cog_name, test_path)
+def get_cog_da(cog_name, mode):
+    cog_url = get_cog_url(mode, cog_name)
     da_in = rxr.open_rasterio(cog_url, chunks="auto")
     return da_in
 
@@ -156,7 +156,6 @@ def process_chirps(cog_name, mode):
     year_valid = cog_date.year
     month_valid = cog_date.month
     day_valid = cog_date.day
-    date_in = f"{year_valid}-{month_valid}-{day_valid}"  # todo change this
     date_in = (
         f"{year_valid}-{str(month_valid).zfill(2)}-{str(day_valid).zfill(2)}"
     )
@@ -266,15 +265,18 @@ def stack_cogs(dates, dataset, mode="dev"):
     cogs_list = None
 
     try:
-        prefix = config["blob_prefix"]
-        cogs_list = [
-            x.name
-            for x in container_client.list_blobs(name_starts_with=prefix)
-            if (parse_date(x.name) in (dates))
-        ]
-    except KeyError:
-        source = config["source_url"]
-        cogs_list = get_cog_url_for_dates(dataset, source, dates)
+        prefix = config["blob_prefix"] if "blob_prefix" in config else None
+        source = config["source_url"] if "source_url" in config else None
+
+        if prefix:
+            cogs_list = [
+                x.name
+                for x in container_client.list_blobs(name_starts_with=prefix)
+                if (parse_date(x.name) in (dates))
+            ]
+        elif source:
+            source = config["source_url"]
+            cogs_list = get_cog_url_for_dates(dataset, source, dates)
     except Exception:
         logger.error(
             "Input `dataset` must be one of `floodscan`, `era5`, `seas5`, `imerg` or `chirps`."
@@ -284,7 +286,7 @@ def stack_cogs(dates, dataset, mode="dev"):
     for cog in cogs_list:
         logger.debug(f" - {cog}")
 
-    # TODO fix below
+    # TODO Check with Hannah what the new behavior should be here
     # if len(cogs_list) != len(dates):
     #    logger.warning("Not all COGs available, given input dates")
     if len(cogs_list) == 0:

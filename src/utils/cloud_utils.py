@@ -35,7 +35,7 @@ def get_container_client(mode, container_name):
     return ContainerClient.from_container_url(blob_url)
 
 
-def get_cog_url(mode, cog_name, test_path=None):
+def get_cog_url(mode, cog_name):
     """
     Generate the URL for a Cloud Optimized GeoTIFF (COG) stored in Azure Blob Storage (or locally).
     This function constructs the URL for accessing a specific COG based on the provided mode and COG name.
@@ -48,15 +48,13 @@ def get_cog_url(mode, cog_name, test_path=None):
         the appropriate URL and SAS token for the Blob Storage container.
     cog_name : str
         The name of the COG file within the Blob Storage container.
-    test_path : str
-        The custom path for testing the cogs.
     Returns
     -------
     str
         The URL for accessing the specified COG.
     """
     if mode == "local":
-        return "test_outputs/" if test_path else test_path
+        return "test_outputs/"
     elif cog_name.__contains__("https"):
         return cog_name
 

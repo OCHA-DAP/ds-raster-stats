@@ -156,6 +156,50 @@ def process_chunk(dates, dataset, mode, df_iso3s, engine_url, chunksize):
         engine.dispose()
 
 
+def build_tasks(date_chunks, df_iso3s, num_processes):
+    """
+    Build (dates, df_iso3s) work items, one per Spark task/process.
+
+    Date chunks are the primary unit of parallelism. When there are
+    fewer chunks than task slots (e.g. the daily/monthly update runs,
+    which have a single date), countries are also split across tasks
+    so the run still parallelizes.
+    """
+    if not len(df_iso3s):
+        # never a valid production state: a typo'd sel_iso3s or the wrong
+        # DB would otherwise look identical to a completed run
+        raise ValueError(
+            "No countries selected -- check public.iso3 and any "
+            "configured iso3s filter"
+        )
+    if not date_chunks:
+        logger.warning("No dates to process; nothing to do")
+        return []
+    n_groups = min(
+        -(-num_processes // len(date_chunks)),  # ceil division
+        len(df_iso3s),
+    )
+    iso3_groups = [
+        df_iso3s.iloc[i::n_groups].reset_index(drop=True)
+        for i in range(n_groups)
+    ]
+    tasks = []
+    for i, dates in enumerate(date_chunks):
+        for group in iso3_groups:
+            # Rotate the country order per chunk so concurrent workers
+            # start on different countries -- this spreads out boundary
+            # downloads and weight-matrix builds instead of having
+            # every worker compute the same country at the same time
+            offset = (i * max(1, len(group) // num_processes)) % max(
+                1, len(group)
+            )
+            rotated = pd.concat(
+                [group.iloc[offset:], group.iloc[:offset]]
+            ).reset_index(drop=True)
+            tasks.append((dates, rotated))
+    return tasks
+
+
 if __name__ == "__main__":
     args = cli_args()
 
@@ -194,10 +238,7 @@ if __name__ == "__main__":
     spark = None
     if args.no_spark:
         num_processes = args.num_processes or os.cpu_count() or 2
-        logger.info(
-            f"Processing {len(date_chunks)} date chunks with {num_processes} "
-            "processes (Spark disabled)"
-        )
+        slot_label = "processes (Spark disabled)"
     else:
         from pyspark.sql import SparkSession
 
@@ -209,14 +250,17 @@ if __name__ == "__main__":
         num_processes = (
             args.num_processes or spark.sparkContext.defaultParallelism
         )
-        logger.info(
-            f"Processing {len(date_chunks)} date chunks with {num_processes} "
-            "Spark task slots"
-        )
+        slot_label = "Spark task slots"
+
+    tasks = build_tasks(date_chunks, df_iso3s, num_processes)
+    logger.info(
+        f"Processing {len(date_chunks)} date chunks "
+        f"({len(tasks)} tasks) with {num_processes} {slot_label}"
+    )
 
     process_args = [
-        (dates, dataset, args.mode, df_iso3s, engine_url, args.chunksize)
-        for dates in date_chunks
+        (dates, dataset, args.mode, df_iso3s_group, engine_url, args.chunksize)
+        for dates, df_iso3s_group in tasks
     ]
 
     if process_args:

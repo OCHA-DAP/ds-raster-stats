@@ -3,12 +3,11 @@ import os
 import sys
 import tempfile
 import traceback
+from multiprocessing import Pool, current_process
 
 import coloredlogs
 import geopandas as gpd
 import pandas as pd
-from pyspark import TaskContext
-from pyspark.sql import SparkSession
 from sqlalchemy import create_engine
 
 from src.config.settings import (
@@ -55,8 +54,16 @@ def setup_logger(name, level=logging.INFO):
 
 
 def process_chunk(dates, dataset, mode, df_iso3s, engine_url, chunksize):
-    tc = TaskContext.get()
-    task_label = f"partition-{tc.partitionId()}" if tc else "local"
+    try:
+        from pyspark import TaskContext
+
+        tc = TaskContext.get()
+    except ImportError:
+        tc = None
+    if tc:
+        task_label = f"partition-{tc.partitionId()}"
+    else:
+        task_label = current_process().name
     logger = setup_logger(f"{task_label}: {dataset}_{dates[0]}")
     logger.info(
         f"""
@@ -193,15 +200,28 @@ if __name__ == "__main__":
     df_iso3s = get_iso3_data(config["sel_iso3s"], engine)
     date_chunks = config["date_chunks"]
 
-    builder = SparkSession.builder.appName("raster-stats")
-    if "DATABRICKS_RUNTIME_VERSION" not in os.environ:
-        builder = builder.master("local[*]")
-    spark = builder.getOrCreate()
+    spark = None
+    if args.no_spark:
+        num_processes = args.num_processes or os.cpu_count() or 2
+        logger.info(
+            f"Processing {len(date_chunks)} date chunks with {num_processes} "
+            "processes (Spark disabled)"
+        )
+    else:
+        from pyspark.sql import SparkSession
 
-    num_processes = args.num_processes or spark.sparkContext.defaultParallelism
-    logger.info(
-        f"Processing {len(date_chunks)} date chunks with {num_processes} Spark task slots"
-    )
+        builder = SparkSession.builder.appName("raster-stats")
+        if "DATABRICKS_RUNTIME_VERSION" not in os.environ:
+            builder = builder.master("local[*]")
+        spark = builder.getOrCreate()
+
+        num_processes = (
+            args.num_processes or spark.sparkContext.defaultParallelism
+        )
+        logger.info(
+            f"Processing {len(date_chunks)} date chunks with {num_processes} "
+            "Spark task slots"
+        )
 
     process_args = [
         (dates, dataset, args.mode, df_iso3s, engine_url, args.chunksize)
@@ -209,9 +229,13 @@ if __name__ == "__main__":
     ]
 
     if process_args:
-        rdd = spark.sparkContext.parallelize(
-            process_args, numSlices=len(process_args)
-        )
-        rdd.foreach(lambda t: process_chunk(*t))
+        if spark is None:
+            with Pool(num_processes) as pool:
+                pool.starmap(process_chunk, process_args)
+        else:
+            rdd = spark.sparkContext.parallelize(
+                process_args, numSlices=len(process_args)
+            )
+            rdd.foreach(lambda t: process_chunk(*t))
 
     logger.info("Done calculating and saving stats.")

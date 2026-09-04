@@ -1,6 +1,6 @@
 source_url: https://data.chc.ucsb.edu/products/CHIRPS-GEFS/v3/daily/global
 start_date: 2001-01-01
-end_date: 2001-01-02
+end_date: 2001-02-01
 frequency: D
 forecast: True
 extra_dims:

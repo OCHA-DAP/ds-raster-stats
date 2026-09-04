@@ -49,11 +49,20 @@ def cli_args():
     )
     parser.add_argument(
         "--num-processes",
-        help="""Number of Spark task slots to target. Defaults to
+        help="""Number of Spark task slots to target, or worker
+        processes when --no-spark is set. Defaults to
         spark.sparkContext.defaultParallelism (the cluster's available
-        executor cores). Each task stacks and persists its own COGs,
-        so raising this raises peak memory per executor.""",
+        executor cores), or the local CPU count with --no-spark. Each
+        task/process stacks and persists its own COGs, so raising this
+        raises peak memory per executor/worker.""",
         type=int,
         default=None,
+    )
+    parser.add_argument(
+        "--no-spark",
+        action="store_true",
+        help="""Skip Spark and run locally with multiprocessing
+        instead. Useful for local/test runs where a Spark session
+        isn't available or desired.""",
     )
     return parser.parse_args()

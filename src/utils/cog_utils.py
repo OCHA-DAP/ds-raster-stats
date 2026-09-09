@@ -4,11 +4,13 @@ from datetime import date, datetime
 from urllib.parse import urljoin
 
 import coloredlogs
+import numpy as np
 import requests
 import rioxarray as rxr
 import tqdm
 import xarray as xr
 from bs4 import BeautifulSoup
+from rasterio.enums import Resampling
 
 from src.config.settings import LOG_LEVEL, load_pipeline_config
 from src.utils.cloud_utils import get_cog_url, get_container_client
@@ -114,10 +116,25 @@ def process_seas5(cog_name, mode):
     return da_in
 
 
-def get_cog_da(cog_name, mode):
+def get_da_downsampled(da_in):
+    downscale_factor = 0.5
+    new_width = int(da_in.rio.width * downscale_factor)
+    new_height = int(da_in.rio.height * downscale_factor)
+
+    da_in_downsampled = da_in.rio.reproject(
+        da_in.rio.crs,
+        shape=(new_height, new_width),
+        resampling=Resampling.nearest,
+        nodata=np.nan,
+    )
+    return da_in_downsampled
+
+
+def get_cog_da(cog_name, mode, downsample=False):
     cog_url = get_cog_url(mode, cog_name)
     da_in = rxr.open_rasterio(cog_url, chunks="auto")
-    return da_in
+
+    return get_da_downsampled(da_in) if downsample else da_in
 
 
 def process_floodscan(cog_name, mode):
@@ -147,7 +164,7 @@ def extract_date_and_leadtime_from(filepath):
 
 
 def process_chirps(cog_name, mode):
-    da_in = get_cog_da(cog_name, mode)
+    da_in = get_cog_da(cog_name, mode, downsample=True)
     cog_date, leadtime = extract_date_and_leadtime_from(
         da_in.attrs["TIFFTAG_DOCUMENTNAME"]
     )

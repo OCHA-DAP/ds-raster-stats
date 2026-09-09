@@ -227,7 +227,8 @@ if __name__ == "__main__":
                 pool.starmap(process_chunk, process_args)
         else:
             rdd = spark.sparkContext.parallelize(
-                process_args, numSlices=len(process_args)
+                process_args,
+                numSlices=min(num_processes, len(process_args)),
             )
             rdd.foreach(lambda t: process_chunk(*t))
 

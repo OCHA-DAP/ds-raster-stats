@@ -92,7 +92,7 @@ def load_shp_from_azure(iso3, shp_dir, mode):
         zip_ref.extractall(shp_dir)
 
 
-def get_iso3_data(iso3_codes, engine):
+def get_iso3_data(iso3_codes, engine, fields=None):
     """
     Retrieve ISO3 data from a database for given ISO3 code(s).
 
@@ -102,23 +102,29 @@ def get_iso3_data(iso3_codes, engine):
         A list containing one or more three-letter ISO country codes.
     engine : sqlalchemy.engine.base.Engine
         SQLAlchemy engine object for database connection.
-
+    fields : str
+        A str list of fields to select from the database
     Returns
     -------
     pandas.DataFrame
         A DataFrame containing the ISO3 data for the specified country code(s).
 
     """
+    fields = fields if fields else "*"
     if iso3_codes and len(iso3_codes) > 0:
         if len(iso3_codes) == 1:
-            query = text("SELECT * FROM public.iso3 WHERE iso3 = :code")
+            query = text(
+                f"SELECT {fields} FROM public.iso3 WHERE iso3 = :code"
+            )
             params = {"code": iso3_codes[0]}
         else:
-            query = text("SELECT * FROM public.iso3 WHERE iso3 = ANY(:codes)")
+            query = text(
+                f"SELECT {fields} FROM public.iso3 WHERE iso3 = ANY(:codes)"
+            )
             params = {"codes": iso3_codes}
         df = pd.read_sql_query(query, engine.connect(), params=params)
     else:
-        query = text("SELECT * FROM public.iso3")
+        query = text(f"SELECT {fields} FROM public.iso3")
         df = pd.read_sql_query(query, engine.connect())
 
     return df

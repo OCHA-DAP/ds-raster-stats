@@ -188,7 +188,9 @@ if __name__ == "__main__":
     create_dataset_table(
         dataset, engine, config["forecast"], config["extra_dims"]
     )
-    df_iso3s = get_iso3_data(config["sel_iso3s"], engine)
+    df_iso3s = get_iso3_data(
+        config["sel_iso3s"], engine, "iso3, max_adm_level"
+    )
     date_chunks = config["date_chunks"]
 
     spark = None

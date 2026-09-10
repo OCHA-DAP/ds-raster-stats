@@ -1,3 +1,4 @@
+import gc
 import logging
 import os
 import sys
@@ -65,12 +66,6 @@ def process_chunk(dates, dataset, mode, df_iso3s, engine_url, chunksize):
     else:
         task_label = current_process().name
     logger = setup_logger(f"{task_label}: {dataset}_{dates[0]}")
-    logger.info(
-        f"""
-        Starting processing for {len(dates)} dates for {dataset}
-        between {dates[0].strftime('%Y-%m-%d')} to {dates[-1].strftime('%Y-%m-%d')}
-        """
-    )
 
     engine = create_engine(engine_url)
     ds = stack_cogs(dates, dataset, mode)
@@ -151,8 +146,11 @@ def process_chunk(dates, dataset, mode, df_iso3s, engine_url, chunksize):
                     continue
             # Clear memory
             del ds_clipped
+            gc.collect()
 
     finally:
+        del ds
+        gc.collect()
         engine.dispose()
 
 
@@ -188,9 +186,7 @@ if __name__ == "__main__":
     create_dataset_table(
         dataset, engine, config["forecast"], config["extra_dims"]
     )
-    df_iso3s = get_iso3_data(
-        config["sel_iso3s"], engine, "iso3, max_adm_level"
-    )
+    df_iso3s = get_iso3_data(config["sel_iso3s"], engine)
     date_chunks = config["date_chunks"]
 
     spark = None
@@ -221,13 +217,14 @@ if __name__ == "__main__":
         for dates in date_chunks
     ]
 
+    num_processes = min(len(process_args), num_processes)
     if process_args:
         if spark is None:
             with Pool(num_processes) as pool:
                 pool.starmap(process_chunk, process_args)
         else:
             rdd = spark.sparkContext.parallelize(
-                process_args, numSlices=len(process_args)
+                process_args, numSlices=num_processes
             )
             rdd.foreach(lambda t: process_chunk(*t))
 

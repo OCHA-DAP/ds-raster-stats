@@ -186,7 +186,7 @@ def get_cog_url_for_dates(dataset, base_url, dates):
     cogs_list = []
 
     for cog_date in dates:
-        logger.info(f"Processing date {cog_date}:")
+        # logger.info(f"Processing date {cog_date}:")
         if dataset == "chirps":
             date_url = base_url + (
                 f"/{cog_date.year}/"
@@ -297,9 +297,9 @@ def stack_cogs(dates, dataset, mode="dev"):
             "Input `dataset` must be one of `floodscan`, `era5`, `seas5`, `imerg` or `chirps`."
         )
 
-    logger.debug(f"Processing {len(cogs_list)} cog(s):")
-    for cog in cogs_list:
-        logger.debug(f" - {cog}")
+    # TODO readd?logger.debug(f"Processing {len(cogs_list)} cog(s):")
+    # for cog in cogs_list:
+    #    logger.debug(f" - {cog}")
 
     # TODO Check with Hannah what the new behavior should be here
     # if len(cogs_list) != len(dates):

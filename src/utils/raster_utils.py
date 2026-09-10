@@ -455,9 +455,9 @@ def prep_raster(ds, gdf_adm, logger=None):
     minx, miny, maxx, maxy = gdf_adm.total_bounds
     ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny)).persist()
     logger.debug("Upsampling raster...")
-    ds_resampled = upsample_raster(ds_clip, logger=logger)
+    ds_clip = upsample_raster(ds_clip, logger=logger)
     logger.debug("Raster prep completed.")
-    return ds_resampled
+    return ds_clip
 
 
 def rasterize_admin(

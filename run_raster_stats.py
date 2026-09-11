@@ -212,28 +212,29 @@ if __name__ == "__main__":
                 logger.debug(f"Loading shp data for iso: {iso3}...")
                 load_shp_from_azure(iso3, config["shapes_dir"], args.mode)
 
-            process_args = [
-                (
-                    dates,
-                    dataset,
-                    args.mode,
-                    df_iso3s,
-                    engine_url,
-                    args.chunksize,
-                    iso3,
-                    config["shapes_dir"],
-                )
-                for dates in date_chunks
-            ]
+        process_args = [
+            (
+                dates,
+                dataset,
+                args.mode,
+                df_iso3s,
+                engine_url,
+                args.chunksize,
+                iso3,
+                config["shapes_dir"],
+            )
+            for dates in date_chunks
+            for iso3 in df_iso3s["iso3"].tolist()
+        ]
 
-            if process_args:
-                if spark is None:
-                    with Pool(num_processes) as pool:
-                        pool.starmap(process_chunk, process_args)
-                else:
-                    rdd = spark.sparkContext.parallelize(
-                        process_args, numSlices=len(process_args)
-                    )
-                    rdd.foreach(lambda t: process_chunk(*t))
+        if process_args:
+            if spark is None:
+                with Pool(num_processes) as pool:
+                    pool.starmap(process_chunk, process_args)
+            else:
+                rdd = spark.sparkContext.parallelize(
+                    process_args, numSlices=len(process_args)
+                )
+                rdd.foreach(lambda t: process_chunk(*t))
 
     logger.info("Done calculating and saving stats.")

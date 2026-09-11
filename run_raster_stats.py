@@ -73,7 +73,7 @@ def process_chunk(dates, dataset, mode, df_iso3s, engine_url, chunksize, td):
         for _, row in df_iso3s.iterrows():
             iso3 = row["iso3"]
             max_adm = row["max_adm_level"]
-            gdf = gpd.read_file(f"{td}/{iso3.lower()}_adm0.shp")
+            gdf = gpd.read_parquet(f"{td}/{iso3.lower()}_adm0.parquet")
             ds = stack_cogs(dates, dataset, mode, gdf)
 
             # Coverage check for specific datasets
@@ -97,8 +97,8 @@ def process_chunk(dates, dataset, mode, df_iso3s, engine_url, chunksize, td):
             try:
                 all_results = []
                 for adm_level in range(max_adm + 1):
-                    gdf = gpd.read_file(
-                        f"{td}/{iso3.lower()}_adm{adm_level}.shp"
+                    gdf = gpd.read_parquet(
+                        f"{td}/{iso3.lower()}_adm{adm_level}.parquet"
                     )
                     logger.info(f"Computing stats for adm{adm_level}...")
                     df_results = fast_zonal_stats_runner(

@@ -88,7 +88,7 @@ def config_pipeline(dataset, test, update, mode, backfill, engine):
     output_config["shapes_dir"] = (
         config_section.get("shapes_dir")
         if "shapes_dir" in config
-        else "/tmp/shapes"
+        else "/dbfs/tmp/shapes"
     )
 
     start_date = config_section["start_date"]

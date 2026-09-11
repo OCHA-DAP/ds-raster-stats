@@ -85,6 +85,11 @@ def config_pipeline(dataset, test, update, mode, backfill, engine):
     output_config["forecast"] = config["forecast"]
     output_config["extra_dims"] = parse_extra_dims(config)
     output_config["sel_iso3s"] = config_section.get("iso3s")
+    output_config["shapes_dir"] = (
+        config_section.get("shapes_dir")
+        if "shapes_dir" in config
+        else "/tmp/shapes"
+    )
 
     start_date = config_section["start_date"]
     end_date = config_section.get("end_date")

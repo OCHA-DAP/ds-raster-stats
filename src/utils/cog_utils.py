@@ -116,7 +116,7 @@ def process_seas5(cog_name, mode):
 
 def get_cog_da(cog_name, mode, gdf=None):
     cog_url = get_cog_url(mode, cog_name)
-    da_in = rxr.open_rasterio(cog_url, chunks="auto")
+    da_in = rxr.open_rasterio(cog_url, cache=True)
 
     if gdf is not None:
         minx, miny, maxx, maxy = gdf.total_bounds

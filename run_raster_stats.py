@@ -1,4 +1,3 @@
-import gc
 import logging
 import os
 import sys
@@ -16,7 +15,7 @@ from src.config.settings import (
     UPSAMPLED_RESOLUTION,
     config_pipeline,
 )
-from src.utils.cog_utils import stack_cogs
+from src.utils.cog_utils import get_cogs_list, stack_cogs
 from src.utils.database_utils import (
     create_dataset_table,
     create_qa_table,
@@ -31,7 +30,11 @@ from src.utils.iso3_utils import (
     load_shp_from_azure,
 )
 from src.utils.metadata_utils import process_polygon_metadata
-from src.utils.raster_utils import fast_zonal_stats_runner, upsample_raster
+from src.utils.raster_utils import (
+    fast_zonal_stats_runner,
+    upsample_raster,
+    validate_stats,
+)
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level=LOG_LEVEL, logger=logger)
@@ -54,7 +57,7 @@ def setup_logger(name, level=logging.INFO):
     return logger
 
 
-def process_chunk(dates, dataset, mode, df_iso3s, engine_url, chunksize, td):
+def process_chunk(cogs, dataset, mode, df_iso3s, engine_url, chunksize, td):
     try:
         from pyspark import TaskContext
 
@@ -65,23 +68,23 @@ def process_chunk(dates, dataset, mode, df_iso3s, engine_url, chunksize, td):
         task_label = f"partition-{tc.partitionId()}"
     else:
         task_label = current_process().name
-    logger = setup_logger(f"{task_label}: {dataset}_{dates[0]}")
+    logger = setup_logger(f"{task_label}: {dataset}_{cogs[0]}")
 
     engine = create_engine(engine_url)
 
     try:
         for _, row in df_iso3s.iterrows():
             iso3 = row["iso3"]
+            logger.info(f"Processing data for {iso3}...")
             max_adm = row["max_adm_level"]
             gdf = gpd.read_parquet(f"{td}/{iso3.lower()}_adm0.parquet")
-            ds = stack_cogs(dates, dataset, mode, gdf)
+            ds = stack_cogs(cogs, dataset, mode, gdf)
 
             # Coverage check for specific datasets
             if dataset in df_iso3s.keys():
                 if not row[dataset]:
                     logger.info(f"Skipping {iso3}...")
                     continue
-            logger.info(f"Processing data for {iso3}...")
 
             try:
                 if dataset != "chirps":
@@ -120,9 +123,9 @@ def process_chunk(dates, dataset, mode, df_iso3s, engine_url, chunksize, td):
                         df_all_results["mean"] != 0
                     ]
                     logger.info(
-                        f"Dropped {n_before - len(df_all_results)} "
-                        "zero-precipitation row(s) for chirps..."
+                        f"Dropped {n_before - len(df_all_results)} zero-precipitation row(s) for {iso3}."
                     )
+                validate_stats(iso3, df_all_results)
                 logger.debug(
                     f"Writing {len(df_all_results)} rows to database..."
                 )
@@ -144,7 +147,7 @@ def process_chunk(dates, dataset, mode, df_iso3s, engine_url, chunksize, td):
             # Clear memory
             del ds_clipped
             del ds
-            gc.collect()
+            # gc.collect()
     finally:
         engine.dispose()
 
@@ -218,9 +221,15 @@ if __name__ == "__main__":
                 logger.debug(f"Loading shp data for iso: {iso3}...")
                 load_shp_from_azure(iso3, config["shapes_dir"], args.mode)
 
+        cogs_dict = []
+        logger.info("Preparing list of cogs for dates...")
+        for dates in date_chunks:
+            cogs_dict.append(get_cogs_list(dataset, dates, args.mode))
+        logger.info("Done retrieving the list of cogs.")
+
         process_args = [
             (
-                dates,
+                cogs_dict[i],
                 dataset,
                 args.mode,
                 df_iso3s,
@@ -228,7 +237,7 @@ if __name__ == "__main__":
                 args.chunksize,
                 config["shapes_dir"],
             )
-            for dates in date_chunks
+            for i, dates in enumerate(date_chunks)
         ]
 
         if process_args:

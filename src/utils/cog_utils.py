@@ -236,7 +236,7 @@ def get_cog_list_from_url(
     return files_found
 
 
-def stack_cogs(dates, dataset, mode="dev", gdf=None):
+def stack_cogs(cogs, dataset, mode="dev", gdf=None):
     """
     Stack Cloud Optimized GeoTIFFs (COGs) for a specified date range into an xarray Dataset.
 
@@ -246,8 +246,8 @@ def stack_cogs(dates, dataset, mode="dev", gdf=None):
 
     Parameters
     ----------
-    dates : list
-        The list of dates for which we want to load in COGs
+    cogs : list
+        The list of cogs for which we want to stack
     dataset : str, optional
         The name of the dataset to retrieve COGs from. Options are "floodscan", "era5", "imerg", "seas5" and "chirps".
     mode : str, optional
@@ -258,7 +258,29 @@ def stack_cogs(dates, dataset, mode="dev", gdf=None):
     xarray.Dataset
         A Dataset containing the stacked COG data, with time as the stacking dimension.
     """
-    # We don't have data stored locally, so will read from dev
+
+    das = []
+    for cog in cogs:
+        if dataset == "era5":
+            da_in = process_era5(cog, mode)
+        elif dataset == "seas5":
+            da_in = process_seas5(cog, mode)
+        elif dataset == "imerg":
+            da_in = process_imerg(cog, mode)
+        elif dataset == "floodscan":
+            da_in = process_floodscan(cog, mode)
+        elif dataset == "chirps":
+            da_in = process_chirps(cog, mode, gdf)
+        das.append(da_in)
+
+    # Note that we're dropping all attributes here
+    logger.info("Combining cords...")
+    ds = xr.combine_by_coords(das, combine_attrs="drop")
+    logger.info("Done combining cords.")
+    return ds
+
+
+def get_cogs_list(dataset, dates, mode):
     if mode == "local":
         logger.info(
             "Retrieving data from `dev` Azure blob when running in `local` mode."
@@ -267,7 +289,7 @@ def stack_cogs(dates, dataset, mode="dev", gdf=None):
 
     container_client = get_container_client(mode, "raster")
     config = load_pipeline_config(dataset)
-    cogs_list = None
+    cogs_list = []
 
     try:
         prefix = config["blob_prefix"] if "blob_prefix" in config else None
@@ -297,27 +319,10 @@ def stack_cogs(dates, dataset, mode="dev", gdf=None):
     if len(cogs_list) == 0:
         raise Exception(f"No COGs found to process for dates: {dates}")
 
-    das = []
-
     # Only show progress bar if running in interactive mode (ie. running locally)
     cogs_list = tqdm.tqdm(cogs_list) if mode == "local" else cogs_list
 
-    for cog in cogs_list:
-        if dataset == "era5":
-            da_in = process_era5(cog, mode)
-        elif dataset == "seas5":
-            da_in = process_seas5(cog, mode)
-        elif dataset == "imerg":
-            da_in = process_imerg(cog, mode)
-        elif dataset == "floodscan":
-            da_in = process_floodscan(cog, mode)
-        elif dataset == "chirps":
-            da_in = process_chirps(cog, mode, gdf)
-        das.append(da_in)
-
-    # Note that we're dropping all attributes here
-    ds = xr.combine_by_coords(das, combine_attrs="drop")
-    return ds
+    return cogs_list
 
 
 # TODO: Might not scale well as we get more files in the blob

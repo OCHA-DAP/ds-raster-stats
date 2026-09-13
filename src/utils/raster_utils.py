@@ -33,97 +33,100 @@ def validate_dimensions(ds):
     return fourth_dim
 
 
-def validate_stats(iso3, stats):
+def validate_stats(iso3, df_stats):
     # logger.debug("Validating rows...")
 
     pattern = re.compile("^[A-Z]{3}$")
 
-    if "valid_date" in stats:
-        if type(stats["valid_date"]) == np.str_:
-            valid_date = datetime.datetime.strptime(
-                stats["valid_date"], "%Y-%m-%d"
-            )
-        else:
-            valid_date = pd.to_datetime(stats["valid_date"]).to_pydatetime()
+    for index, stats in df_stats.iterrows():
+        if "valid_date" in stats:
+            if type(stats["valid_date"]) == np.str_:
+                valid_date = datetime.datetime.strptime(
+                    stats["valid_date"], "%Y-%m-%d"
+                )
+            else:
+                valid_date = pd.to_datetime(
+                    stats["valid_date"]
+                ).to_pydatetime()
 
-    # All tables
-    if np.isnan(stats["min"]) or np.isnan(stats["max"]):
-        logger.debug("Min and/or max is np.nan")
-    else:
-        if not (stats["min"] <= stats["max"]):
-            raise ValueError(
-                f"Validation error: min {stats['min']} is not <= max {stats['max']} "
-            )
-
-        if np.isnan(stats["mean"]):
-            logger.debug("Mean is np.nan")
+        # All tables
+        if np.isnan(stats["min"]) or np.isnan(stats["max"]):
+            logger.debug("Min and/or max is np.nan")
         else:
-            if not (stats["min"] <= stats["mean"] <= stats["max"]):
+            if not (stats["min"] <= stats["max"]):
                 raise ValueError(
-                    f"Validation error: mean {stats['mean']} is not between min {stats['min']} and max {stats['max']} "
+                    f"Validation error: min {stats['min']} is not <= max {stats['max']} "
                 )
 
-        if np.isnan(stats["median"]):
-            logger.debug("Median is np.nan")
+            if np.isnan(stats["mean"]):
+                logger.debug("Mean is np.nan")
+            else:
+                if not (stats["min"] <= stats["mean"] <= stats["max"]):
+                    raise ValueError(
+                        f"Validation error: mean {stats['mean']} is not between "
+                        f"min {stats['min']} and max {stats['max']} "
+                    )
+
+            if np.isnan(stats["median"]):
+                logger.debug("Median is np.nan")
+            else:
+                if not (stats["min"] <= stats["median"] <= stats["max"]):
+                    raise ValueError(
+                        f"Validation error: median {stats['median']} is not"
+                        f" between min {stats['min']} & max {stats['max']}"
+                    )
+
+        if np.isnan(stats["std"]):
+            logger.debug("Std is np.nan")
         else:
-            if not (stats["min"] <= stats["median"] <= stats["max"]):
+            if not stats["std"] >= 0:
                 raise ValueError(
-                    f"Validation error: median {stats['median']} is not between min {stats['min']} & max {stats['max']}"
+                    f"Validation error: std {stats['std']} is not >= 0"
                 )
 
-    if np.isnan(stats["std"]):
-        logger.debug("Std is np.nan")
-    else:
-        if not stats["std"] >= 0:
+        if not stats["count"] >= 0:
             raise ValueError(
-                f"Validation error: std {stats['std']} is not >= 0"
+                f"Validation error: count {stats['count']} is not >= 0"
             )
 
-    if not stats["count"] >= 0:
-        raise ValueError(
-            f"Validation error: count {stats['count']} is not >= 0"
-        )
-
-    if not (0 <= stats["adm_level"] <= 4):
-        raise ValueError(
-            f"Validation error: adm_level {stats['adm_level']} is not between 0 and 4"
-        )
-    elif not pattern.search(iso3):
-        raise ValueError(f"Validation error: iso3 {iso3} is not valid")
-
-    # Forecast tables
-    if "issued_date" in stats:
-        issued_date = stats["issued_date"]
-        if type(issued_date) != datetime.datetime:
-            issued_date = datetime.datetime.strptime(
-                stats["issued_date"], "%Y-%m-%d"
-            )
-        if not valid_date >= issued_date:
+        if not (0 <= stats["adm_level"] <= 4):
             raise ValueError(
-                f"Validation error: issued_date {issued_date} is not <= valid_date {valid_date}"
+                f"Validation error: adm_level {stats['adm_level']} is not between 0 and 4"
             )
-        # TODO figure out better logic for leadtime in days and in months
-        elif "leadtime" in stats:
-            leadtime = int(stats["leadtime"])
-            if not (0 <= leadtime <= 16):
-                raise ValueError(
-                    f"Validation error: leadtime {stats['leadtime']} is not between 0 and 16"
+        elif not pattern.search(iso3):
+            raise ValueError(f"Validation error: iso3 {iso3} is not valid")
+
+        # Forecast tables
+        if "issued_date" in stats:
+            issued_date = stats["issued_date"]
+            if type(issued_date) != datetime.datetime:
+                issued_date = datetime.datetime.strptime(
+                    stats["issued_date"], "%Y-%m-%d"
                 )
-            # TODO: How to handle this from now on?
-            # elif leadtime != relativedelta(valid_date, issued_date).months:
-            #    raise ValueError(
-            #        f"Validation error: leadtime {leadtime} should match the diff between issued_date
-            #        {issued_date} and"
-            #        f" valid_date {valid_date}"
-            #    )
-    else:
-        # Observational tables
-        if not valid_date <= datetime.datetime.now():
-            raise ValueError(
-                f"Validation error: valid_date {stats['valid_date']} is not <= current date"
-            )
-
-    return stats
+            if not valid_date >= issued_date:
+                raise ValueError(
+                    f"Validation error: issued_date {issued_date} is not <= valid_date {valid_date}"
+                )
+            # TODO figure out better logic for leadtime in days and in months
+            elif "leadtime" in stats:
+                leadtime = int(stats["leadtime"])
+                if not (0 <= leadtime <= 16):
+                    raise ValueError(
+                        f"Validation error: leadtime {stats['leadtime']} is not between 0 and 16"
+                    )
+                # TODO: How to handle this from now on?
+                # elif leadtime != relativedelta(valid_date, issued_date).months:
+                #    raise ValueError(
+                #        f"Validation error: leadtime {leadtime} should match the diff between issued_date
+                #        {issued_date} and"
+                #        f" valid_date {valid_date}"
+                #    )
+        else:
+            # Observational tables
+            if not valid_date <= datetime.datetime.now():
+                raise ValueError(
+                    f"Validation error: valid_date {stats['valid_date']} is not <= current date"
+                )
 
 
 def fast_zonal_stats_runner(
@@ -223,7 +226,6 @@ def fast_zonal_stats_runner(
                     result[
                         fourth_dim
                     ] = val  # Store the fourth dimension value
-                    validate_stats(iso3, result)
                 outputs.extend(results)
         else:  # 3D case
             results = fast_zonal_stats(
@@ -237,7 +239,6 @@ def fast_zonal_stats_runner(
                 result["valid_date"] = date
                 result["pcode"] = adm_ids[i]
                 result["adm_level"] = adm_level
-                validate_stats(iso3, result)
             outputs.extend(results)
 
     df_stats = pd.DataFrame(outputs)
@@ -425,7 +426,7 @@ def upsample_raster(
     return ds_resampled
 
 
-def prep_raster(ds, gdf_adm, logger=None):
+def prep_raster(ds, gdf_adm, logger=None, upsample=True):
     """
     Prepares and resamples a raster dataset by clipping it to the bounds of the
     provided administrative regions and then upsampling the result.
@@ -454,8 +455,9 @@ def prep_raster(ds, gdf_adm, logger=None):
     logger.debug("Clipping raster to iso3 bounds and persisting in memory...")
     minx, miny, maxx, maxy = gdf_adm.total_bounds
     ds_clip = ds.sel(x=slice(minx, maxx), y=slice(maxy, miny)).persist()
-    logger.debug("Upsampling raster...")
-    ds_clip = upsample_raster(ds_clip, logger=logger)
+    if upsample:
+        logger.debug("Upsampling raster...")
+        ds_clip = upsample_raster(ds_clip, logger=logger)
     logger.debug("Raster prep completed.")
     return ds_clip
 

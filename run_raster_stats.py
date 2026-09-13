@@ -7,6 +7,7 @@ from multiprocessing import Pool, current_process
 
 import coloredlogs
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 from sqlalchemy import create_engine
 
@@ -32,7 +33,7 @@ from src.utils.iso3_utils import (
 from src.utils.metadata_utils import process_polygon_metadata
 from src.utils.raster_utils import (
     fast_zonal_stats_runner,
-    upsample_raster,
+    prep_raster,
     validate_stats,
 )
 
@@ -68,30 +69,35 @@ def process_chunk(cogs, dataset, mode, df_iso3s, engine_url, chunksize, td):
         task_label = f"partition-{tc.partitionId()}"
     else:
         task_label = current_process().name
-    logger = setup_logger(f"{task_label}: {dataset}_{cogs[0]}")
+    logger = setup_logger(f"{task_label}: {dataset}")
 
     engine = create_engine(engine_url)
+
+    logger.info(f"Stacking {len(cogs)} cogs...")
+    ds = stack_cogs(cogs, dataset, mode).load()
 
     try:
         for _, row in df_iso3s.iterrows():
             iso3 = row["iso3"]
             logger.info(f"Processing data for {iso3}...")
             max_adm = row["max_adm_level"]
-            gdf = gpd.read_parquet(f"{td}/{iso3.lower()}_adm0.parquet")
-            ds = stack_cogs(cogs, dataset, mode, gdf)
 
             # Coverage check for specific datasets
             if dataset in df_iso3s.keys():
                 if not row[dataset]:
                     logger.info(f"Skipping {iso3}...")
                     continue
-
             try:
+                gdf = gpd.read_parquet(f"{td}/{iso3.lower()}_adm0.parquet")
+
                 if dataset != "chirps":
-                    logger.info(f"Clipping and upsampling {iso3}...")
-                    ds_clipped = upsample_raster(ds, logger=logger)
+                    logger.info(f"Clipping and upsampling for {iso3}...")
+                    ds_clipped = prep_raster(ds, gdf, logger=logger)
                 else:
-                    ds_clipped = ds
+                    logger.info(f"Clipping raster for {iso3}...")
+                    ds_clipped = prep_raster(
+                        ds, gdf, logger=logger, upsample=False
+                    )
             except Exception as e:
                 logger.error(f"Error preparing raster for {iso3}: {e}")
                 stack_trace = traceback.format_exc()
@@ -146,8 +152,6 @@ def process_chunk(cogs, dataset, mode, df_iso3s, engine_url, chunksize, td):
 
             # Clear memory
             del ds_clipped
-            del ds
-            # gc.collect()
     finally:
         engine.dispose()
 
@@ -221,15 +225,19 @@ if __name__ == "__main__":
                 logger.debug(f"Loading shp data for iso: {iso3}...")
                 load_shp_from_azure(iso3, config["shapes_dir"], args.mode)
 
-        cogs_dict = []
-        logger.info("Preparing list of cogs for dates...")
-        for dates in date_chunks:
-            cogs_dict.append(get_cogs_list(dataset, dates, args.mode))
-        logger.info("Done retrieving the list of cogs.")
+        all_dates = []
+        for e in date_chunks:
+            all_dates.append(e[0])
 
+        logger.info("Retrieving list of cogs...")
+        cogs_list = get_cogs_list(dataset, all_dates, args.mode)
+        logger.info("Done retrieving list of cogs.")
+        cogs_chunks = np.array_split(cogs_list, 120)
+        # df_iso3s_chunks = [df_iso3s[i: i + num_processes].copy()
+        #                   for i in range(0, df_iso3s.shape[0], num_processes)]
         process_args = [
             (
-                cogs_dict[i],
+                cogs,
                 dataset,
                 args.mode,
                 df_iso3s,
@@ -237,7 +245,7 @@ if __name__ == "__main__":
                 args.chunksize,
                 config["shapes_dir"],
             )
-            for i, dates in enumerate(date_chunks)
+            for cogs in cogs_chunks
         ]
 
         if process_args:

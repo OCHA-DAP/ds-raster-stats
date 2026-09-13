@@ -116,7 +116,7 @@ def process_seas5(cog_name, mode):
 
 def get_cog_da(cog_name, mode, gdf=None):
     cog_url = get_cog_url(mode, cog_name)
-    da_in = rxr.open_rasterio(cog_url, cache=True)
+    da_in = rxr.open_rasterio(cog_url, chunks="auto")
 
     if gdf is not None:
         minx, miny, maxx, maxy = gdf.total_bounds
@@ -274,9 +274,7 @@ def stack_cogs(cogs, dataset, mode="dev", gdf=None):
         das.append(da_in)
 
     # Note that we're dropping all attributes here
-    logger.info("Combining cords...")
     ds = xr.combine_by_coords(das, combine_attrs="drop")
-    logger.info("Done combining cords.")
     return ds
 
 

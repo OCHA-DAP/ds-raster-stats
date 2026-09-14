@@ -235,7 +235,7 @@ if __name__ == "__main__":
         logger.info("Retrieving list of cogs...")
         cogs_list = get_cogs_list(dataset, all_dates, args.mode)
         logger.info("Done retrieving list of cogs.")
-        cogs_chunks = np.array_split(cogs_list, 160)
+        cogs_chunks = np.array_split(cogs_list, 200)
         # df_iso3s_chunks = [df_iso3s[i: i + num_processes].copy()
         #                   for i in range(0, df_iso3s.shape[0], num_processes)]
         process_args = [

@@ -121,7 +121,7 @@ def extract_date_and_leadtime_from(filepath):
     valid_date = datetime.strptime(match_forecast_date_str, "%Y.%m.%d").date()
     leadtime = (valid_date - base_date).days
 
-    return base_date, leadtime
+    return valid_date, leadtime
 
 
 def process_chirps(cog_name, mode):

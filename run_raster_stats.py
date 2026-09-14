@@ -1,3 +1,4 @@
+import gc
 import logging
 import os
 import sys
@@ -74,7 +75,7 @@ def process_chunk(cogs, dataset, mode, df_iso3s, engine_url, chunksize, td):
     engine = create_engine(engine_url)
 
     logger.info(f"Stacking {len(cogs)} cogs...")
-    ds = stack_cogs(cogs, dataset, mode).load()
+    ds = stack_cogs(cogs, dataset, mode).load().persist()
 
     try:
         for _, row in df_iso3s.iterrows():
@@ -153,6 +154,8 @@ def process_chunk(cogs, dataset, mode, df_iso3s, engine_url, chunksize, td):
             # Clear memory
             del ds_clipped
     finally:
+        ds.unpersist()
+        gc.collect()
         engine.dispose()
 
 

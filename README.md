@@ -43,12 +43,23 @@ pip install -e .
 3. Create a local `.env` file with the following environment variables:
 
 ```
-# Connection to Azure blob storage
-DSCI_AZ_SAS_DEV=<provided-on-request>
-DSCI_AZ_SAS_PROD=<provided-on-request>
-AZURE_DB_PW_DEV=<provided-on-request>
-AZURE_DB_PW_PROD=<provided-on-request>
+# Azure blob storage
+DSCI_AZ_BLOB_DEV_SAS=<provided-on-request>
+DSCI_AZ_BLOB_PROD_SAS=<provided-on-request>
+# Postgres (write creds; HOST is the private-endpoint IP, or the FQDN if you
+# still have public access)
+DSCI_AZ_DB_DEV_HOST=<provided-on-request>
+DSCI_AZ_DB_DEV_UID_WRITE=<provided-on-request>
+DSCI_AZ_DB_DEV_PW_WRITE=<provided-on-request>
+DSCI_AZ_DB_PROD_HOST=<provided-on-request>
+DSCI_AZ_DB_PROD_UID_WRITE=<provided-on-request>
+DSCI_AZ_DB_PROD_PW_WRITE=<provided-on-request>
 ```
+
+The scheduled runs are the `Raster Stats {FLOODSCAN,IMERG,ERA5,SEAS5}` Databricks
+jobs (chained from the `Run *` jobs in ds-raster-pipelines); they run on the
+shared Job Compute policy, which injects all of the variables above from the
+`dsci` secret scope.
 
 ### Pre-Commit
 

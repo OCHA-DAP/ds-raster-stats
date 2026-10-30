@@ -41,3 +41,6 @@ ALTER TABLE public.seas5 ADD CONSTRAINT check_leadtime CHECK (leadtime between 0
 ALTER TABLE public.seas5 ADD CONSTRAINT check_valid_date CHECK (valid_date >= issued_date);
 ALTER TABLE public.seas5 ADD CONSTRAINT check_month_difference CHECK (leadtime = EXTRACT(YEAR FROM AGE(valid_date, issued_date)) * 12 +
     EXTRACT(MONTH FROM AGE(valid_date, issued_date)));
+
+ALTER TABLE public.chirps DROP CONSTRAINT IF EXISTS check_leadtime_equals_months_diff;
+ALTER TABLE public.chirps ADD CONSTRAINT check_leadtime_equals_days_diff CHECK (leadtime = valid_date - issued_date);

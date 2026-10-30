@@ -8,9 +8,9 @@ from multiprocessing import Pool, current_process
 
 import coloredlogs
 import geopandas as gpd
-import numpy as np
 import pandas as pd
 from sqlalchemy import create_engine
+from sqlalchemy.pool import NullPool
 
 from src.config.settings import (
     LOG_LEVEL,
@@ -72,7 +72,7 @@ def process_chunk(cogs, dataset, mode, df_iso3s, engine_url, chunksize, td):
         task_label = current_process().name
     logger = setup_logger(f"{task_label}: {dataset}")
 
-    engine = create_engine(engine_url)
+    engine = create_engine(engine_url, poolclass=NullPool)
 
     logger.info(f"Stacking {len(cogs)} cogs...")
     ds = stack_cogs(cogs, dataset, mode).load().persist()
@@ -189,7 +189,11 @@ if __name__ == "__main__":
         engine,
     )
     create_dataset_table(
-        dataset, engine, config["forecast"], config["extra_dims"]
+        dataset,
+        engine,
+        config["forecast"],
+        config["extra_dims"],
+        config["frequency"],
     )
     df_iso3s = get_iso3_data(config["sel_iso3s"], engine)
     date_chunks = config["date_chunks"]
@@ -235,7 +239,17 @@ if __name__ == "__main__":
         logger.info("Retrieving list of cogs...")
         cogs_list = get_cogs_list(dataset, all_dates, args.mode)
         logger.info("Done retrieving list of cogs.")
-        cogs_chunks = np.array_split(cogs_list, 200)
+
+        cogs_per_chunk = config["cogs_per_chunk"]
+        cogs_list = list(cogs_list)
+        cogs_chunks = [
+            cogs_list[i : i + cogs_per_chunk]
+            for i in range(0, len(cogs_list), cogs_per_chunk)
+        ]
+        logger.info(
+            f"Split {len(cogs_list)} cogs into {len(cogs_chunks)} chunks "
+            f"of up to {cogs_per_chunk}"
+        )
         # df_iso3s_chunks = [df_iso3s[i: i + num_processes].copy()
         #                   for i in range(0, df_iso3s.shape[0], num_processes)]
         process_args = [

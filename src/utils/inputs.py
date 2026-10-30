@@ -40,7 +40,7 @@ def cli_args():
         "--chunksize",
         help="Limit the SQL insert batches to an specific chunksize.",
         type=int,
-        default=100000,
+        default=20000,
     )
     parser.add_argument(
         "--backfill",

@@ -36,7 +36,9 @@ def db_engine_url(mode):
     return DATABASES[mode]
 
 
-def create_dataset_table(dataset, engine, is_forecast=False, extra_dims={}):
+def create_dataset_table(
+    dataset, engine, is_forecast=False, extra_dims={}, frequency="M"
+):
     """
     Create a table for storing dataset statistics in the database.
 
@@ -52,6 +54,9 @@ def create_dataset_table(dataset, engine, is_forecast=False, extra_dims={}):
     extra_dims : dict
         Dictionary where the keys are names of any extra dimensions that need to be added to the
         dataset table and the values are the type.
+    frequency : str
+        Date frequency of the dataset, 'D' or 'M'. For forecasts, sets whether
+        `leadtime` is checked as a difference in days or in months.
 
     Returns
     -------
@@ -95,10 +100,17 @@ def create_dataset_table(dataset, engine, is_forecast=False, extra_dims={}):
             "leadtime between 0 AND 16", name="check_leadtime_betwen_0_16"
         ),
         CheckConstraint("valid_date >= issued_date", name="check_valid_date"),
-        CheckConstraint(
-            "leadtime = EXTRACT(YEAR FROM AGE(valid_date, issued_date)) "
-            "* 12 +EXTRACT(MONTH FROM AGE(valid_date, issued_date))",
-            name="check_leadtime_equals_months_diff",
+        (
+            CheckConstraint(
+                "leadtime = valid_date - issued_date",
+                name="check_leadtime_equals_days_diff",
+            )
+            if frequency == "D"
+            else CheckConstraint(
+                "leadtime = EXTRACT(YEAR FROM AGE(valid_date, issued_date)) "
+                "* 12 +EXTRACT(MONTH FROM AGE(valid_date, issued_date))",
+                name="check_leadtime_equals_months_diff",
+            )
         ),
     ]
     observational_tables_constraints = CheckConstraint(

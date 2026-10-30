@@ -22,10 +22,21 @@ AZURE_DB_UID_DEV = os.getenv("DSCI_AZ_DB_DEV_UID_WRITE")
 AZURE_DB_UID_PROD = os.getenv("DSCI_AZ_DB_PROD_UID_WRITE")
 AZURE_DB_PW_DEV = os.getenv("DSCI_AZ_DB_DEV_PW_WRITE")
 AZURE_DB_PW_PROD = os.getenv("DSCI_AZ_DB_PROD_PW_WRITE")
+# The host comes from the same DSCI_AZ_DB_*_HOST variables ocha-stratus uses
+# (injected by the Databricks Job Compute policy). The servers are reachable
+# only through their private endpoints, which have no DNS name, so the secret
+# holds the endpoint IP; the FQDN fallback only covers local .env files that
+# predate the HOST variables.
+AZURE_DB_HOST_DEV = os.getenv(
+    "DSCI_AZ_DB_DEV_HOST", "chd-rasterstats-dev.postgres.database.azure.com"
+)
+AZURE_DB_HOST_PROD = os.getenv(
+    "DSCI_AZ_DB_PROD_HOST", "chd-rasterstats-prod.postgres.database.azure.com"
+)
 DATABASES = {
     "local": "sqlite:///chd-rasterstats-local.db",
-    "dev": f"postgresql+psycopg2://{AZURE_DB_UID_DEV}:{AZURE_DB_PW_DEV}@chd-rasterstats-dev.postgres.database.azure.com/postgres",  # noqa
-    "prod": f"postgresql+psycopg2://{AZURE_DB_UID_PROD}:{AZURE_DB_PW_PROD}@chd-rasterstats-prod.postgres.database.azure.com/postgres",  # noqa
+    "dev": f"postgresql+psycopg2://{AZURE_DB_UID_DEV}:{AZURE_DB_PW_DEV}@{AZURE_DB_HOST_DEV}/postgres",  # noqa
+    "prod": f"postgresql+psycopg2://{AZURE_DB_UID_PROD}:{AZURE_DB_PW_PROD}@{AZURE_DB_HOST_PROD}/postgres",  # noqa
 }
 
 

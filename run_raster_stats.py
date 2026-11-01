@@ -229,7 +229,7 @@ if __name__ == "__main__":
                 logger.debug(f"Skipping shp download for: {iso3}...")
             else:
                 logger.debug(f"Loading shp data for iso: {iso3}...")
-                load_shp_from_azure(iso3, config["shapes_dir"], args.mode)
+                load_shp_from_azure(iso3, args.mode, config["shapes_dir"])
 
         all_dates = []
         for e in date_chunks:

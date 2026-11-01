@@ -75,7 +75,7 @@ def process_chunk(cogs, dataset, mode, df_iso3s, engine_url, chunksize, td):
     engine = create_engine(engine_url, poolclass=NullPool)
 
     logger.info(f"Stacking {len(cogs)} cogs...")
-    ds = stack_cogs(cogs, dataset, mode).load().persist()
+    ds = stack_cogs(cogs, dataset, mode)
 
     try:
         for _, row in df_iso3s.iterrows():
@@ -155,7 +155,6 @@ def process_chunk(cogs, dataset, mode, df_iso3s, engine_url, chunksize, td):
             del ds_clipped
             gc.collect()
     finally:
-        ds.unpersist()
         engine.dispose()
 
 
@@ -235,26 +234,27 @@ if __name__ == "__main__":
         all_dates = []
         for e in date_chunks:
             all_dates.append(e[0])
-
+        """
         logger.info("Retrieving list of cogs...")
-        cogs_list = get_cogs_list(dataset, all_dates, args.mode)
+
         logger.info("Done retrieving list of cogs.")
 
-        cogs_per_chunk = config["cogs_per_chunk"]
+
+        iso3s_per_chunk = config["iso3_chunksize"]
         cogs_list = list(cogs_list)
         cogs_chunks = [
-            cogs_list[i : i + cogs_per_chunk]
-            for i in range(0, len(cogs_list), cogs_per_chunk)
+            cogs_list[i : i + iso3s_per_chunk]
+            for i in range(0, len(cogs_list), iso3s_per_chunk)
         ]
         logger.info(
             f"Split {len(cogs_list)} cogs into {len(cogs_chunks)} chunks "
-            f"of up to {cogs_per_chunk}"
+            f"of up to {iso3s_per_chunk}"
         )
-        # df_iso3s_chunks = [df_iso3s[i: i + num_processes].copy()
-        #                   for i in range(0, df_iso3s.shape[0], num_processes)]
+        """
+
         process_args = [
             (
-                cogs,
+                get_cogs_list(dataset, date_chunk, args.mode),
                 dataset,
                 args.mode,
                 df_iso3s,
@@ -262,9 +262,10 @@ if __name__ == "__main__":
                 args.chunksize,
                 config["shapes_dir"],
             )
-            for cogs in cogs_chunks
+            for date_chunk in date_chunks
         ]
 
+        num_processes = min(num_processes, len(process_args))
         if process_args:
             if spark is None:
                 with Pool(num_processes) as pool:

@@ -1,16 +1,21 @@
+import logging
 import os
 import zipfile
 from datetime import datetime
 from io import StringIO
 
+import coloredlogs
 import numpy as np
 import pandas as pd
 import requests
 from sqlalchemy import text
 
-from src.config.settings import load_pipeline_config
+from src.config.settings import LOG_LEVEL, load_pipeline_config
 from src.utils.cloud_utils import get_container_client
 from src.utils.database_utils import create_iso3_table
+
+logger = logging.getLogger(__name__)
+coloredlogs.install(level=LOG_LEVEL, logger=logger)
 
 
 def get_metadata():
@@ -63,7 +68,7 @@ def load_shp(shp_url, shp_dir, iso3):
         zip_ref.extractall(shp_dir)
 
 
-def load_shp_from_azure(iso3, shp_dir, mode):
+def load_shp_from_azure(iso3, mode, shp_dir="shapes"):
     """
     Download and extract a zipped shapefile from Azure Blob Storage.
 
@@ -71,10 +76,10 @@ def load_shp_from_azure(iso3, shp_dir, mode):
     ----------
     iso3 : str
         A three-letter ISO code used to identify the shapefile.
-    shp_dir : str
-        The directory where the zipped shapefile will be saved and extracted.
     mode : str
         The current mode, determining which Azure storage container to point to (dev or prod)
+    shp_dir : str
+        The directory where the zipped shapefile will be saved and extracted.
 
     Returns
     -------

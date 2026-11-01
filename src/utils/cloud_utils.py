@@ -3,6 +3,14 @@ import os
 from azure.storage.blob import ContainerClient
 
 
+def get_blob_mode(mode):
+    """
+    Map a pipeline mode to the storage account to read from. There is no
+    local storage account, so `local` reads from `dev`.
+    """
+    return "dev" if mode == "local" else mode
+
+
 def get_container_client(mode, container_name):
     """
     Get a client for accessing an Azure Blob Storage container.
@@ -25,6 +33,7 @@ def get_container_client(mode, container_name):
         A `ContainerClient` object that can be used to interact with the specified Azure Blob Storage container
 
     """
+    mode = get_blob_mode(mode)
     blob_sas = os.getenv(f"DSCI_AZ_BLOB_{mode.upper()}_SAS")
     blob_url = (
         f"https://imb0chd0{mode}.blob.core.windows.net/"
@@ -53,10 +62,9 @@ def get_cog_url(mode, cog_name):
     str
         The URL for accessing the specified COG.
     """
-    if mode == "local":
-        return "test_outputs/"
-    elif cog_name.__contains__("https"):
+    if cog_name.__contains__("ftp://") or os.path.isfile(cog_name):
         return cog_name
 
+    mode = get_blob_mode(mode)
     blob_sas = os.getenv(f"DSCI_AZ_BLOB_{mode.upper()}_SAS_WRITE")
     return f"https://imb0chd0{mode}.blob.core.windows.net/raster/{cog_name}?{blob_sas}"

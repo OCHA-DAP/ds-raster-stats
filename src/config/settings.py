@@ -34,7 +34,9 @@ AZURE_DB_HOST_PROD = os.getenv(
     "DSCI_AZ_DB_PROD_HOST", "chd-rasterstats-prod.postgres.database.azure.com"
 )
 DATABASES = {
-    "local": "sqlite:///chd-rasterstats-local.db",
+    "local": os.getenv(
+        "DSCI_LOCAL_DB_URL", "sqlite:///chd-rasterstats-local.db"
+    ),
     "dev": f"postgresql+psycopg2://{AZURE_DB_UID_DEV}:{AZURE_DB_PW_DEV}@{AZURE_DB_HOST_DEV}/postgres",  # noqa
     "prod": f"postgresql+psycopg2://{AZURE_DB_UID_PROD}:{AZURE_DB_PW_PROD}@{AZURE_DB_HOST_PROD}/postgres",  # noqa
 }
@@ -107,7 +109,7 @@ def config_pipeline(dataset, test, update, mode, backfill, engine):
     frequency = config["frequency"]
     chunk_size = config["chunk_size"] if "chunk_size" in config else 100
     output_config["frequency"] = frequency
-    output_config["cogs_per_chunk"] = config.get("cogs_per_chunk", 20)
+    output_config["iso3_chunksize"] = config.get("iso3_chunksize", 20)
 
     # Now work on getting the dates to process
     if not end_date:

@@ -1,15 +1,15 @@
 import logging
+import os
 import re
-from datetime import date, datetime
-from urllib.parse import urljoin
+from datetime import date, datetime, timedelta
 
 import coloredlogs
-import requests
+import dask
 import rioxarray as rxr
 import tqdm
 import xarray as xr
-from bs4 import BeautifulSoup
 
+from helpers.download_file import download_file
 from src.config.settings import LOG_LEVEL, load_pipeline_config
 from src.utils.cloud_utils import get_cog_url, get_container_client
 from src.utils.general_utils import parse_date
@@ -114,16 +114,17 @@ def process_seas5(cog_name, mode):
     return da_in
 
 
-def get_cog_da(cog_name, mode, gdf=None):
+def get_cog_da(cog_name, mode):
     cog_url = get_cog_url(mode, cog_name)
     da_in = rxr.open_rasterio(cog_url, chunks="auto")
 
+    """
     if gdf is not None:
         minx, miny, maxx, maxy = gdf.total_bounds
         da_in = da_in.rio.clip_box(minx=minx, miny=miny, maxx=maxx, maxy=maxy)
     else:
         da_in = rxr.open_rasterio(cog_url, chunks="auto")
-
+    """
     return da_in
 
 
@@ -153,8 +154,10 @@ def extract_date_and_leadtime_from(filepath):
     return valid_date, leadtime
 
 
-def process_chirps(cog_name, mode, gdf):
-    da_in = get_cog_da(cog_name, mode, gdf)
+def process_chirps(cog_name, mode):
+    if cog_name.startswith("ftp://"):
+        cog_name = download_cog_from_ftp(cog_name)
+    da_in = get_cog_da(cog_name, mode)
     cog_date, leadtime = extract_date_and_leadtime_from(
         da_in.attrs["TIFFTAG_DOCUMENTNAME"]
     )
@@ -172,71 +175,85 @@ def process_chirps(cog_name, mode, gdf):
     return da_in
 
 
+CHIRPS_LEADTIMES = range(16)
+
+
+def get_chirps_cog_urls(base_url, issued_date, leadtimes=CHIRPS_LEADTIMES):
+    """
+    Generate the expected CHIRPS-GEFS COG URLs for one issue date.
+
+    Parameters
+    ----------
+    base_url : str
+        The root of the CHIRPS-GEFS daily archive (config `source_url`).
+    issued_date : datetime.date
+        The forecast issue date.
+    leadtimes : iterable of int
+        Leadtimes in days to generate URLs for.
+
+    Returns
+    -------
+    list of str
+        One URL per leadtime, in leadtime order.
+    """
+    date_url = f"{base_url.rstrip('/')}/{issued_date:%Y/%m/%d}/"
+    return [
+        f"{date_url}c3g_{issued_date + timedelta(days=lt):%Y.%m.%d}.tif"
+        for lt in leadtimes
+    ]
+
+
+def download_cog_from_ftp(cog_url, output_dir="downloads"):
+    """
+    Download one CHIRPS-GEFS COG into a folder named after its issue date.
+
+    The issue date is taken from the URL's YYYY/MM/DD/ folder, so
+    .../2001/01/01/c3g_2001.01.16.tif is saved as
+    `{output_dir}/2001/01/01/c3g_2001.01.16.tif`. Valid-date filenames repeat
+    across issue dates, so this keeps each issue date's COGs apart. A COG
+    that's already been downloaded is reused.
+
+    Parameters
+    ----------
+    cog_url : str
+        The FTP URL of the COG.
+    output_dir : str
+        The root directory for the issue-date folders.
+
+    Returns
+    -------
+    str
+        The local path of the COG.
+
+    Raises
+    ------
+    ValueError
+        If the URL has no YYYY/MM/DD/ issue-date folder.
+    FileNotFoundError
+        If the COG isn't on the server.
+    """
+    match = re.search(r"/(\d{4})/(\d{2})/(\d{2})/[^/]+$", cog_url)
+    if not match:
+        raise ValueError(f"No YYYY/MM/DD/ issue-date folder in {cog_url}")
+    issued_dir = os.path.join(output_dir, *match.groups())
+    logger.info(f"Downloading COG {cog_url} to {issued_dir}...")
+    return download_file(cog_url, issued_dir)
+
+
 def get_cog_url_for_dates(dataset, base_url, dates):
     cogs_list = []
 
     for cog_date in dates:
-        # logger.info(f"Processing date {cog_date}:")
         if dataset == "chirps":
-            date_url = base_url + (
-                f"/{cog_date.year}/"
-                f"{str(cog_date.month).zfill(2)}/"
-                f"{str(cog_date.day).zfill(2)}/"
-            )
-            date_urls = get_cog_list_from_url(date_url, date_url)
+            date_urls = get_chirps_cog_urls(base_url, cog_date)
             cogs_list.extend(date_urls)
         else:
-            raise NotImplementedError("")
+            raise NotImplementedError(f"Not implemented for dataset {dataset}")
 
     return cogs_list
 
 
-def get_cog_list_from_url(
-    base_url, current_url, visited=None, files_found=None
-):
-    files_found = [] if files_found is None else files_found
-    visited = set() if visited is None else visited
-
-    if current_url in visited:
-        return files_found
-    visited.add(current_url)
-
-    try:
-        response = requests.get(current_url, timeout=30)
-        if response.status_code != 200:
-            return
-    except requests.RequestException:
-        return
-
-    soup = BeautifulSoup(response.text, "html.parser")
-
-    for node in soup.find_all("a"):
-        href = node.get("href")
-        if not href or href.startswith(("?", "#", "mailto:")):
-            continue
-
-        full_url = urljoin(current_url, href)
-
-        # Keep inside the base domain and path to avoid escaping the server
-        if not full_url.startswith(base_url):
-            continue
-
-        # Check if it is a directory (ends with '/') or a file
-        if href.endswith("/"):
-            get_cog_list_from_url(
-                current_url=full_url,
-                base_url=base_url,
-                visited=visited,
-                files_found=files_found,
-            )
-        else:
-            if full_url not in files_found:
-                files_found.append(full_url)
-
-    return files_found
-
-
-def stack_cogs(cogs, dataset, mode="dev", gdf=None):
+def stack_cogs(cogs, dataset, mode="dev"):
     """
     Stack Cloud Optimized GeoTIFFs (COGs) for a specified date range into an xarray Dataset.
 
@@ -270,11 +287,17 @@ def stack_cogs(cogs, dataset, mode="dev", gdf=None):
         elif dataset == "floodscan":
             da_in = process_floodscan(cog, mode)
         elif dataset == "chirps":
-            da_in = process_chirps(cog, mode, gdf)
+            try:
+                da_in = process_chirps(cog, mode)
+            except FileNotFoundError as e:
+                # The URLs are generated, so a leadtime may be missing
+                logger.warning(f"Skipping {cog}: {e}")
+                continue
         das.append(da_in)
 
     # Note that we're dropping all attributes here
-    ds = xr.combine_by_coords(das, combine_attrs="drop")
+    with dask.config.set({"array.slicing.split_large_chunks": True}):
+        ds = xr.combine_by_coords(das, combine_attrs="drop")
     return ds
 
 

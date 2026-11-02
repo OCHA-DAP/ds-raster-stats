@@ -98,10 +98,11 @@ def config_pipeline(dataset, test, update, mode, backfill, engine):
     output_config["forecast"] = config["forecast"]
     output_config["extra_dims"] = parse_extra_dims(config)
     output_config["sel_iso3s"] = config_section.get("iso3s")
-    output_config["shapes_dir"] = (
-        config_section.get("shapes_dir")
-        if "shapes_dir" in config
-        else "/dbfs/tmp/shapes"
+    output_config["shapes_dir"] = os.getenv(
+        "DSCI_SHAPES_DIR",
+        config_section.get(
+            "shapes_dir", config.get("shapes_dir", "/dbfs/tmp/shapes")
+        ),
     )
 
     start_date = config_section["start_date"]
@@ -109,7 +110,18 @@ def config_pipeline(dataset, test, update, mode, backfill, engine):
     frequency = config["frequency"]
     chunk_size = config["chunk_size"] if "chunk_size" in config else 100
     output_config["frequency"] = frequency
-    output_config["iso3_chunksize"] = config.get("iso3_chunksize", 20)
+    output_config["cog_chunksize"] = config.get("cog_chunksize", 20)
+    default_downloads_dir = (
+        f"/dbfs/tmp/{dataset}_downloads"
+        if "DATABRICKS_RUNTIME_VERSION" in os.environ
+        else "downloads"
+    )
+    output_config["downloads_dir"] = os.path.abspath(
+        os.getenv(
+            "DSCI_DOWNLOADS_DIR",
+            config.get("downloads_dir", default_downloads_dir),
+        )
+    )
 
     # Now work on getting the dates to process
     if not end_date:

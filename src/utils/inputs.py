@@ -49,20 +49,18 @@ def cli_args():
     )
     parser.add_argument(
         "--num-processes",
-        help="""Number of Spark task slots to target, or worker
-        processes when --no-spark is set. Defaults to
-        spark.sparkContext.defaultParallelism (the cluster's available
-        executor cores), or the local CPU count with --no-spark. Each
-        task/process stacks and persists its own COGs, so raising this
-        raises peak memory per executor/worker.""",
+        help="""Number of worker processes. Defaults to the CPU count.
+        Each process stacks its own COGs, so raising this raises peak
+        memory.""",
         type=int,
         default=None,
     )
     parser.add_argument(
-        "--no-spark",
+        "--pre-download",
         action="store_true",
-        help="""Skip Spark and run locally with multiprocessing
-        instead. Useful for local/test runs where a Spark session
-        isn't available or desired.""",
+        help="""Download each date chunk's COGs (from FTP for CHIRPS, from
+        blob storage for the other datasets) before processing it, so tasks
+        read local files instead of the source. Files go to the configured
+        downloads directory, and on Databricks are deleted once processed.""",
     )
     return parser.parse_args()

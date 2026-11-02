@@ -1,7 +1,9 @@
 import datetime
+import hashlib
 import logging
 import re
 import warnings
+from collections import OrderedDict
 
 import coloredlogs
 import numpy as np
@@ -34,99 +36,90 @@ def validate_dimensions(ds):
 
 
 def validate_stats(iso3, df_stats):
-    # logger.debug("Validating rows...")
+    """
+    Check that zonal stats are consistent, raising a ValueError naming the
+    first offending value. Checks whole columns at once rather than row by
+    row, since a country can have hundreds of thousands of rows.
+    """
+    if df_stats.empty:
+        return
 
-    pattern = re.compile("^[A-Z]{3}$")
+    def validation_check(mask, message):
+        if mask.any():
+            raise ValueError(message(df_stats[mask].iloc[0]))
 
-    for index, stats in df_stats.iterrows():
-        if "valid_date" in stats:
-            if type(stats["valid_date"]) == np.str_:
-                valid_date = datetime.datetime.strptime(
-                    stats["valid_date"], "%Y-%m-%d"
-                )
-            else:
-                valid_date = pd.to_datetime(
-                    stats["valid_date"]
-                ).to_pydatetime()
+    min_, max_ = df_stats["min"], df_stats["max"]
+    # min/mean/median are only checked against each other when min and max
+    # are both set
+    has_range = min_.notna() & max_.notna()
+    validation_check(
+        has_range & ~(min_ <= max_),
+        lambda s: f"Validation error: min {s['min']} is not <= max {s['max']} ",
+    )
+    mean = df_stats["mean"]
+    validation_check(
+        has_range & mean.notna() & ~((min_ <= mean) & (mean <= max_)),
+        lambda s: (
+            f"Validation error: mean {s['mean']} is not between "
+            f"min {s['min']} and max {s['max']} "
+        ),
+    )
+    median = df_stats["median"]
+    validation_check(
+        has_range & median.notna() & ~((min_ <= median) & (median <= max_)),
+        lambda s: (
+            f"Validation error: median {s['median']} is not"
+            f" between min {s['min']} & max {s['max']}"
+        ),
+    )
 
-        # All tables
-        if np.isnan(stats["min"]) or np.isnan(stats["max"]):
-            logger.debug("Min and/or max is np.nan")
-        else:
-            if not (stats["min"] <= stats["max"]):
-                raise ValueError(
-                    f"Validation error: min {stats['min']} is not <= max {stats['max']} "
-                )
+    std = df_stats["std"]
+    validation_check(
+        std.notna() & ~(std >= 0),
+        lambda s: f"Validation error: std {s['std']} is not >= 0",
+    )
+    validation_check(
+        ~(df_stats["count"] >= 0),
+        lambda s: f"Validation error: count {s['count']} is not >= 0",
+    )
+    validation_check(
+        ~df_stats["adm_level"].between(0, 4),
+        lambda s: (
+            f"Validation error: adm_level {s['adm_level']} is not between 0 and 4"
+        ),
+    )
+    if not re.search("^[A-Z]{3}$", iso3):
+        raise ValueError(f"Validation error: iso3 {iso3} is not valid")
 
-            if np.isnan(stats["mean"]):
-                logger.debug("Mean is np.nan")
-            else:
-                if not (stats["min"] <= stats["mean"] <= stats["max"]):
-                    raise ValueError(
-                        f"Validation error: mean {stats['mean']} is not between "
-                        f"min {stats['min']} and max {stats['max']} "
-                    )
-
-            if np.isnan(stats["median"]):
-                logger.debug("Median is np.nan")
-            else:
-                if not (stats["min"] <= stats["median"] <= stats["max"]):
-                    raise ValueError(
-                        f"Validation error: median {stats['median']} is not"
-                        f" between min {stats['min']} & max {stats['max']}"
-                    )
-
-        if np.isnan(stats["std"]):
-            logger.debug("Std is np.nan")
-        else:
-            if not stats["std"] >= 0:
-                raise ValueError(
-                    f"Validation error: std {stats['std']} is not >= 0"
-                )
-
-        if not stats["count"] >= 0:
-            raise ValueError(
-                f"Validation error: count {stats['count']} is not >= 0"
-            )
-
-        if not (0 <= stats["adm_level"] <= 4):
-            raise ValueError(
-                f"Validation error: adm_level {stats['adm_level']} is not between 0 and 4"
-            )
-        elif not pattern.search(iso3):
-            raise ValueError(f"Validation error: iso3 {iso3} is not valid")
-
+    valid_date = pd.to_datetime(df_stats["valid_date"])
+    if "issued_date" in df_stats:
         # Forecast tables
-        if "issued_date" in stats:
-            issued_date = stats["issued_date"]
-            if type(issued_date) != datetime.datetime:
-                issued_date = datetime.datetime.strptime(
-                    stats["issued_date"], "%Y-%m-%d"
-                )
-            if not valid_date >= issued_date:
-                raise ValueError(
-                    f"Validation error: issued_date {issued_date} is not <= valid_date {valid_date}"
-                )
-            # TODO figure out better logic for leadtime in days and in months
-            elif "leadtime" in stats:
-                leadtime = int(stats["leadtime"])
-                if not (0 <= leadtime <= 16):
-                    raise ValueError(
-                        f"Validation error: leadtime {stats['leadtime']} is not between 0 and 16"
-                    )
-                # TODO: How to handle this from now on?
-                # elif leadtime != relativedelta(valid_date, issued_date).months:
-                #    raise ValueError(
-                #        f"Validation error: leadtime {leadtime} should match the diff between issued_date
-                #        {issued_date} and"
-                #        f" valid_date {valid_date}"
-                #    )
-        else:
-            # Observational tables
-            if not valid_date <= datetime.datetime.now():
-                raise ValueError(
-                    f"Validation error: valid_date {stats['valid_date']} is not <= current date"
-                )
+        issued_date = pd.to_datetime(df_stats["issued_date"])
+        validation_check(
+            ~(valid_date >= issued_date),
+            lambda s: (
+                f"Validation error: issued_date {s['issued_date']} is not <= "
+                f"valid_date {s['valid_date']}"
+            ),
+        )
+        # TODO figure out better logic for leadtime in days and in months
+        if "leadtime" in df_stats:
+            validation_check(
+                ~df_stats["leadtime"].astype(int).between(0, 16),
+                lambda s: (
+                    f"Validation error: leadtime {s['leadtime']} is not "
+                    "between 0 and 16"
+                ),
+            )
+    else:
+        # Observational tables
+        validation_check(
+            ~(valid_date <= datetime.datetime.now()),
+            lambda s: (
+                f"Validation error: valid_date {s['valid_date']} is not <= "
+                "current date"
+            ),
+        )
 
 
 def fast_zonal_stats_runner(
@@ -181,15 +174,20 @@ def fast_zonal_stats_runner(
 
     fourth_dim = validate_dimensions(ds)
 
-    # Rasterize the adm bounds
-    src_transform = ds.rio.transform()
-    src_width = ds.rio.width
-    src_height = ds.rio.height
-    admin_raster = rasterize_admin(
-        gdf, src_width, src_height, src_transform, all_touched=False
-    )
     adm_ids = gdf[f"ADM{adm_level}_PCODE"]
     n_adms = len(adm_ids)
+    # Rasterize the adm bounds and group the pixels by admin unit. This is
+    # the same for every slice, and for every task with the same shapes and
+    # grid, so it's cached
+    admin_raster = None
+    groups = cached_admin_pixel_groups(
+        gdf,
+        ds.rio.width,
+        ds.rio.height,
+        ds.rio.transform(),
+        n_adms,
+        rast_fill,
+    )
 
     outputs = []
     for date in ds.date.values:
@@ -197,25 +195,26 @@ def fast_zonal_stats_runner(
         ds_sel = ds.sel(date=date)
 
         if fourth_dim:  # 4D case
-            for val in ds_sel[fourth_dim].values:
-                ds__ = ds_sel.sel({fourth_dim: val})
+            # Read the date's data once, rather than once per check and stat
+            date_values = ds_sel.transpose(fourth_dim, "y", "x").values
+            for val, values in zip(ds_sel[fourth_dim].values, date_values):
                 # Skip if all values are NaN
-                if bool(np.all(np.isnan(ds__.values))):
+                if bool(np.all(np.isnan(values))):
                     continue
                 results = fast_zonal_stats(
-                    ds__.values,
+                    values,
                     admin_raster,
                     n_adms,
                     stats=stats,
                     rast_fill=rast_fill,
+                    groups=groups,
                 )
                 for i, result in enumerate(results):
                     result["valid_date"] = date
                     if fourth_dim == "leadtime":
                         if dataset == "chirps":
-                            result["issued_date"] = add_days_to_date(
-                                date, -val
-                            )
+                            result["issued_date"] = date
+                            result["valid_date"] = add_days_to_date(date, val)
                         else:
                             result["issued_date"] = add_months_to_date(
                                 date, -val
@@ -229,11 +228,12 @@ def fast_zonal_stats_runner(
                 outputs.extend(results)
         else:  # 3D case
             results = fast_zonal_stats(
-                ds_sel.values,
+                ds_sel.transpose("y", "x").values,
                 admin_raster,
                 n_adms,
                 stats=stats,
                 rast_fill=rast_fill,
+                groups=groups,
             )
             for i, result in enumerate(results):
                 result["valid_date"] = date
@@ -260,12 +260,115 @@ def fast_zonal_stats_runner(
     return df_stats
 
 
+def admin_pixel_groups(admin_raster, n_adms=None, rast_fill=np.nan):
+    """
+    Work out where each admin unit's pixels go in the padded
+    (n_features, largest_geom) array that `fast_zonal_stats` computes over.
+
+    This only depends on the admin raster, so it can be computed once and
+    reused for every date/leadtime slice of the source raster.
+
+    Parameters
+    ----------
+    admin_raster : numpy.ndarray
+        A raster (2D array) of admin unit ids, NaN outside all units.
+    n_adms: int, optional
+        Number of admin units (as not all may be present in the admin_raster)
+    rast_fill : float, optional
+        Fill value marking pixels outside all units. Default is np.nan.
+
+    Returns
+    -------
+    tuple
+        (pixel_idx, rows, cols, n_features, largest_geom): flat indices into
+        the raster of every pixel inside a unit, the row (unit id) and column
+        each one goes to, and the shape of the padded array.
+    """
+    flat = np.asarray(admin_raster, dtype=float).ravel()
+    inside = ~np.isnan(flat)
+    if not np.isnan(rast_fill):
+        inside &= flat != rast_fill
+    valid = np.flatnonzero(inside)
+
+    geom_ids, pixel_count = np.unique(flat[valid], return_counts=True)
+    largest_geom = pixel_count.max()
+    n_features = n_adms if n_adms else (int(geom_ids.max()) + 1)
+
+    # A stable sort keeps each unit's pixels in raster order
+    pixel_idx = valid[np.argsort(flat[valid], kind="stable")]
+    rows = flat[pixel_idx].astype(int)
+    group_starts = np.repeat(np.cumsum(pixel_count) - pixel_count, pixel_count)
+    cols = np.arange(len(pixel_idx)) - group_starts
+
+    return pixel_idx, rows, cols, n_features, largest_geom
+
+
+# Admin pixel groups by (shapes, grid), kept across tasks in the same worker
+# process, least recently used first. Capped in bytes, since a country's
+# groups take ~12 bytes per pixel.
+_ADMIN_GROUPS_CACHE = OrderedDict()
+_ADMIN_GROUPS_CACHE_MAX_BYTES = 512 * 1024**2
+
+
+def cached_admin_pixel_groups(
+    gdf, src_width, src_height, src_transform, n_adms, rast_fill=np.nan
+):
+    """
+    `rasterize_admin` followed by `admin_pixel_groups`, cached so the same
+    shapes on the same grid are only rasterized once per process.
+
+    The cache key hashes the geometries themselves, so a different set of
+    shapes never gets another's result.
+    """
+    shapes_hash = hashlib.sha1()
+    for geom_wkb in gdf.geometry.to_wkb():
+        shapes_hash.update(geom_wkb)
+    shapes_hash.update(np.asarray(gdf.index).tobytes())
+    key = (
+        shapes_hash.hexdigest(),
+        src_width,
+        src_height,
+        tuple(src_transform),
+        n_adms,
+        repr(rast_fill),
+    )
+    if key in _ADMIN_GROUPS_CACHE:
+        _ADMIN_GROUPS_CACHE.move_to_end(key)
+        return _ADMIN_GROUPS_CACHE[key]
+
+    admin_raster = rasterize_admin(
+        gdf.copy(), src_width, src_height, src_transform, all_touched=False
+    )
+    pixel_idx, rows, cols, n_features, largest_geom = admin_pixel_groups(
+        admin_raster, n_adms, rast_fill
+    )
+    # Smaller index types, so more countries fit in the cache
+    groups = (
+        pixel_idx.astype(np.int32),
+        rows.astype(np.int32),
+        cols.astype(np.int32),
+        n_features,
+        largest_geom,
+    )
+
+    _ADMIN_GROUPS_CACHE[key] = groups
+    cache_bytes = sum(
+        sum(a.nbytes for a in g[:3]) for g in _ADMIN_GROUPS_CACHE.values()
+    )
+    max_bytes = _ADMIN_GROUPS_CACHE_MAX_BYTES
+    while cache_bytes > max_bytes and len(_ADMIN_GROUPS_CACHE) > 1:
+        _, evicted = _ADMIN_GROUPS_CACHE.popitem(last=False)
+        cache_bytes -= sum(a.nbytes for a in evicted[:3])
+    return groups
+
+
 def fast_zonal_stats(
     src_raster,
     admin_raster,
     n_adms=None,
     stats=["mean", "max", "min", "median", "sum", "std", "count"],
     rast_fill=np.nan,
+    groups=None,
 ):
     """
     Compute zonal statistics for a source raster dataset over given administrative regions.
@@ -286,6 +389,10 @@ def fast_zonal_stats(
         "median", "sum", "std", and "count".
     rast_fill : float, optional
         Value to use as a fill for missing data in the raster. Default is np.nan.
+    groups : tuple, optional
+        The output of `admin_pixel_groups` for `admin_raster`. Pass it when
+        computing stats for many rasters over the same admin raster, so the
+        grouping is only worked out once.
 
     Returns
     -------
@@ -293,26 +400,12 @@ def fast_zonal_stats(
         A list of dictionaries, where each dictionary contains the computed statistics
         for a particular administrative unit.
     """
+    if groups is None:
+        groups = admin_pixel_groups(admin_raster, n_adms, rast_fill)
+    pixel_idx, rows, cols, n_features, largest_geom = groups
 
-    stacked_arrays = np.stack([src_raster, admin_raster])
-
-    # Don't include the fill nans in our counts
-    drop_nans = stacked_arrays[1][~np.isnan(stacked_arrays[1])]
-    geom_ids, pixel_count = np.unique(drop_nans, return_counts=True)
-
-    if geom_ids[0] == rast_fill:
-        geom_ids = geom_ids[1:]
-        pixel_count = pixel_count[1:]
-
-    largest_geom = pixel_count.max()
-    n_features = n_adms if n_adms else (int(geom_ids.max()) + 1)
-
-    sorted_array = np.empty(shape=(n_features, largest_geom))
-    sorted_array[:] = rast_fill
-    for geom_i, n_pixels in zip(geom_ids, pixel_count):
-        sorted_array[int(geom_i), 0:n_pixels] = stacked_arrays[0][
-            stacked_arrays[1] == geom_i
-        ]
+    sorted_array = np.full((n_features, largest_geom), rast_fill, dtype=float)
+    sorted_array[rows, cols] = np.asarray(src_raster).ravel()[pixel_idx]
 
     feature_stats = [{} for i in range(n_features)]
 

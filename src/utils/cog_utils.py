@@ -9,7 +9,7 @@ import rioxarray as rxr
 import tqdm
 import xarray as xr
 
-from helpers.download_file import download_file
+from helpers.download_file import download_ftp_folder
 from src.config.settings import LOG_LEVEL, load_pipeline_config
 from src.utils.cloud_utils import get_cog_url, get_container_client
 from src.utils.general_utils import parse_date
@@ -151,12 +151,10 @@ def extract_date_and_leadtime_from(filepath):
     valid_date = datetime.strptime(match_forecast_date_str, "%Y.%m.%d").date()
     leadtime = (valid_date - base_date).days
 
-    return valid_date, leadtime
+    return base_date, leadtime
 
 
 def process_chirps(cog_name, mode):
-    if cog_name.startswith("ftp://"):
-        cog_name = download_cog_from_ftp(cog_name)
     da_in = get_cog_da(cog_name, mode)
     cog_date, leadtime = extract_date_and_leadtime_from(
         da_in.attrs["TIFFTAG_DOCUMENTNAME"]
@@ -203,41 +201,127 @@ def get_chirps_cog_urls(base_url, issued_date, leadtimes=CHIRPS_LEADTIMES):
     ]
 
 
-def download_cog_from_ftp(cog_url, output_dir="downloads"):
+def download_chirps_cogs(cog_urls, output_dir="downloads"):
     """
-    Download one CHIRPS-GEFS COG into a folder named after its issue date.
+    Download CHIRPS-GEFS COGs before processing, one FTP connection per
+    issue-date folder, into the same layout as `download_cog_from_ftp`.
 
-    The issue date is taken from the URL's YYYY/MM/DD/ folder, so
-    .../2001/01/01/c3g_2001.01.16.tif is saved as
-    `{output_dir}/2001/01/01/c3g_2001.01.16.tif`. Valid-date filenames repeat
-    across issue dates, so this keeps each issue date's COGs apart. A COG
-    that's already been downloaded is reused.
+    Downloading them up front means processing tasks only read local files,
+    instead of each opening its own connections to the rate-limited server.
+    COGs that are already downloaded are reused.
 
     Parameters
     ----------
-    cog_url : str
-        The FTP URL of the COG.
+    cog_urls : list of str
+        FTP URLs of the COGs, as returned by `get_chirps_cog_urls`.
     output_dir : str
         The root directory for the issue-date folders.
 
     Returns
     -------
-    str
-        The local path of the COG.
-
-    Raises
-    ------
-    ValueError
-        If the URL has no YYYY/MM/DD/ issue-date folder.
-    FileNotFoundError
-        If the COG isn't on the server.
+    list of str
+        Local paths of the COGs, in the order of `cog_urls`. COGs that aren't
+        on the server (the URLs are generated, so a leadtime may be missing)
+        are skipped with a warning.
     """
-    match = re.search(r"/(\d{4})/(\d{2})/(\d{2})/[^/]+$", cog_url)
-    if not match:
-        raise ValueError(f"No YYYY/MM/DD/ issue-date folder in {cog_url}")
-    issued_dir = os.path.join(output_dir, *match.groups())
-    logger.info(f"Downloading COG {cog_url} to {issued_dir}...")
-    return download_file(cog_url, issued_dir)
+    folders = {}
+    for url in cog_urls:
+        folder_url, _, name = url.rpartition("/")
+        folders.setdefault(folder_url, set()).add(name)
+
+    local_paths = {}
+    for folder_url, names in folders.items():
+        match = re.search(r"/(\d{4})/(\d{2})/(\d{2})$", folder_url)
+        if not match:
+            raise ValueError(
+                f"No YYYY/MM/DD/ issue-date folder in {folder_url}"
+            )
+        issued_dir = os.path.join(output_dir, *match.groups())
+
+        # Don't connect to the server if every cog is already downloaded
+        existing = {
+            name: os.path.join(issued_dir, name)
+            for name in names
+            if os.path.isfile(os.path.join(issued_dir, name))
+        }
+        if len(existing) == len(names):
+            logger.info(f"Already downloaded: {issued_dir}")
+            for name, path in existing.items():
+                local_paths[f"{folder_url}/{name}"] = path
+            continue
+
+        try:
+            paths = download_ftp_folder(
+                f"{folder_url}/", issued_dir, pattern="c3g_*.tif"
+            )
+        except FileNotFoundError as e:
+            logger.warning(f"Skipping {folder_url}: {e}")
+            continue
+        for path in paths:
+            if os.path.basename(path) in names:
+                local_paths[f"{folder_url}/{os.path.basename(path)}"] = path
+
+    missing = [url for url in cog_urls if url not in local_paths]
+    for url in missing:
+        logger.warning(f"Skipping {url}: not on the server")
+    return [local_paths[url] for url in cog_urls if url in local_paths]
+
+
+def download_cogs(dataset, cogs, output_dir):
+    """
+    Download a date chunk's COGs before processing, so tasks read local files
+    instead of each opening its own connections to the source.
+
+    Parameters
+    ----------
+    dataset : str
+        The dataset the COGs belong to.
+    cogs : list of str
+        The COGs, as returned by `get_cogs_list`: FTP URLs for CHIRPS
+    output_dir : str
+        The root directory to download into.
+
+    Returns
+    -------
+    list of str
+        Local paths of the COGs. For CHIRPS, COGs that aren't on the server
+        are skipped.
+    """
+    if dataset == "chirps":
+        return download_chirps_cogs(cogs, output_dir)
+    return NotImplementedError(f"Not implemented for dataset {dataset}")
+
+
+def delete_downloads(paths, output_dir):
+    """
+    Delete downloaded COGs once they've been processed, then remove any
+    issue-date folders under `output_dir` that are left empty.
+
+    Parameters
+    ----------
+    paths : list of str
+        Local paths of the COGs
+    output_dir : str
+        The root directory the COGs were downloaded into.
+    """
+    output_dir = os.path.abspath(output_dir)
+    folders = set()
+    for path in paths:
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        folders.add(os.path.dirname(os.path.abspath(path)))
+
+    # Walk up from each internal folder and its parents while they're empty
+    for folder in sorted(folders, key=len, reverse=True):
+        while folder.startswith(output_dir + os.sep):
+            try:
+                os.rmdir(folder)
+            except OSError:
+                break
+            folder = os.path.dirname(folder)
+    logger.info(f"Deleted {len(paths)} downloaded cog(s)")
 
 
 def get_cog_url_for_dates(dataset, base_url, dates):
@@ -287,12 +371,7 @@ def stack_cogs(cogs, dataset, mode="dev"):
         elif dataset == "floodscan":
             da_in = process_floodscan(cog, mode)
         elif dataset == "chirps":
-            try:
-                da_in = process_chirps(cog, mode)
-            except FileNotFoundError as e:
-                # The URLs are generated, so a leadtime may be missing
-                logger.warning(f"Skipping {cog}: {e}")
-                continue
+            da_in = process_chirps(cog, mode)
         das.append(da_in)
 
     # Note that we're dropping all attributes here
@@ -330,13 +409,8 @@ def get_cogs_list(dataset, dates, mode):
             "Input `dataset` must be one of `floodscan`, `era5`, `seas5`, `imerg` or `chirps`."
         )
 
-    # TODO readd?logger.debug(f"Processing {len(cogs_list)} cog(s):")
-    # for cog in cogs_list:
-    #    logger.debug(f" - {cog}")
-
-    # TODO Check with Hannah what the new behavior should be here
-    # if len(cogs_list) != len(dates):
-    #    logger.warning("Not all COGs available, given input dates")
+    if len(cogs_list) != len(dates) and dataset != "chirps":
+        logger.warning("Not all COGs available, given input dates")
     if len(cogs_list) == 0:
         raise Exception(f"No COGs found to process for dates: {dates}")
 

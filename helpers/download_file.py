@@ -1,10 +1,10 @@
 """
-Download files from an FTP folder, e.g. CHIRPS-GEFS COGs from the CHC server.
+Download files from an FTP server, e.g. CHIRPS-GEFS COGs from the CHC server.
 
-The pipeline uses `download_ftp_folder` (through
-`src.utils.cog_utils.download_chirps_cogs`) to fetch each issue date's COGs
-before processing. The module can also be run on its own to download COGs to
-inspect locally.
+The pipeline uses `download_ftp_files` (through
+`src.utils.cog_utils.download_chirps_cogs`) to fetch each date chunk's COGs
+before processing, over several connections at once. The module can also be
+run on its own to download a COG to inspect locally.
 
 Each file is streamed to a uniquely named `.part` file and only renamed once
 its size has been checked, so a failed download never leaves a truncated file
@@ -15,25 +15,15 @@ intermittently unreachable and limits concurrent connections.
 Usage:
     python helpers/download_file.py <ftp_url> [output_dir]
 
-`ftp_url` can be:
-- a single file, which is downloaded on its own
-- a filename with a wildcard (`*`, `?` or `[...]`), which downloads every
-  matching file in that folder over one connection, like `wget ftp://.../*.tif`
-- a folder ending in `/`, which downloads every `*.tif` in it
+Downloads the file at `ftp_url` into `output_dir` (the current directory by
+default). Only ftp:// URLs are supported. The command exits with an error if
+the file isn't on the server.
 
-Only ftp:// URLs are supported. `output_dir` defaults to the current
-directory. The command exits with an error if nothing matches.
-
-Examples:
-    python helpers/download_file.py \
-        ftp://data.chc.ucsb.edu/pub/org/chc/products/CHIRPS-GEFS/v3/daily/global/2001/01/01/c3g_2001.01.01.tif \
-        downloads
-    python helpers/download_file.py \
-        "ftp://data.chc.ucsb.edu/pub/org/chc/products/CHIRPS-GEFS/v3/daily/global/2001/01/01/*.tif" \
-        downloads
+Example:
+    python helpers/download_file.py
+    ftp://data.chc.ucsb.edu/pub/org/chc/products/CHIRPS-GEFS/v3/daily/global/2001/01/01/c3g_2001.01.01.tif downloads
 """
 
-import fnmatch
 import ftplib
 import logging
 import os
@@ -41,6 +31,7 @@ import random
 import sys
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 
 import coloredlogs
@@ -81,125 +72,144 @@ def _ftp_connect(parsed, timeout):
     return ftp
 
 
-def _ftp_cwd(ftp, path, url):
+def _retry(func, retries, what):
     """
-    Change to the folder at `path`, trying each of its candidate paths.
-    Raises FileNotFoundError, naming `url`, if none of them exists.
+    Call `func` up to `retries` times, waiting between attempts with a
+    backoff that doubles each time. Temporary FTP errors (4xx, e.g. 421 too
+    many connections), dropped connections and truncated files are retried;
+    FileNotFoundError and permanent (5xx) FTP errors are raised straight away.
     """
-    for candidate in _ftp_candidate_paths(path):
-        try:
-            ftp.cwd(candidate)
-            return
-        except ftplib.error_perm:
-            continue
-    raise FileNotFoundError(f"{url}: folder not found")
-
-
-def download_ftp_folder(
-    folder_url,
-    output_dir=".",
-    pattern="*.tif",
-    retries=5,
-    timeout=120,
-    chunk_size=1024**2,
-):
-    """
-    Download every file matching `pattern` in an FTP folder over a single
-    connection, like `wget ftp://host/folder/*.tif`.
-
-    Each file is written to a uniquely named `.part` file, checked against
-    the size the server reports, then renamed to its real name. Files already
-    in `output_dir` are skipped, so a retry after a dropped connection, or a
-    later run, picks up where the last one left off.
-
-    Parameters
-    ----------
-    folder_url : str
-        The FTP URL of the folder, e.g. ftp://host/path/to/folder/. Paths
-        starting with the CHC FTP root (/pub/org/chc) are also tried without
-        it.
-    output_dir : str
-        The directory to save the files in. Created if it doesn't exist.
-    pattern : str
-        Shell-style wildcard matched against the filenames in the folder. A
-        plain filename only matches itself.
-    retries : int
-        Number of connection attempts before giving up.
-    timeout : float
-        Timeout in seconds for connecting and for each socket operation.
-    chunk_size : int
-        Block size in bytes for the FTP transfer.
-
-    Returns
-    -------
-    list of str
-        Paths of the matching files in `output_dir`, sorted by filename,
-        including ones that were already downloaded. Empty if the folder has
-        no matching files.
-
-    Raises
-    ------
-    FileNotFoundError
-        If the folder doesn't exist. Not retried.
-    ftplib.error_perm
-        On a permanent (5xx) FTP error. Not retried.
-    ftplib.Error, OSError or EOFError
-        The last error, if every attempt fails with a temporary FTP error,
-        a dropped connection or a truncated file.
-    """
-    parsed = urlparse(folder_url)
-    folder = parsed.path.rstrip("/") or "/"
-    os.makedirs(output_dir, exist_ok=True)
-    part_path = None
-
     for attempt in range(1, retries + 1):
         try:
-            with _ftp_connect(parsed, timeout) as ftp:
-                _ftp_cwd(ftp, folder, folder_url)
-                try:
-                    names = sorted(fnmatch.filter(ftp.nlst(), pattern))
-                except ftplib.error_perm:
-                    # Some servers answer an empty listing with 550
-                    names = []
-                logger.info(
-                    f"{len(names)} file(s) matching {pattern} in {folder_url}"
-                )
-
-                for name in names:
-                    path = os.path.join(output_dir, name)
-                    if os.path.exists(path):
-                        continue
-                    part_path = f"{path}.{uuid.uuid4().hex[:8]}.part"
-                    expected = ftp.size(name) or 0
-                    with open(part_path, "wb") as f:
-                        ftp.retrbinary(
-                            f"RETR {name}", f.write, blocksize=chunk_size
-                        )
-                    size = os.path.getsize(part_path)
-                    if expected and size != expected:
-                        raise IOError(
-                            f"{name}: got {size} bytes, expected {expected}"
-                        )
-                    os.replace(part_path, path)
-                    part_path = None
-                    logger.info(f"Saved {size / 1024**2:.1f} MB to {path}")
-
-            return [os.path.join(output_dir, name) for name in names]
+            return func()
         except FileNotFoundError:
             raise
         except ftplib.all_errors as e:
-            logger.warning(f"Folder download failed: {e}")
-            if part_path and os.path.exists(part_path):
-                os.remove(part_path)
-            part_path = None
-            # Temporary FTP errors (4xx, e.g. 421 too many connections),
-            # dropped connections and truncated files are retried, after a
-            # backoff that doubles each attempt; permanent (5xx) errors aren't
+            logger.warning(f"{what} failed: {e}")
             if isinstance(e, ftplib.error_perm) or attempt == retries:
                 raise
             wait = min(2**attempt + random.uniform(0, 1), MAX_WAIT_SECONDS)
             logger.info(f"Retrying in {wait:.0f}s...")
             time.sleep(wait)
+
+
+def _fetch_file(ftp, remote, path, chunk_size, expected=None):
+    """
+    Download the file at `remote` (relative to the connection's current
+    folder, or absolute) to `path`.
+
+    It's written to a uniquely named `.part` file, checked against the size
+    the server reports, then renamed to `path`. The `.part` file is removed
+    if the download fails.
+    """
+    part_path = f"{path}.{uuid.uuid4().hex[:8]}.part"
+    try:
+        if expected is None:
+            expected = ftp.size(remote) or 0
+        with open(part_path, "wb") as f:
+            ftp.retrbinary(f"RETR {remote}", f.write, blocksize=chunk_size)
+        size = os.path.getsize(part_path)
+        if expected and size != expected:
+            raise IOError(f"{remote}: got {size} bytes, expected {expected}")
+        os.replace(part_path, path)
+    finally:
+        if os.path.exists(part_path):
+            os.remove(part_path)
+    logger.info(f"Saved {size / 1024**2:.1f} MB to {path}")
+
+
+def _remote_size(ftp, path):
+    """
+    Find `path` on the server, trying each of its candidate paths. Returns
+    the path that exists and its size, or (None, None) if none does.
+    """
+    for candidate in _ftp_candidate_paths(path):
+        try:
+            return candidate, ftp.size(candidate) or 0
+        except ftplib.error_perm:
+            continue
+    return None, None
+
+
+def _download_url_share(files, missing, opts):
+    """
+    Download `files`, a list of (url, path) pairs, over one connection at a
+    time, retrying with a new connection if it fails. Files already at their
+    path are skipped, so a retry picks up where the last attempt left off.
+    URLs that aren't on the server are added to `missing`.
+    """
+
+    def attempt():
+        ftp, netloc = None, None
+        try:
+            for url, path in files:
+                if os.path.exists(path) or url in missing:
+                    continue
+                parsed = urlparse(url)
+                # One connection per server, reconnecting if the host changes
+                if parsed.netloc != netloc:
+                    if ftp is not None:
+                        ftp.close()
+                    ftp = _ftp_connect(parsed, opts["timeout"])
+                    netloc = parsed.netloc
+                remote, expected = _remote_size(ftp, parsed.path)
+                if remote is None:
+                    missing.add(url)
+                    continue
+                os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+                _fetch_file(ftp, remote, path, opts["chunk_size"], expected)
+        finally:
+            if ftp is not None:
+                ftp.close()
+
+    _retry(attempt, opts["retries"], "Download")
+
+
+def download_ftp_files(
+    files, retries=5, timeout=120, chunk_size=1024**2, connections=1
+):
+    """
+    Download a list of FTP URLs to the given paths, over one or more
+    connections at once.
+
+    Parameters
+    ----------
+    files : list of (str, str)
+        (url, path) pairs: the FTP URL of each file and the local path to
+        save it to.
+    retries : int
+        Number of connection attempts before giving up, per connection.
+    timeout : float
+        Timeout in seconds for connecting and for each socket operation.
+    chunk_size : int
+        Block size in bytes for the FTP transfer.
+    connections : int
+        Number of FTP connections to download over at once.
+
+    Returns
+    -------
+    list of str
+        URLs that aren't on the server, in the order of `files`. They're
+        skipped rather than retried.
+    """
+    todo = [(url, path) for url, path in files if not os.path.exists(path)]
+    opts = {"retries": retries, "timeout": timeout, "chunk_size": chunk_size}
+    missing = set()
+    n_shares = max(1, min(connections, len(todo)))
+    shares = [todo[i::n_shares] for i in range(n_shares)]
+
+    if n_shares == 1:
+        _download_url_share(todo, missing, opts)
+    else:
+        with ThreadPoolExecutor(max_workers=n_shares) as executor:
+            futures = [
+                executor.submit(_download_url_share, share, missing, opts)
+                for share in shares
+            ]
+            # result() re-raises the error of any connection that gave up
+            for future in futures:
+                future.result()
+    return [url for url, _ in files if url in missing]
 
 
 if __name__ == "__main__":
@@ -209,13 +219,11 @@ if __name__ == "__main__":
         )
     url = sys.argv[1]
     output_dir = sys.argv[2] if len(sys.argv) > 2 else "."
-    if urlparse(url).scheme != "ftp":
+    parsed_url = urlparse(url)
+    if parsed_url.scheme != "ftp":
         sys.exit(f"Only ftp:// URLs are supported, got {url}")
-    folder, _, filename = url.rpartition("/")
-    # A plain filename is a pattern that only matches itself, and a URL
-    # ending in "/" has no filename, so it downloads every .tif in the folder
-    paths = download_ftp_folder(
-        f"{folder}/", output_dir, pattern=filename or "*.tif"
-    )
-    if not paths:
-        sys.exit(f"Nothing matching {filename or '*.tif'} in {folder}/")
+    filename = os.path.basename(parsed_url.path)
+    if not filename:
+        sys.exit(f"No filename in {url}")
+    if download_ftp_files([(url, os.path.join(output_dir, filename))]):
+        sys.exit(f"{url} isn't on the server")

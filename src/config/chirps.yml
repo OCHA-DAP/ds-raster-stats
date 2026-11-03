@@ -9,5 +9,5 @@ test:
   start_date: 2001-01-01
   end_date: 2001-01-02
   iso3s: ["BDI", "NGA", "TCD"]
-cog_chunksize: 8
-chunk_size: 15
+cog_chunksize: 16
+chunk_size: 32

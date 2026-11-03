@@ -164,7 +164,20 @@ if __name__ == "__main__":
     args = cli_args()
 
     engine_url = db_engine_url(args.mode)
-    engine = create_engine(engine_url)
+    connect_args = {}
+    if engine_url.startswith("postgresql"):
+        connect_args = {
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+        }
+    engine = create_engine(
+        engine_url,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        connect_args=connect_args,
+    )
 
     if args.update_metadata:
         logger.info("Updating metadata in Postgres database...")
@@ -198,6 +211,7 @@ if __name__ == "__main__":
     )
     df_iso3s = get_iso3_data(config["sel_iso3s"], engine)
     date_chunks = config["date_chunks"]
+    engine.dispose()
 
     num_processes = args.num_processes or os.cpu_count() or 2
     logger.info(f"Using {num_processes} processes")

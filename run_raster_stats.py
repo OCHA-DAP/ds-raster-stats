@@ -5,6 +5,7 @@ import sys
 import tempfile
 import traceback
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Pool, current_process
 
 import coloredlogs
@@ -244,74 +245,90 @@ if __name__ == "__main__":
                 if cleanup:
                     delete_downloads(downloads["paths"], downloads_dir)
 
+        # Queue every date chunk's download before the pool starts. They run
+        # in order in a background thread, so each chunk's cogs are usually
+        # downloaded by the time the pool gets to it
+        downloader = ThreadPoolExecutor(max_workers=1)
+        downloads = {}
+        if args.pre_download:
+            for i, date_chunk in enumerate(date_chunks, start=1):
+                cogs = list(get_cogs_list(dataset, date_chunk, args.mode))
+                downloads[i] = downloader.submit(
+                    download_cogs, dataset, cogs, downloads_dir
+                )
+            logger.info(f"Queued downloads for {len(downloads)} date chunks")
+
         # Each date chunk's cogs are split into tasks of cog_chunksize cogs.
-        # Up to num_processes tasks run at once while the next chunk is
-        # downloaded if needed
+        # Up to num_processes tasks run at once while later chunks download
         pool = Pool(num_processes)
         pending = deque()
-        with pool:
-            for i, date_chunk in enumerate(date_chunks, start=1):
-                logger.info(
-                    f"Date chunk {i}/{len(date_chunks)}: "
-                    f"{pd.Timestamp(date_chunk[0]):%Y-%m-%d} to "
-                    f"{pd.Timestamp(date_chunk[-1]):%Y-%m-%d}"
-                )
-
-                logger.info("Retrieving list of cogs...")
-                cogs_list = list(get_cogs_list(dataset, date_chunk, args.mode))
-                logger.info("Done retrieving list of cogs.")
-
-                if args.pre_download:
-                    logger.info(f"Downloading {len(cogs_list)} cogs...")
-                    cogs_list = download_cogs(
-                        dataset, cogs_list, downloads_dir
-                    )
-                    logger.info("Done downloading cogs.")
-
-                cogs_chunks = [
-                    cogs_list[j : j + cogs_per_chunk]
-                    for j in range(0, len(cogs_list), cogs_per_chunk)
-                ]
-                logger.info(
-                    f"Split {len(cogs_list)} cogs into {len(cogs_chunks)} "
-                    f"tasks of up to {cogs_per_chunk} cogs per date chunk"
-                )
-
-                process_args = [
-                    (
-                        cogs_chunk,
-                        dataset,
-                        args.mode,
-                        df_iso3s_chunk,
-                        engine_url,
-                        args.chunksize,
-                        config["shapes_dir"],
-                    )
-                    for cogs_chunk in cogs_chunks
-                ]
-                if not process_args:
-                    continue
-
-                chunk_downloads[i] = {
-                    "paths": cogs_list if args.pre_download else [],
-                    "tasks_left": len(process_args),
-                }
-
-                for task_args in process_args:
-                    # Cap the tasks in flight, so memory stays at
-                    # num_processes stacks and downloads don't run far ahead
-                    if len(pending) >= num_processes:
-                        result, chunk_id = pending.popleft()
-                        result.get()
-                        task_done(chunk_id)
-                    pending.append(
-                        (pool.apply_async(process_chunk, task_args), i)
+        try:
+            with pool:
+                for i, date_chunk in enumerate(date_chunks, start=1):
+                    logger.info(
+                        f"Date chunk {i}/{len(date_chunks)}: "
+                        f"{pd.Timestamp(date_chunk[0]):%Y-%m-%d} to "
+                        f"{pd.Timestamp(date_chunk[-1]):%Y-%m-%d}"
                     )
 
-            # get() re-raises any error from a task
-            while pending:
-                result, chunk_id = pending.popleft()
-                result.get()
-                task_done(chunk_id)
+                    if args.pre_download:
+                        # Only waits if this chunk hasn't finished downloading
+                        logger.info("Waiting for this chunk's download...")
+                        cogs_list = downloads.pop(i).result()
+                        logger.info("Done downloading cogs.")
+                    else:
+                        logger.info("Retrieving list of cogs...")
+                        cogs_list = list(
+                            get_cogs_list(dataset, date_chunk, args.mode)
+                        )
+                        logger.info("Done retrieving list of cogs.")
+
+                    cogs_chunks = [
+                        cogs_list[j : j + cogs_per_chunk]
+                        for j in range(0, len(cogs_list), cogs_per_chunk)
+                    ]
+                    logger.info(
+                        f"Split {len(cogs_list)} cogs into {len(cogs_chunks)} "
+                        f"tasks of up to {cogs_per_chunk} cogs per date chunk"
+                    )
+
+                    process_args = [
+                        (
+                            cogs_chunk,
+                            dataset,
+                            args.mode,
+                            df_iso3s_chunk,
+                            engine_url,
+                            args.chunksize,
+                            config["shapes_dir"],
+                        )
+                        for cogs_chunk in cogs_chunks
+                    ]
+                    if not process_args:
+                        continue
+
+                    chunk_downloads[i] = {
+                        "paths": cogs_list if args.pre_download else [],
+                        "tasks_left": len(process_args),
+                    }
+
+                    for task_args in process_args:
+                        # Cap the tasks in flight, so memory stays at
+                        # num_processes stacks
+                        if len(pending) >= num_processes:
+                            result, chunk_id = pending.popleft()
+                            result.get()
+                            task_done(chunk_id)
+                        pending.append(
+                            (pool.apply_async(process_chunk, task_args), i)
+                        )
+
+                # get() re-raises any error from a task
+                while pending:
+                    result, chunk_id = pending.popleft()
+                    result.get()
+                    task_done(chunk_id)
+        finally:
+            downloader.shutdown(wait=True, cancel_futures=True)
 
     logger.info("Done calculating and saving stats.")
